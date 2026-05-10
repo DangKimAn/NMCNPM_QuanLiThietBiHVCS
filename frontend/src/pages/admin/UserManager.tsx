@@ -59,7 +59,6 @@ export const UserManager = () => {
     handleDelete
   } = useCrud(initialUsers, 'id');
 
-  // --- HÀM XỬ LÝ ĐẶC THÙ CỦA TRANG TÀI KHOẢN ---
 
   const onDeleteUser = (userId: string,) => {
     // Tận dụng hàm handleDelete từ hook, chỉ cần truyền thêm câu hỏi xác nhận
