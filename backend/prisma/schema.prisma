@@ -1,0 +1,234 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Get a free hosted Postgres database in seconds: `npx create-db`
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ==========================================
+// ENUMS - Định nghĩa các trạng thái chuẩn
+// ==========================================
+
+enum UserStatus {
+  ACTIVE
+  INACTIVE
+  LOCKED
+}
+
+enum RoomStatus {
+  AVAILABLE
+  MAINTENANCE
+  IN_USE
+}
+
+enum EquipmentStatus {
+  GOOD
+  BROKEN
+  UNDER_REPAIR
+  DISCARDED
+}
+
+enum ReportStatus {
+  PENDING
+  PROCESSING
+  RESOLVED
+  REJECTED
+}
+
+// ==========================================
+// MODELS
+// ==========================================
+
+model Role {
+  roleId      Int              @id @default(autoincrement()) 
+  roleName    String            @db.VarChar(255) @unique()
+  description String?           @db.VarChar(255)
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt 
+  users       User[]
+  permissions RolePermission[]
+
+  @@map("roles")
+}
+
+model Permission {
+  permissionId Int              @id @default(autoincrement()) 
+  permissionName         String           @unique()
+  description  String?           @db.VarChar(255)
+  
+  createdAt    DateTime         @default(now()) 
+  updatedAt    DateTime         @updatedAt 
+
+  roles        RolePermission[]
+
+  @@map("permissions")
+}
+
+model RolePermission {
+  roleId       Int        
+  permissionId Int        
+  
+  role         Role       @relation(fields: [roleId], references: [roleId], onDelete: Restrict)
+  permission   Permission @relation(fields: [permissionId], references: [permissionId], onDelete: Restrict)
+
+  @@id([roleId, permissionId])
+  @@map("role_permissions")
+}
+
+model User {
+  userId              Int                  @id @default(autoincrement()) 
+  username            String               @unique  @db.VarChar(255)
+  hashedPassword      String                @db.VarChar(255)
+  email               String               @unique @db.VarChar(255)
+  phoneNumber         String?               @db.VarChar(255)
+  status              UserStatus           @default(ACTIVE) 
+  roleId              Int                  
+  refreshToken        String?              
+  createdAt           DateTime             @default(now()) 
+  updatedAt           DateTime             @updatedAt 
+
+  role                Role                 @relation(fields: [roleId], references: [roleId], onDelete: Restrict)
+  activityLogs        ActivityLog[]
+  executedTransfers   EquipmentTransfer[]  @relation("ExecutedTransfers")
+  reports             Report[]             @relation("ReportedIncidents")
+  handledResolutions  Report[]             @relation("HandledResolutions")
+
+  @@map("users")
+}
+
+model ActivityLog {
+  logId       Int      @id @default(autoincrement()) 
+  userId      Int      
+  action      String    @db.VarChar(255)
+  target      String    @db.VarChar(255)
+  targetId    Int      
+  content     String?   @db.Text
+  createdAt   DateTime @default(now()) 
+  
+  user        User     @relation(fields: [userId], references: [userId], onDelete: Restrict)
+
+  @@map("activity_logs")
+}
+
+model Room {
+  roomId             Int                   @id @default(autoincrement()) 
+  code               String                @unique  @db.VarChar(255)
+  name               String                 @db.VarChar(255)
+  building           String?                @db.VarChar(255)
+  floor              Int?                  
+  capacity           Int?                  
+  status             RoomStatus            @default(AVAILABLE) 
+  
+  createdAt          DateTime              @default(now()) 
+  updatedAt          DateTime              @updatedAt 
+
+  allocations        EquipmentAllocation[]
+  transfersFrom      EquipmentTransfer[]   @relation("FromRoom")
+  transfersTo        EquipmentTransfer[]   @relation("ToRoom")
+  reports            Report[]
+
+  @@map("rooms")
+}
+
+model EquipmentCategory {
+  categoryId  Int         @id @default(autoincrement()) 
+  name        String       @db.VarChar(255)
+  description String?      @db.VarChar(255)
+  
+  createdAt   DateTime    @default(now()) 
+  updatedAt   DateTime    @updatedAt 
+
+  equipments  Equipment[]
+
+  @@map("equipment_categories")
+}
+
+model Equipment {
+  equipmentId      Int                   @id @default(autoincrement())
+  name             String                @db.VarChar(255)
+  categoryId       Int                  
+  unit             String?               @db.VarChar(255)
+  quantity         Int                   @default(0)
+  status           EquipmentStatus       @default(GOOD)
+  description      String?               @db.VarChar(255)
+  
+  createdAt        DateTime              @default(now())
+  updatedAt        DateTime              @updatedAt
+
+  category         EquipmentCategory     @relation(fields: [categoryId], references: [categoryId], onDelete: Restrict)
+  allocations      EquipmentAllocation[]
+  transfers        EquipmentTransfer[]
+  reports          Report[]
+
+  @@map("equipments")
+}
+
+model EquipmentAllocation {
+  allocationId   Int       @id @default(autoincrement()) 
+  equipmentId    Int       
+  roomId         Int       
+  quantity       Int       @default(0) 
+  allocatedAt    DateTime?  @db.Date
+  note           String?    @db.VarChar(255)
+  
+  createdAt      DateTime  @default(now()) 
+  updatedAt      DateTime  @updatedAt 
+
+  equipment      Equipment @relation(fields: [equipmentId], references: [equipmentId], onDelete: Restrict)
+  room           Room      @relation(fields: [roomId], references: [roomId], onDelete: Restrict)
+
+  @@map("equipment_allocations")
+}
+
+model EquipmentTransfer {
+  transferId     Int       @id @default(autoincrement()) 
+  equipmentId    Int       
+  fromRoomId     Int       
+  toRoomId       Int       
+  quantity       Int       @default(0) 
+  transferredAt  DateTime   @db.Date
+  executorId     Int       
+  note           String?    @db.VarChar(255)
+  
+  createdAt      DateTime  @default(now()) 
+  updatedAt      DateTime  @updatedAt 
+
+  equipment      Equipment @relation(fields: [equipmentId], references: [equipmentId], onDelete: Restrict)
+  fromRoom       Room      @relation("FromRoom", fields: [fromRoomId], references: [roomId], onDelete: Restrict)
+  toRoom         Room      @relation("ToRoom", fields: [toRoomId], references: [roomId], onDelete: Restrict)
+  executor       User      @relation("ExecutedTransfers", fields: [executorId], references: [userId], onDelete: Restrict)
+
+  @@map("equipment_transfers")
+}
+
+model Report {
+  reportId          Int           @id @default(autoincrement()) 
+  reporterId        Int           
+  roomId            Int           
+  equipmentId       Int?          
+  reportContent     String         @db.Text
+  status            ReportStatus  @default(PENDING) 
+  reportedAt        DateTime      @default(now()) 
+  
+  // Phần gộp Resolution
+  handlerId         Int?          
+  resolutionContent String?        @db.Text
+  resolvedAt        DateTime?     
+  result            String?        @db.VarChar(255)
+  
+  createdAt         DateTime      @default(now()) 
+  updatedAt         DateTime      @updatedAt 
+
+  reporter          User          @relation("ReportedIncidents", fields: [reporterId], references: [userId], onDelete: Restrict)
+  handler           User?         @relation("HandledResolutions", fields: [handlerId], references: [userId], onDelete: Restrict)
+  room              Room          @relation(fields: [roomId], references: [roomId], onDelete: Restrict)
+  equipment         Equipment?    @relation(fields: [equipmentId], references: [equipmentId], onDelete: Restrict)
+
+  @@map("reports")
+}
