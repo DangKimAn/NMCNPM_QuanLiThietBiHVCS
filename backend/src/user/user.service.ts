@@ -1,10 +1,10 @@
 import { ConflictException, Injectable, InternalServerErrorException, NotFoundException } from '@nestjs/common';
-import { UserDto } from './dto /user.dto';
+import { UserDto } from './dto/user.dto';
 import { InternalServerErrorCode, PrismaErrorCode } from 'src/common/constant';
 import { PrismaService } from 'src/prisma/prisma.service';
-import { CreateUserDto } from './dto /create-user.dto';
+import { CreateUserDto } from './dto/create-user.dto';
 import { hashPassword, verifyPassword } from 'src/common/bcrypt';
-import { UpdateUserDto } from './dto /updateUser.dto';
+import { UpdateUserDto } from './dto/updateUser.dto';
 import { User } from '@prisma/client';
 import { plainToInstance } from 'class-transformer';
 @Injectable()
