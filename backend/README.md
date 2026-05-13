@@ -44,6 +44,20 @@ $ npm run start:dev
 $ npm run start:prod
 ```
 
+## Setup Prisma 
+```bash
+npm run prisma:migrate 
+
+npm run prisma:generate
+
+npm run prisma:push 
+
+#view data
+npm run prisma:studio 
+
+#seed data 
+npm run prisma:seed
+```
 ## Run tests
 
 ```bash
