@@ -52,6 +52,7 @@ npm run prisma:generate
 
 npm run prisma:push 
 
+#view data
 npm run prisma:studio 
 
 #seed data 
