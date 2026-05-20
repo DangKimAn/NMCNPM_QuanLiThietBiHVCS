@@ -1,11 +1,6 @@
-// File này chứa các modal dùng trong quản lý thiết bị:
-// 1. Modal thêm/sửa thiết bị
-// 2. Modal cập nhật trạng thái thiết bị
-// 3. Modal điều chuyển thiết bị
-
 import type { FormEvent } from 'react';
 
-import { deviceStatuses, deviceTypes, rooms } from '../../../data/managerMockData';
+import { deviceStatuses } from '../../../data/managerMockData';
 import type { Device, DeviceStatus } from '../../../types/manager';
 import {
   FieldInput,
@@ -15,18 +10,21 @@ import {
 } from '../common/ManagerCommon';
 
 interface DeviceFormModalProps {
-  editingDevice: Device | null; // Nếu khác null nghĩa là đang sửa thiết bị
-  deviceForm: Device; // Dữ liệu trong form thiết bị
-  setDeviceForm: (device: Device) => void; // Hàm cập nhật dữ liệu form
-  onClose: () => void; // Hàm đóng modal
-  onSubmit: (e: FormEvent<HTMLFormElement>) => void; // Hàm lưu thiết bị
+  editingDevice: Device | null;
+  deviceForm: Device;
+  setDeviceForm: (device: Device) => void;
+  roomOptions: string[];
+  typeOptions: string[];
+  onClose: () => void;
+  onSubmit: (e: FormEvent<HTMLFormElement>) => void;
 }
 
-// Modal thêm mới hoặc chỉnh sửa thông tin thiết bị
 export const DeviceFormModal = ({
   editingDevice,
   deviceForm,
   setDeviceForm,
+  roomOptions,
+  typeOptions,
   onClose,
   onSubmit,
 }: DeviceFormModalProps) => {
@@ -41,7 +39,8 @@ export const DeviceFormModal = ({
         <FieldInput
           label="Mã thiết bị"
           value={deviceForm.id}
-          disabled={!!editingDevice}
+          disabled
+          required={false}
           onChange={(value) => setDeviceForm({ ...deviceForm, id: value })}
         />
 
@@ -54,7 +53,7 @@ export const DeviceFormModal = ({
         <FieldSelect
           label="Loại thiết bị"
           value={deviceForm.type}
-          options={deviceTypes}
+          options={typeOptions}
           onChange={(value) => setDeviceForm({ ...deviceForm, type: value })}
         />
 
@@ -73,7 +72,7 @@ export const DeviceFormModal = ({
         <FieldSelect
           label="Phòng học"
           value={deviceForm.room}
-          options={rooms}
+          options={roomOptions}
           onChange={(value) => setDeviceForm({ ...deviceForm, room: value })}
         />
 
@@ -93,6 +92,7 @@ export const DeviceFormModal = ({
           label="Ngày nhập"
           type="date"
           value={deviceForm.importDate}
+          required={false}
           onChange={(value) => setDeviceForm({ ...deviceForm, importDate: value })}
         />
 
@@ -114,14 +114,13 @@ interface StatusForm {
 }
 
 interface DeviceStatusModalProps {
-  device: Device; // Thiết bị đang được cập nhật trạng thái
-  statusForm: StatusForm; // Dữ liệu form trạng thái
-  setStatusForm: (form: StatusForm) => void; // Hàm cập nhật form trạng thái
-  onClose: () => void; // Hàm đóng modal
-  onSubmit: (e: FormEvent<HTMLFormElement>) => void; // Hàm lưu trạng thái
+  device: Device;
+  statusForm: StatusForm;
+  setStatusForm: (form: StatusForm) => void;
+  onClose: () => void;
+  onSubmit: (e: FormEvent<HTMLFormElement>) => void;
 }
 
-// Modal cập nhật trạng thái thiết bị: hoạt động, báo hỏng, đang sửa, bảo trì, thanh lý
 export const DeviceStatusModal = ({
   device,
   statusForm,
@@ -136,7 +135,6 @@ export const DeviceStatusModal = ({
       onSubmit={onSubmit}
       submitText="Lưu trạng thái"
     >
-      {/* Thông tin thiết bị đang được cập nhật */}
       <div className="bg-slate-50 border border-slate-200 rounded-lg p-4">
         <p className="text-sm text-slate-500">Thiết bị</p>
 
@@ -147,7 +145,6 @@ export const DeviceStatusModal = ({
         </p>
       </div>
 
-      {/* Form chọn trạng thái mới và nhập ghi chú */}
       <FieldSelect
         label="Trạng thái mới"
         value={statusForm.status}
@@ -177,18 +174,19 @@ interface TransferForm {
 }
 
 interface DeviceTransferModalProps {
-  device: Device; // Thiết bị đang được điều chuyển
-  transferForm: TransferForm; // Dữ liệu form điều chuyển
-  setTransferForm: (form: TransferForm) => void; // Hàm cập nhật form điều chuyển
-  onClose: () => void; // Hàm đóng modal
-  onSubmit: (e: FormEvent<HTMLFormElement>) => void; // Hàm lưu điều chuyển
+  device: Device;
+  transferForm: TransferForm;
+  setTransferForm: (form: TransferForm) => void;
+  roomOptions: string[];
+  onClose: () => void;
+  onSubmit: (e: FormEvent<HTMLFormElement>) => void;
 }
 
-// Modal điều chuyển thiết bị từ phòng hiện tại sang phòng mới
 export const DeviceTransferModal = ({
   device,
   transferForm,
   setTransferForm,
+  roomOptions,
   onClose,
   onSubmit,
 }: DeviceTransferModalProps) => {
@@ -199,7 +197,6 @@ export const DeviceTransferModal = ({
       onSubmit={onSubmit}
       submitText="Xác nhận điều chuyển"
     >
-      {/* Thông tin thiết bị đang được điều chuyển */}
       <div className="bg-slate-50 border border-slate-200 rounded-lg p-4">
         <p className="text-sm text-slate-500">Thiết bị</p>
 
@@ -208,11 +205,10 @@ export const DeviceTransferModal = ({
         <p className="text-xs text-slate-500 mt-1">Phòng hiện tại: {device.room}</p>
       </div>
 
-      {/* Form nhập thông tin điều chuyển */}
       <FieldSelect
         label="Phòng mới"
         value={transferForm.toRoom}
-        options={rooms}
+        options={roomOptions}
         onChange={(value) => setTransferForm({ ...transferForm, toRoom: value })}
       />
 

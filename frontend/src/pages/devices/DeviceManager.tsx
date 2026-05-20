@@ -1,10 +1,3 @@
-// Trang chính của phần Cán bộ quản lý thiết bị.
-// Có hỗ trợ đọc query trên URL.
-// Ví dụ:
-// /manager/devices?status=Báo hỏng
-// /manager/devices?status=need-handle
-// /manager/devices?room=A201
-
 import { useEffect, useMemo, useState } from 'react';
 import type { FormEvent } from 'react';
 import { useSearchParams } from 'react-router-dom';
@@ -34,20 +27,15 @@ import {
 import { DeviceRoomCards } from '../../components/manager/devices/DeviceRoomCards';
 import { DeviceTable } from '../../components/manager/devices/DeviceTable';
 import { TransferHistory } from '../../components/manager/devices/TransferHistory';
-import {
-  deviceStatuses,
-  deviceTypes,
-  initialDevices,
-  initialTransfers,
-  rooms,
-} from '../../data/managerMockData';
+import { deviceStatuses } from '../../data/managerMockData';
+import { managerApi, type BackendCategory, type BackendRoom } from '../../services/managerApi';
 import type { Device, DeviceStatus, TransferLog } from '../../types/manager';
 
 const emptyDevice: Device = {
   id: '',
   name: '',
-  type: 'Trình chiếu',
-  room: 'A201',
+  type: '',
+  room: '',
   quantity: 1,
   status: 'Hoạt động',
   importDate: getToday(),
@@ -67,16 +55,20 @@ interface TransferForm {
 }
 
 export const DeviceManager = () => {
-  // Đọc tham số trên URL
   const [searchParams] = useSearchParams();
   const searchKey = searchParams.toString();
 
-  const [devices, setDevices] = useState<Device[]>(initialDevices);
-  const [transfers, setTransfers] = useState<TransferLog[]>(initialTransfers);
+  const [devices, setDevices] = useState<Device[]>([]);
+  const [transfers, setTransfers] = useState<TransferLog[]>([]);
+  const [rooms, setRooms] = useState<BackendRoom[]>([]);
+  const [categories, setCategories] = useState<BackendCategory[]>([]);
+
+  const [loading, setLoading] = useState(true);
+  const [errorMessage, setErrorMessage] = useState('');
 
   const [activeTab, setActiveTab] = useState<'all' | 'byRoom' | 'transfer'>('all');
 
-  const [keyword, setKeyword] = useState('');
+  const [keyword, setKeyword] = useState(searchParams.get('keyword') || '');
   const [filterRoom, setFilterRoom] = useState(searchParams.get('room') || 'All');
   const [filterType, setFilterType] = useState(searchParams.get('type') || 'All');
   const [filterStatus, setFilterStatus] = useState(searchParams.get('status') || 'All');
@@ -93,30 +85,98 @@ export const DeviceManager = () => {
 
   const [transferDevice, setTransferDevice] = useState<Device | null>(null);
   const [transferForm, setTransferForm] = useState<TransferForm>({
-    toRoom: 'A201',
+    toRoom: '',
     date: getToday(),
     handler: 'Cán bộ QLTB',
     reason: '',
   });
 
-  // Khi URL thay đổi, tự động cập nhật bộ lọc
+  const roomOptions = useMemo(() => {
+    const codes = rooms.map((room) => room.code);
+    return codes.length > 0 ? [...codes, 'Kho'] : ['Kho'];
+  }, [rooms]);
+
+  const typeOptions = useMemo(() => {
+    const names = categories.map((category) => category.name);
+    return names.length > 0 ? names : ['Khác'];
+  }, [categories]);
+
+  const getRoomIdByCode = (code: string) => {
+    return rooms.find((room) => room.code === code)?.roomId;
+  };
+
+  const getCategoryIdByName = (name: string) => {
+    return categories.find((category) => category.name === name)?.categoryId;
+  };
+
+  const getExecutorId = () => {
+    const rawUser = localStorage.getItem('currentUser');
+
+    if (!rawUser) return 1;
+
+    try {
+      const user = JSON.parse(rawUser);
+      return Number(user.userId || user.id || 1);
+    } catch {
+      return 1;
+    }
+  };
+
+  const fetchAllData = async () => {
+    try {
+      setLoading(true);
+      setErrorMessage('');
+
+      const [roomData, categoryData, deviceData, transferData] = await Promise.all([
+        managerApi.getRooms(),
+        managerApi.getCategories(),
+        managerApi.getDevices(),
+        managerApi.getTransfers(),
+      ]);
+
+      setRooms(roomData);
+      setCategories(categoryData);
+      setDevices(deviceData);
+      setTransfers(transferData);
+
+      if (!deviceForm.type && categoryData[0]) {
+        setDeviceForm((current) => ({
+          ...current,
+          type: categoryData[0].name,
+        }));
+      }
+
+      if (!deviceForm.room && roomData[0]) {
+        setDeviceForm((current) => ({
+          ...current,
+          room: roomData[0].code,
+        }));
+      }
+    } catch (error) {
+      console.error(error);
+      setErrorMessage('Không thể tải dữ liệu thiết bị từ backend.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchAllData();
+  }, []);
+
   useEffect(() => {
     const params = new URLSearchParams(searchKey);
 
-    const roomFromUrl = params.get('room') || 'All';
-    const typeFromUrl = params.get('type') || 'All';
-    const statusFromUrl = params.get('status') || 'All';
+    setKeyword(params.get('keyword') || '');
+    setFilterRoom(params.get('room') || 'All');
+    setFilterType(params.get('type') || 'All');
+    setFilterStatus(params.get('status') || 'All');
 
-    setFilterRoom(roomFromUrl);
-    setFilterType(typeFromUrl);
-    setFilterStatus(statusFromUrl);
-
-    if (roomFromUrl !== 'All' || typeFromUrl !== 'All' || statusFromUrl !== 'All') {
+    if (searchKey) {
       setActiveTab('all');
     }
   }, [searchKey]);
 
-  // Lọc thiết bị theo từ khóa, phòng, loại, trạng thái
   const filteredDevices = useMemo(() => {
     const lowerKeyword = keyword.trim().toLowerCase();
 
@@ -157,7 +217,9 @@ export const DeviceManager = () => {
 
     setDeviceForm({
       ...emptyDevice,
-      id: `TB${String(devices.length + 1).padStart(3, '0')}`,
+      id: 'Tự động',
+      type: typeOptions[0] || 'Khác',
+      room: roomOptions[0] || 'Kho',
       importDate: getToday(),
     });
 
@@ -170,38 +232,72 @@ export const DeviceManager = () => {
     setIsDeviceModalOpen(true);
   };
 
-  const saveDevice = (e: FormEvent<HTMLFormElement>) => {
+  const saveDevice = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
 
-    if (!deviceForm.id.trim() || !deviceForm.name.trim()) {
-      alert('Vui lòng nhập mã thiết bị và tên thiết bị.');
+    if (!deviceForm.name.trim()) {
+      alert('Vui lòng nhập tên thiết bị.');
       return;
     }
 
-    if (editingDevice) {
-      setDevices((current) =>
-        current.map((device) => (device.id === editingDevice.id ? deviceForm : device)),
-      );
-    } else {
-      const isDuplicate = devices.some((device) => device.id === deviceForm.id);
+    const categoryId = getCategoryIdByName(deviceForm.type);
 
-      if (isDuplicate) {
-        alert('Mã thiết bị đã tồn tại.');
-        return;
-      }
-
-      setDevices((current) => [...current, deviceForm]);
+    if (!categoryId) {
+      alert('Loại thiết bị không hợp lệ. Vui lòng tạo loại thiết bị trong backend trước.');
+      return;
     }
 
-    setIsDeviceModalOpen(false);
+    try {
+      if (editingDevice) {
+        await managerApi.updateEquipment(editingDevice.id, {
+          name: deviceForm.name,
+          categoryId,
+          quantity: deviceForm.quantity,
+          status: deviceForm.status,
+          description: deviceForm.note,
+        });
+      } else {
+        const created = await managerApi.createEquipment({
+          name: deviceForm.name,
+          categoryId,
+          quantity: deviceForm.quantity,
+          status: deviceForm.status,
+          description: deviceForm.note,
+        });
+
+        const roomId = getRoomIdByCode(deviceForm.room);
+
+        if (roomId) {
+          await managerApi.allocateEquipment({
+            equipmentId: created.equipmentId,
+            roomId,
+            quantity: deviceForm.quantity,
+            allocatedAt: deviceForm.importDate || getToday(),
+            note: `Gắn thiết bị ${deviceForm.name} vào phòng ${deviceForm.room}`,
+          });
+        }
+      }
+
+      setIsDeviceModalOpen(false);
+      await fetchAllData();
+    } catch (error) {
+      console.error(error);
+      alert('Không thể lưu thiết bị. Kiểm tra backend hoặc dữ liệu nhập.');
+    }
   };
 
-  const deleteDevice = (id: string) => {
+  const deleteDevice = async (id: string) => {
     const confirmDelete = window.confirm(`Bạn có chắc chắn muốn xóa thiết bị ${id}?`);
 
     if (!confirmDelete) return;
 
-    setDevices((current) => current.filter((device) => device.id !== id));
+    try {
+      await managerApi.deleteEquipment(id);
+      await fetchAllData();
+    } catch (error) {
+      console.error(error);
+      alert('Không thể xóa thiết bị.');
+    }
   };
 
   const openStatusModal = (device: Device) => {
@@ -213,30 +309,29 @@ export const DeviceManager = () => {
     });
   };
 
-  const saveStatus = (e: FormEvent<HTMLFormElement>) => {
+  const saveStatus = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
 
     if (!statusDevice) return;
 
-    setDevices((current) =>
-      current.map((device) =>
-        device.id === statusDevice.id
-          ? {
-              ...device,
-              status: statusForm.status,
-              note: statusForm.note,
-            }
-          : device,
-      ),
-    );
+    try {
+      await managerApi.updateEquipmentStatus(statusDevice.id, {
+        status: statusForm.status,
+        description: statusForm.note,
+      });
 
-    setStatusDevice(null);
+      setStatusDevice(null);
+      await fetchAllData();
+    } catch (error) {
+      console.error(error);
+      alert('Không thể cập nhật trạng thái thiết bị.');
+    }
   };
 
   const openTransferModal = (device: Device) => {
     setTransferDevice(device);
 
-    const suggestedRoom = rooms.find((room) => room !== device.room) || 'Kho';
+    const suggestedRoom = roomOptions.find((room) => room !== device.room) || roomOptions[0] || '';
 
     setTransferForm({
       toRoom: suggestedRoom,
@@ -246,42 +341,42 @@ export const DeviceManager = () => {
     });
   };
 
-  const saveTransfer = (e: FormEvent<HTMLFormElement>) => {
+  const saveTransfer = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
 
     if (!transferDevice) return;
 
-    if (transferForm.toRoom === transferDevice.room) {
+    const fromRoomId = getRoomIdByCode(transferDevice.room);
+    const toRoomId = getRoomIdByCode(transferForm.toRoom);
+
+    if (!fromRoomId || !toRoomId) {
+      alert('Không xác định được phòng hiện tại hoặc phòng mới.');
+      return;
+    }
+
+    if (fromRoomId === toRoomId) {
       alert('Phòng mới phải khác phòng hiện tại.');
       return;
     }
 
-    const newLog: TransferLog = {
-      id: `DC${String(transfers.length + 1).padStart(3, '0')}`,
-      deviceId: transferDevice.id,
-      deviceName: transferDevice.name,
-      fromRoom: transferDevice.room,
-      toRoom: transferForm.toRoom,
-      date: transferForm.date,
-      handler: transferForm.handler,
-      reason: transferForm.reason || 'Điều chuyển theo nhu cầu sử dụng phòng học.',
-    };
+    try {
+      await managerApi.createTransfer({
+        equipmentId: Number(transferDevice.id),
+        fromRoomId,
+        toRoomId,
+        quantity: Math.max(1, transferDevice.quantity || 1),
+        transferredAt: transferForm.date,
+        executorId: getExecutorId(),
+        note: transferForm.reason || 'Điều chuyển theo nhu cầu sử dụng phòng học.',
+      });
 
-    setDevices((current) =>
-      current.map((device) =>
-        device.id === transferDevice.id
-          ? {
-              ...device,
-              room: transferForm.toRoom,
-              note: `Điều chuyển từ ${transferDevice.room} sang ${transferForm.toRoom} ngày ${transferForm.date}. ${device.note}`,
-            }
-          : device,
-      ),
-    );
-
-    setTransfers((current) => [newLog, ...current]);
-    setTransferDevice(null);
-    setActiveTab('transfer');
+      setTransferDevice(null);
+      setActiveTab('transfer');
+      await fetchAllData();
+    } catch (error) {
+      console.error(error);
+      alert('Không thể điều chuyển thiết bị. Kiểm tra dữ liệu phòng, thiết bị hoặc người thực hiện.');
+    }
   };
 
   return (
@@ -304,6 +399,12 @@ export const DeviceManager = () => {
           Thêm thiết bị mới
         </button>
       </div>
+
+      {errorMessage && (
+        <div className="mb-4 bg-rose-50 border border-rose-200 text-rose-700 rounded-xl p-4">
+          {errorMessage}
+        </div>
+      )}
 
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
         <SummaryCard icon={<FiBox />} label="Tổng thiết bị" value={stats.total} />
@@ -337,7 +438,13 @@ export const DeviceManager = () => {
         </nav>
       </div>
 
-      {activeTab === 'all' && (
+      {loading && (
+        <div className="bg-white border border-slate-200 rounded-xl p-8 text-center text-slate-500">
+          Đang tải dữ liệu thiết bị...
+        </div>
+      )}
+
+      {!loading && activeTab === 'all' && (
         <div className="space-y-4">
           <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4 grid grid-cols-1 md:grid-cols-4 gap-3">
             <div className="relative">
@@ -354,14 +461,14 @@ export const DeviceManager = () => {
             <FilterSelect
               value={filterRoom}
               onChange={setFilterRoom}
-              options={rooms}
+              options={roomOptions}
               label="Tất cả phòng"
             />
 
             <FilterSelect
               value={filterType}
               onChange={setFilterType}
-              options={deviceTypes}
+              options={typeOptions}
               label="Tất cả loại"
             />
 
@@ -391,22 +498,24 @@ export const DeviceManager = () => {
         </div>
       )}
 
-      {activeTab === 'byRoom' && (
+      {!loading && activeTab === 'byRoom' && (
         <DeviceRoomCards
-          rooms={rooms}
+          rooms={roomOptions.filter((room) => room !== 'Kho')}
           devices={devices}
           onStatus={openStatusModal}
           onTransfer={openTransferModal}
         />
       )}
 
-      {activeTab === 'transfer' && <TransferHistory transfers={transfers} />}
+      {!loading && activeTab === 'transfer' && <TransferHistory transfers={transfers} />}
 
       {isDeviceModalOpen && (
         <DeviceFormModal
           editingDevice={editingDevice}
           deviceForm={deviceForm}
           setDeviceForm={setDeviceForm}
+          roomOptions={roomOptions}
+          typeOptions={typeOptions}
           onClose={() => setIsDeviceModalOpen(false)}
           onSubmit={saveDevice}
         />
@@ -427,6 +536,7 @@ export const DeviceManager = () => {
           device={transferDevice}
           transferForm={transferForm}
           setTransferForm={setTransferForm}
+          roomOptions={roomOptions.filter((room) => room !== 'Kho')}
           onClose={() => setTransferDevice(null)}
           onSubmit={saveTransfer}
         />

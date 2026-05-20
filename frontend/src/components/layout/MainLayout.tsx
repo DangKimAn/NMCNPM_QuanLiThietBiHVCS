@@ -1,9 +1,10 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 import { Link, NavLink, useNavigate } from 'react-router-dom';
 import {
   FiBell,
   FiBox,
+  FiCreditCard,
   FiHome,
   FiLock,
   FiLogOut,
@@ -11,7 +12,6 @@ import {
   FiTool,
   FiUser,
   FiUserCheck,
-  FiCreditCard,
 } from 'react-icons/fi';
 
 interface MainLayoutProps {
@@ -40,18 +40,75 @@ const menuItems = [
 export const MainLayout = ({ children }: MainLayoutProps) => {
   const navigate = useNavigate();
 
-  // State dùng để đóng/mở menu avatar
+  // State đóng/mở dropdown avatar
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
 
   // Ref dùng để phát hiện click ra ngoài dropdown
   const userMenuRef = useRef<HTMLDivElement | null>(null);
 
-  // Thông tin cán bộ quản lý thiết bị đang đăng nhập
-  const currentUser = {
-    fullName: 'Nguyễn Trọng Nguyên',
-    username: 'N23DCCN177',
-    role: 'Cán bộ QLTB',
-    avatar: '/avatar.png',
+  // Lấy thông tin tài khoản đang đăng nhập từ localStorage.
+  // Login.tsx chỉ cần lưu currentUser thì chỗ này sẽ tự hiển thị đúng.
+  const currentUser = useMemo(() => {
+    const rawUser =
+      localStorage.getItem('currentUser') ||
+      localStorage.getItem('user') ||
+      localStorage.getItem('authUser');
+
+    if (!rawUser) {
+      return {
+        userId: 1,
+        fullName: 'Cán bộ QLTB',
+        username: 'manager',
+        role: 'Cán bộ quản lý thiết bị',
+      };
+    }
+
+    try {
+      const user = JSON.parse(rawUser);
+
+      return {
+        userId: user.userId || user.id || 1,
+
+        // Họ tên hiển thị trên header và dropdown
+        fullName:
+          user.fullName ||
+          user.name ||
+          user.hoTen ||
+          user.hoten ||
+          user.displayName ||
+          'Cán bộ QLTB',
+
+        // Tên đăng nhập hiển thị trên header và dropdown
+        username:
+          user.username ||
+          user.userName ||
+          user.taiKhoan ||
+          user.tenDangNhap ||
+          user.email ||
+          'manager',
+
+        role: user.role || user.roleName || 'Cán bộ quản lý thiết bị',
+      };
+    } catch {
+      return {
+        userId: 1,
+        fullName: 'Cán bộ QLTB',
+        username: 'manager',
+        role: 'Cán bộ quản lý thiết bị',
+      };
+    }
+  }, []);
+
+  // Lấy chữ cái đầu để hiển thị avatar
+  // Ví dụ: Nguyễn Trọng Nguyên -> NN
+  const getAvatarText = (fullName: string) => {
+    const words = fullName.trim().split(/\s+/);
+
+    if (words.length >= 2) {
+      return `${words[0][0]}${words[words.length - 1][0]}`.toUpperCase();
+    }
+
+    return fullName.slice(0, 2).toUpperCase();
   };
 
   // Click ra ngoài dropdown thì tự đóng menu
@@ -72,7 +129,7 @@ export const MainLayout = ({ children }: MainLayoutProps) => {
     };
   }, []);
 
-  // Tìm kiếm nhanh trên thanh header
+  // Tìm kiếm nhanh thiết bị trên thanh header
   const handleSearch = (keyword: string) => {
     const value = keyword.trim();
 
@@ -81,8 +138,14 @@ export const MainLayout = ({ children }: MainLayoutProps) => {
     navigate(`/manager/devices?keyword=${encodeURIComponent(value)}`);
   };
 
-  // Đăng xuất tạm thời: quay về trang login
+  // Đăng xuất: xóa thông tin đăng nhập rồi quay về trang login
   const handleLogout = () => {
+    localStorage.removeItem('currentUser');
+    localStorage.removeItem('user');
+    localStorage.removeItem('authUser');
+    localStorage.removeItem('token');
+    localStorage.removeItem('accessToken');
+
     setIsUserMenuOpen(false);
     navigate('/login');
   };
@@ -151,7 +214,7 @@ export const MainLayout = ({ children }: MainLayoutProps) => {
           </div>
 
           <div className="flex items-center gap-5">
-            {/* Nút chuông thông báo */}
+            {/* Bấm chuông chuyển sang trang phản ánh sự cố */}
             <button
               type="button"
               onClick={() => navigate('/manager/incidents')}
@@ -163,7 +226,7 @@ export const MainLayout = ({ children }: MainLayoutProps) => {
 
             <div className="h-8 w-px bg-slate-200" />
 
-            {/* Khu vực avatar và dropdown tài khoản */}
+            {/* Avatar và dropdown tài khoản */}
             <div className="relative" ref={userMenuRef}>
               <button
                 type="button"
@@ -174,13 +237,14 @@ export const MainLayout = ({ children }: MainLayoutProps) => {
                   <p className="text-sm font-bold text-slate-700">
                     {currentUser.fullName}
                   </p>
+
                   <p className="text-xs text-blue-600 font-semibold">
                     {currentUser.username}
                   </p>
                 </div>
 
                 <div className="w-11 h-11 rounded-full bg-blue-600 text-white flex items-center justify-center font-bold shadow-md overflow-hidden">
-                  <span>CB</span>
+                  {getAvatarText(currentUser.fullName)}
                 </div>
 
                 <span
@@ -188,7 +252,7 @@ export const MainLayout = ({ children }: MainLayoutProps) => {
                     isUserMenuOpen ? 'rotate-180' : ''
                   }`}
                 >
-                  ▲
+                  ▼
                 </span>
               </button>
 
@@ -199,6 +263,7 @@ export const MainLayout = ({ children }: MainLayoutProps) => {
                     {/* Họ tên */}
                     <div className="flex items-center gap-3 text-slate-700">
                       <FiUserCheck className="text-xl text-slate-500" />
+
                       <p className="text-sm">
                         Họ tên:{' '}
                         <span className="font-bold">
@@ -210,6 +275,7 @@ export const MainLayout = ({ children }: MainLayoutProps) => {
                     {/* Tài khoản */}
                     <div className="flex items-center gap-3 text-slate-700">
                       <FiCreditCard className="text-xl text-slate-500" />
+
                       <p className="text-sm">
                         Tài khoản:{' '}
                         <span className="font-bold">
