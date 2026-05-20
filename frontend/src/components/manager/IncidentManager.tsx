@@ -1,9 +1,12 @@
 // Component quản lý phản ánh báo hỏng dành cho Cán bộ quản lý thiết bị.
-// Có hỗ trợ đọc query trên URL.
-// Ví dụ:
+// Bản này đã nối API backend thật:
+// - GET /reports
+// - PATCH /reports/:reportId/handle
+//
+// Có hỗ trợ URL query:
 // /manager/incidents?status=Mới tiếp nhận
 // /manager/incidents?room=A201
-// /manager/incidents?report=PA001
+// /manager/incidents?report=1
 
 import { useEffect, useMemo, useState } from 'react';
 import type { FormEvent } from 'react';
@@ -19,45 +22,84 @@ import {
 } from 'react-icons/fi';
 
 import { MainLayout } from '../layout/MainLayout';
-import { initialReports, reportStatuses } from '../../data/managerMockData';
 import type { IncidentReport, ReportStatus } from '../../types/manager';
+import { managerApi } from '../../services/managerApi';
 import {
   FieldInput,
   FieldSelect,
   FieldTextArea,
-  getNow,
   Modal,
   StatusBadge,
   SummaryCard,
   TableHead,
 } from './common/ManagerCommon';
 
+// Danh sách trạng thái phản ánh hiển thị trên frontend
+const reportStatuses: ReportStatus[] = [
+  'Mới tiếp nhận',
+  'Đang xử lý',
+  'Đã xử lý',
+  'Từ chối',
+];
+
 export const IncidentManager = () => {
-  // Đọc tham số trên URL
+  // Đọc tham số từ URL
   const [searchParams, setSearchParams] = useSearchParams();
   const searchKey = searchParams.toString();
-  const reportIdFromUrl = searchParams.get('report');
 
-  const [reports, setReports] = useState<IncidentReport[]>(initialReports);
+  // State lưu danh sách phản ánh lấy từ backend
+  const [reports, setReports] = useState<IncidentReport[]>([]);
 
-  // Nếu URL có ?report=PA001 thì tự động mở modal chi tiết phản ánh đó
-  const [selectedReport, setSelectedReport] = useState<IncidentReport | null>(() => {
-    const foundReport = initialReports.find((report) => report.id === reportIdFromUrl);
+  // State lưu phản ánh đang được chọn để xem chi tiết hoặc xử lý
+  const [selectedReport, setSelectedReport] = useState<IncidentReport | null>(null);
 
-    if (!foundReport) return null;
+  // State loading/error
+  const [loading, setLoading] = useState(true);
+  const [errorMessage, setErrorMessage] = useState('');
 
-    return {
-      ...foundReport,
-      handlerName: foundReport.handlerName || 'Cán bộ QLTB',
-      handlerNote: foundReport.handlerNote || '',
-    };
-  });
-
+  // State tìm kiếm và lọc
   const [keyword, setKeyword] = useState('');
   const [filterStatus, setFilterStatus] = useState(searchParams.get('status') || 'All');
   const [filterRoom, setFilterRoom] = useState(searchParams.get('room') || 'All');
 
-  // Khi URL thay đổi, tự động cập nhật bộ lọc hoặc mở phản ánh tương ứng
+  // Lấy ID cán bộ đang đăng nhập.
+  // Nếu chưa có userId trong localStorage thì tạm dùng 1.
+  // Lưu ý: trong database phải có userId = 1, nếu không backend sẽ báo "Người xử lý không tồn tại".
+  const getCurrentUserId = () => {
+    const rawUser = localStorage.getItem('currentUser');
+
+    if (!rawUser) return 1;
+
+    try {
+      const user = JSON.parse(rawUser);
+      return Number(user.userId || user.id || 1);
+    } catch {
+      return 1;
+    }
+  };
+
+  // Gọi API lấy danh sách phản ánh từ backend
+  const fetchReports = async () => {
+    try {
+      setLoading(true);
+      setErrorMessage('');
+
+      const data = await managerApi.getReports();
+      setReports(data);
+    } catch (error) {
+      console.error(error);
+      setErrorMessage('Không thể tải danh sách phản ánh từ backend.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Khi mở trang thì gọi API
+  useEffect(() => {
+    fetchReports();
+  }, []);
+
+  // Khi URL thay đổi thì cập nhật bộ lọc
   useEffect(() => {
     const params = new URLSearchParams(searchKey);
 
@@ -66,7 +108,7 @@ export const IncidentManager = () => {
 
     const reportId = params.get('report');
 
-    if (reportId) {
+    if (reportId && reports.length > 0) {
       const foundReport = reports.find((report) => report.id === reportId);
 
       if (foundReport) {
@@ -77,12 +119,14 @@ export const IncidentManager = () => {
         });
       }
     }
-  }, [searchKey]);
+  }, [searchKey, reports]);
 
+  // Lấy danh sách phòng từ danh sách phản ánh để đưa vào bộ lọc
   const roomOptions = useMemo(() => {
-    return Array.from(new Set(reports.map((report) => report.room)));
+    return Array.from(new Set(reports.map((report) => report.room).filter(Boolean)));
   }, [reports]);
 
+  // Lọc phản ánh ở frontend theo từ khóa, trạng thái và phòng
   const filteredReports = useMemo(() => {
     const lowerKeyword = keyword.trim().toLowerCase();
 
@@ -102,6 +146,7 @@ export const IncidentManager = () => {
     });
   }, [reports, keyword, filterStatus, filterRoom]);
 
+  // Tính số liệu thống kê phản ánh
   const stats = useMemo(() => {
     return {
       total: reports.length,
@@ -111,6 +156,7 @@ export const IncidentManager = () => {
     };
   }, [reports]);
 
+  // Mở modal chi tiết phản ánh
   const openDetailModal = (report: IncidentReport) => {
     setSelectedReport({
       ...report,
@@ -119,31 +165,48 @@ export const IncidentManager = () => {
     });
   };
 
+  // Đóng modal.
+  // Nếu URL có ?report=... thì xóa riêng tham số report, giữ lại status/room nếu có.
   const closeDetailModal = () => {
     setSelectedReport(null);
-    setSearchParams({});
+
+    const params = new URLSearchParams(searchParams);
+    params.delete('report');
+    setSearchParams(params);
   };
 
-  const updateReport = (e: FormEvent<HTMLFormElement>) => {
+  // Cập nhật xử lý phản ánh lên backend
+  const updateReport = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
 
     if (!selectedReport) return;
 
-    const updatedReport: IncidentReport = {
-      ...selectedReport,
-      handledAt: getNow(),
-    };
+    try {
+      await managerApi.handleReport(selectedReport.id, {
+        status: selectedReport.status,
+        handlerId: getCurrentUserId(),
+        resolutionContent: selectedReport.handlerNote || '',
+        result: selectedReport.handlerNote || '',
+      });
 
-    setReports((current) =>
-      current.map((report) => (report.id === updatedReport.id ? updatedReport : report)),
-    );
+      setSelectedReport(null);
 
-    setSelectedReport(null);
-    setSearchParams({});
+      const params = new URLSearchParams(searchParams);
+      params.delete('report');
+      setSearchParams(params);
+
+      await fetchReports();
+    } catch (error) {
+      console.error(error);
+      alert(
+        'Không thể cập nhật phản ánh. Kiểm tra backend, dữ liệu phản ánh hoặc userId người xử lý.',
+      );
+    }
   };
 
   return (
     <MainLayout>
+      {/* Tiêu đề trang */}
       <div className="mb-6">
         <h1 className="text-2xl font-black text-slate-800">Quản lý phản ánh báo hỏng</h1>
 
@@ -152,6 +215,14 @@ export const IncidentManager = () => {
         </p>
       </div>
 
+      {/* Thông báo lỗi khi không gọi được backend */}
+      {errorMessage && (
+        <div className="mb-4 bg-rose-50 border border-rose-200 text-rose-700 rounded-xl p-4">
+          {errorMessage}
+        </div>
+      )}
+
+      {/* Card thống kê số lượng phản ánh */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
         <SummaryCard icon={<FiClock />} label="Tổng phản ánh" value={stats.total} />
         <SummaryCard icon={<FiAlertTriangle />} label="Mới tiếp nhận" value={stats.pending} />
@@ -159,6 +230,7 @@ export const IncidentManager = () => {
         <SummaryCard icon={<FiCheckCircle />} label="Đã xử lý" value={stats.resolved} />
       </div>
 
+      {/* Bộ lọc tìm kiếm phản ánh */}
       <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4 grid grid-cols-1 md:grid-cols-3 gap-3 mb-4">
         <div className="relative">
           <FiSearch className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
@@ -208,83 +280,96 @@ export const IncidentManager = () => {
         </div>
       </div>
 
-      <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse">
-            <thead>
-              <tr className="bg-slate-50 border-b border-slate-200">
-                <TableHead>Mã PA</TableHead>
-                <TableHead>Người gửi</TableHead>
-                <TableHead>Phòng / Thiết bị</TableHead>
-                <TableHead>Nội dung sự cố</TableHead>
-                <TableHead>Trạng thái</TableHead>
-                <TableHead alignRight>Thao tác</TableHead>
-              </tr>
-            </thead>
-
-            <tbody className="divide-y divide-slate-100">
-              {filteredReports.map((report) => (
-                <tr key={report.id} className="hover:bg-slate-50">
-                  <td className="px-6 py-4 text-sm font-bold text-slate-800">{report.id}</td>
-
-                  <td className="px-6 py-4 text-sm">
-                    <p className="font-semibold text-slate-800">{report.sender}</p>
-                    <p className="text-xs text-slate-400 mt-0.5">{report.date}</p>
-                  </td>
-
-                  <td className="px-6 py-4 text-sm">
-                    <p className="font-semibold text-slate-700">Phòng {report.room}</p>
-                    <p className="text-xs text-slate-500 mt-0.5">{report.device}</p>
-                  </td>
-
-                  <td className="px-6 py-4 text-sm text-slate-600 max-w-md">
-                    <p className="line-clamp-2">{report.issue}</p>
-
-                    {report.handlerNote && (
-                      <p className="text-xs text-slate-400 mt-1">
-                        Ghi chú: {report.handlerNote}
-                      </p>
-                    )}
-                  </td>
-
-                  <td className="px-6 py-4 text-sm">
-                    <StatusBadge status={report.status} type="report" />
-                  </td>
-
-                  <td className="px-6 py-4 text-sm">
-                    <div className="flex justify-end">
-                      <button
-                        type="button"
-                        onClick={() => openDetailModal(report)}
-                        className="inline-flex items-center px-3 py-1.5 rounded-lg text-sm font-medium text-blue-600 bg-blue-50 hover:bg-blue-100"
-                      >
-                        <FiEye className="mr-1.5" />
-                        Xử lý
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-
-              {filteredReports.length === 0 && (
-                <tr>
-                  <td colSpan={6} className="px-6 py-12 text-center text-sm text-slate-500">
-                    Không tìm thấy phản ánh phù hợp.
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
+      {/* Loading khi đang gọi API */}
+      {loading && (
+        <div className="bg-white border border-slate-200 rounded-xl p-8 text-center text-slate-500">
+          Đang tải danh sách phản ánh...
         </div>
+      )}
 
-        <div className="px-6 py-4 border-t border-slate-200 bg-slate-50 text-sm text-slate-500">
-          Hiển thị {filteredReports.length} phản ánh
+      {/* Bảng danh sách phản ánh báo hỏng */}
+      {!loading && (
+        <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full text-left border-collapse">
+              <thead>
+                <tr className="bg-slate-50 border-b border-slate-200">
+                  <TableHead>Mã PA</TableHead>
+                  <TableHead>Người gửi</TableHead>
+                  <TableHead>Phòng / Thiết bị</TableHead>
+                  <TableHead>Nội dung sự cố</TableHead>
+                  <TableHead>Trạng thái</TableHead>
+                  <TableHead alignRight>Thao tác</TableHead>
+                </tr>
+              </thead>
+
+              <tbody className="divide-y divide-slate-100">
+                {filteredReports.map((report) => (
+                  <tr key={report.id} className="hover:bg-slate-50">
+                    <td className="px-6 py-4 text-sm font-bold text-slate-800">
+                      PA{String(report.id).padStart(3, '0')}
+                    </td>
+
+                    <td className="px-6 py-4 text-sm">
+                      <p className="font-semibold text-slate-800">{report.sender}</p>
+                      <p className="text-xs text-slate-400 mt-0.5">{report.date}</p>
+                    </td>
+
+                    <td className="px-6 py-4 text-sm">
+                      <p className="font-semibold text-slate-700">Phòng {report.room}</p>
+                      <p className="text-xs text-slate-500 mt-0.5">{report.device}</p>
+                    </td>
+
+                    <td className="px-6 py-4 text-sm text-slate-600 max-w-md">
+                      <p className="line-clamp-2">{report.issue}</p>
+
+                      {report.handlerNote && (
+                        <p className="text-xs text-slate-400 mt-1">
+                          Ghi chú: {report.handlerNote}
+                        </p>
+                      )}
+                    </td>
+
+                    <td className="px-6 py-4 text-sm">
+                      <StatusBadge status={report.status} type="report" />
+                    </td>
+
+                    <td className="px-6 py-4 text-sm">
+                      <div className="flex justify-end">
+                        <button
+                          type="button"
+                          onClick={() => openDetailModal(report)}
+                          className="inline-flex items-center px-3 py-1.5 rounded-lg text-sm font-medium text-blue-600 bg-blue-50 hover:bg-blue-100"
+                        >
+                          <FiEye className="mr-1.5" />
+                          Xử lý
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+
+                {filteredReports.length === 0 && (
+                  <tr>
+                    <td colSpan={6} className="px-6 py-12 text-center text-sm text-slate-500">
+                      Không tìm thấy phản ánh phù hợp.
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+
+          <div className="px-6 py-4 border-t border-slate-200 bg-slate-50 text-sm text-slate-500">
+            Hiển thị {filteredReports.length} phản ánh
+          </div>
         </div>
-      </div>
+      )}
 
+      {/* Modal xem chi tiết và cập nhật xử lý phản ánh */}
       {selectedReport && (
         <Modal
-          title={`Chi tiết phản ánh - ${selectedReport.id}`}
+          title={`Chi tiết phản ánh - PA${String(selectedReport.id).padStart(3, '0')}`}
           onClose={closeDetailModal}
           onSubmit={updateReport}
           submitText="Lưu xử lý"
@@ -315,7 +400,7 @@ export const IncidentManager = () => {
 
           <FieldInput
             label="Người xử lý"
-            value={selectedReport.handlerName || ''}
+            value={selectedReport.handlerName || 'Cán bộ QLTB'}
             onChange={(value) =>
               setSelectedReport({
                 ...selectedReport,
@@ -352,9 +437,10 @@ interface InfoRowProps {
   value: string;
 }
 
+// Dòng thông tin nhỏ dùng trong modal chi tiết phản ánh
 const InfoRow = ({ label, value }: InfoRowProps) => (
   <div className="grid grid-cols-3 gap-3 text-sm">
     <span className="text-slate-500">{label}</span>
-    <span className="col-span-2 font-semibold text-slate-800">{value}</span>
+    <span className="col-span-2 font-semibold text-slate-800">{value || 'Không có'}</span>
   </div>
 );
