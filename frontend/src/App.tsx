@@ -1,25 +1,51 @@
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
-import { DeviceManager } from './pages/devices/DeviceManager';
+
 import { Login } from './pages/auth/Login';
 import { Register } from './pages/auth/Register';
-import { UserManager } from './pages/admin/UserManager';
-import { StudentReport } from './pages/student/StudentReport';
+
+import { DeviceManager } from './pages/devices/DeviceManager';
+import { ManagerOverview } from './pages/manager/ManagerOverview';
 import { IncidentManager } from './components/manager/IncidentManager';
+
+import { UserManager } from './pages/admin/UserManager';
+import { RolePermissionManager } from './pages/admin/RolePermissionManager';
 import { SystemLogViewer } from './pages/admin/SystemLogView';
+
+import { StudentReport } from './pages/student/StudentReport';
+import { StudentOverview } from './pages/student/StudentOverview';
+import { StudentMyReports } from './pages/student/StudentMyReports';
 
 function App() {
   return (
     <Router>
       <Routes>
-        <Route path="/"element={<Navigate to="/login" replace />} />
+        {/* Mặc định vào trang đăng nhập */}
+        <Route path="/" element={<Navigate to="/login" replace />} />
+
+        {/* Auth */}
         <Route path="/login" element={<Login />} />
         <Route path="/register" element={<Register />} />
-        <Route path="/admin/users" element={<UserManager />} />
-        <Route path="/admin/logs" element={<SystemLogViewer />} />
+
+        {/* Cán bộ quản lý thiết bị */}
+        <Route path="/manager" element={<Navigate to="/manager/overview" replace />} />
+        <Route path="/manager/overview" element={<ManagerOverview />} />
         <Route path="/manager/devices" element={<DeviceManager />} />
         <Route path="/manager/incidents" element={<IncidentManager />} />
-        <Route path="/student/reports" element={<StudentReport />} />
 
+        {/* Admin */}
+        <Route path="/admin" element={<Navigate to="/admin/users" replace />} />
+        <Route path="/admin/users" element={<UserManager />} />
+        <Route path="/admin/roles" element={<RolePermissionManager />} />
+        <Route path="/admin/logs" element={<SystemLogViewer />} />
+
+        {/* Giảng viên / Sinh viên */}
+        <Route path="/student" element={<Navigate to="/student/overview" replace />} />
+        <Route path="/student/overview" element={<StudentOverview />} />
+        <Route path="/student/reports" element={<StudentReport />} />
+        <Route path="/student/my-reports" element={<StudentMyReports />} />
+
+        {/* Sai đường dẫn thì quay về login */}
+        <Route path="*" element={<Navigate to="/login" replace />} />
       </Routes>
     </Router>
   );

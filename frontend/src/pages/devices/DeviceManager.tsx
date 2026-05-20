@@ -1,173 +1,546 @@
-import { useState, useRef } from 'react';
-import { MainLayout } from '../../components/layout/MainLayout';
-import { FiPlus, FiFilter, FiBox, FiLayers, FiUpload } from 'react-icons/fi';
+import { useEffect, useMemo, useState } from 'react';
+import type { FormEvent } from 'react';
+import { useSearchParams } from 'react-router-dom';
+import {
+  FiBox,
+  FiCheckCircle,
+  FiCornerUpRight,
+  FiLayers,
+  FiPlus,
+  FiSearch,
+  FiTool,
+  FiXCircle,
+} from 'react-icons/fi';
 
-import { Table } from '../../components/ui/Table';
-import { Grid } from '../../components/manager/Grid';
-import { DynamicFormModal } from '../../components/ui/DynamicFormModal';
-import { PageHeader } from '../../components/ui/PageHeader';
+import { ManagerLayout } from '../../components/layout/ManagerLayout';
+import {
+  FilterSelect,
+  getToday,
+  SummaryCard,
+  TabButton,
+} from '../../components/manager/common/ManagerCommon';
+import {
+  DeviceFormModal,
+  DeviceStatusModal,
+  DeviceTransferModal,
+} from '../../components/manager/devices/DeviceModals';
+import { DeviceRoomCards } from '../../components/manager/devices/DeviceRoomCards';
+import { DeviceTable } from '../../components/manager/devices/DeviceTable';
+import { TransferHistory } from '../../components/manager/devices/TransferHistory';
+import { deviceStatuses } from '../../data/managerMockData';
+import { managerApi, type BackendCategory, type BackendRoom } from '../../services/managerApi';
+import type { Device, DeviceStatus, TransferLog } from '../../types/manager';
 
-import type { TableColumn } from '../../components/ui/Table';
-import { useCrud } from '../../hooks/useCrud';
-
-import { FilterSelect } from '../../components/manager/FilterSelect';
-import type { FormField } from '../../components/ui/DynamicFormModal';
-// ĐỊNH NGHĨA CÁC CỘT CỦA THIẾT BỊ CHO FORM ĐỘNG
-const deviceFields: FormField[] = [
-  { name: 'id', label: 'Mã thiết bị', type: 'text', required: true, readOnlyOnEdit: true },
-  { name: 'status', label: 'Trạng thái', type: 'select', options: ['Hoạt động', 'Đang sửa', 'Báo hỏng', 'Bảo trì', 'Thanh lý'], defaultValue: 'Hoạt động' },
-  { name: 'name', label: 'Tên thiết bị', type: 'text', required: true, fullWidth: true },
-  { name: 'type', label: 'Loại thiết bị', type: 'select', options: ['Trình chiếu', 'Âm thanh', 'Điện lạnh', 'Phụ kiện', 'Khác'], defaultValue: 'Trình chiếu' },
-  { name: 'room', label: 'Phòng học', type: 'select', options: ['A201', 'A202', 'B105', 'Kho'], defaultValue: 'A201' }
-];
-
-const getStatusStyle = (status: string) => {
-  switch (status) {
-    case 'Hoạt động': return 'bg-emerald-100 text-emerald-700 border-emerald-200';
-    case 'Báo hỏng': return 'bg-rose-100 text-rose-700 border-rose-200';
-    case 'Đang sửa': return 'bg-amber-100 text-amber-700 border-amber-200';
-    case 'Bảo trì': return 'bg-blue-100 text-blue-700 border-blue-200';
-    case 'Thanh lý': return 'bg-slate-200 text-slate-600 border-slate-300';
-    default: return 'bg-slate-100 text-slate-700 border-slate-200';
-  }
+const emptyDevice: Device = {
+  id: '',
+  name: '',
+  type: '',
+  room: '',
+  quantity: 1,
+  status: 'Hoạt động',
+  importDate: getToday(),
+  note: '',
 };
 
-const initialDevices = [
-  { id: 'TB001', name: 'Máy chiếu Panasonic PT-LB303', room: 'A201', type: 'Trình chiếu', status: 'Hoạt động' },
-  { id: 'TB002', name: 'Micro không dây Shure', room: 'A201', type: 'Âm thanh', status: 'Hoạt động' },
-  { id: 'TB003', name: 'Dây cáp chuyển đổi HDMI', room: 'A202', type: 'Phụ kiện', status: 'Báo hỏng' },
-  { id: 'TB004', name: 'Điều hòa Daikin 18000BTU', room: 'B105', type: 'Điện lạnh', status: 'Đang sửa' },
-];
-// 2. Khai báo deviceColumns chuẩn UI
-const deviceColumns: TableColumn[] = [
-  { 
-    header: 'Mã TB', 
-    key: 'id', 
-    render: (item) => <span className="font-medium text-slate-900">{item.id}</span> 
-  },
-  { 
-    header: 'Tên thiết bị', 
-    key: 'name', 
-    render: (item) => <span className="font-medium text-slate-700">{item.name}</span> 
-  },
-  { 
-    header: 'Loại', 
-    key: 'type',
-    render: (item) => <span className="text-slate-500">{item.type}</span>
-  },
-  { 
-    header: 'Phòng học', 
-    key: 'room', 
-    render: (item) => (
-      <span className="bg-slate-100 text-slate-600 px-2.5 py-1 rounded-md text-xs font-medium border border-slate-200">
-        {item.room}
-      </span>
-    ) 
-  },
-  { 
-    header: 'Trạng thái', 
-    key: 'status', 
-    render: (item) => (
-      <span className={`px-2.5 py-1 rounded-full text-xs font-semibold border ${getStatusStyle(item.status)}`}>
-        {item.status}
-      </span>
-    ) 
-  }
-];
+interface StatusForm {
+  status: DeviceStatus;
+  note: string;
+}
+
+interface TransferForm {
+  toRoom: string;
+  date: string;
+  handler: string;
+  reason: string;
+}
 
 export const DeviceManager = () => {
+  const [searchParams] = useSearchParams();
+  const searchKey = searchParams.toString();
 
-  const {
-    data: devices,
-    isModalOpen,
-    editingItem: editingDevice,
-    handleOpenAdd,
-    handleOpenEdit,
-    handleCloseModal,
-    handleSave: handleSaveDevice,
-    handleDelete,
-    setIsModalOpen
-  } = useCrud(initialDevices, 'id');
+  const [devices, setDevices] = useState<Device[]>([]);
+  const [transfers, setTransfers] = useState<TransferLog[]>([]);
+  const [rooms, setRooms] = useState<BackendRoom[]>([]);
+  const [categories, setCategories] = useState<BackendCategory[]>([]);
 
-  // --- STATE GIAO DIỆN ĐẶC THÙ ---
-  const [activeTab, setActiveTab] = useState('all');
-  const [filterRoom, setFilterRoom] = useState('All');
+  const [loading, setLoading] = useState(true);
+  const [errorMessage, setErrorMessage] = useState('');
 
-  // --- LOGIC XÓA (Tận dụng hook) ---
-  const onDeleteDevice = (deviceId: string) => {
-    handleDelete(deviceId, `Bạn có chắc chắn muốn xóa thiết bị mã ${deviceId}?`);
+  const [activeTab, setActiveTab] = useState<'all' | 'byRoom' | 'transfer'>('all');
+
+  const [keyword, setKeyword] = useState(searchParams.get('keyword') || '');
+  const [filterRoom, setFilterRoom] = useState(searchParams.get('room') || 'All');
+  const [filterType, setFilterType] = useState(searchParams.get('type') || 'All');
+  const [filterStatus, setFilterStatus] = useState(searchParams.get('status') || 'All');
+
+  const [isDeviceModalOpen, setIsDeviceModalOpen] = useState(false);
+  const [editingDevice, setEditingDevice] = useState<Device | null>(null);
+  const [deviceForm, setDeviceForm] = useState<Device>(emptyDevice);
+
+  const [statusDevice, setStatusDevice] = useState<Device | null>(null);
+  const [statusForm, setStatusForm] = useState<StatusForm>({
+    status: 'Hoạt động',
+    note: '',
+  });
+
+  const [transferDevice, setTransferDevice] = useState<Device | null>(null);
+  const [transferForm, setTransferForm] = useState<TransferForm>({
+    toRoom: '',
+    date: getToday(),
+    handler: 'Cán bộ QLTB',
+    reason: '',
+  });
+
+  const roomOptions = useMemo(() => {
+    const codes = rooms.map((room) => room.code);
+    return codes.length > 0 ? [...codes, 'Kho'] : ['Kho'];
+  }, [rooms]);
+
+  const typeOptions = useMemo(() => {
+    const names = categories.map((category) => category.name);
+    return names.length > 0 ? names : ['Khác'];
+  }, [categories]);
+
+  const getRoomIdByCode = (code: string) => {
+    return rooms.find((room) => room.code === code)?.roomId;
   };
 
- 
+  const getCategoryIdByName = (name: string) => {
+    return categories.find((category) => category.name === name)?.categoryId;
+  };
 
-  
+  const getExecutorId = () => {
+    const rawUser = localStorage.getItem('currentUser');
 
-  const uniqueRooms = Array.from(new Set(devices.map(device => device.room)));
-  const filteredDevices = filterRoom === 'All' ? devices : devices.filter(device => device.room === filterRoom);
-  return (
-    <MainLayout>
+    if (!rawUser) return 1;
 
-      <PageHeader
-        title="Danh mục thiết bị"
-        description="Quản lý toàn bộ tài sản và thiết bị phòng học của HVCS"
-        action={
-          <button
-            onClick={handleOpenAdd}
-            className="flex items-center px-4 py-2 bg-indigo-600 text-white text-sm font-medium rounded-lg hover:bg-indigo-700 transition-all shadow-sm"
-          >
-            <FiPlus className="mr-2 text-lg" /> Thêm thiết bị mới
-          </button>
+    try {
+      const user = JSON.parse(rawUser);
+      return Number(user.userId || user.id || 1);
+    } catch {
+      return 1;
+    }
+  };
+
+  const fetchAllData = async () => {
+    try {
+      setLoading(true);
+      setErrorMessage('');
+
+      const [roomData, categoryData, deviceData, transferData] = await Promise.all([
+        managerApi.getRooms(),
+        managerApi.getCategories(),
+        managerApi.getDevices(),
+        managerApi.getTransfers(),
+      ]);
+
+      setRooms(roomData);
+      setCategories(categoryData);
+      setDevices(deviceData);
+      setTransfers(transferData);
+
+      if (!deviceForm.type && categoryData[0]) {
+        setDeviceForm((current) => ({
+          ...current,
+          type: categoryData[0].name,
+        }));
+      }
+
+      if (!deviceForm.room && roomData[0]) {
+        setDeviceForm((current) => ({
+          ...current,
+          room: roomData[0].code,
+        }));
+      }
+    } catch (error) {
+      console.error(error);
+      setErrorMessage('Không thể tải dữ liệu thiết bị từ backend.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchAllData();
+  }, []);
+
+  useEffect(() => {
+    const params = new URLSearchParams(searchKey);
+
+    setKeyword(params.get('keyword') || '');
+    setFilterRoom(params.get('room') || 'All');
+    setFilterType(params.get('type') || 'All');
+    setFilterStatus(params.get('status') || 'All');
+
+    if (searchKey) {
+      setActiveTab('all');
+    }
+  }, [searchKey]);
+
+  const filteredDevices = useMemo(() => {
+    const lowerKeyword = keyword.trim().toLowerCase();
+
+    return devices.filter((device) => {
+      const matchKeyword =
+        !lowerKeyword ||
+        device.id.toLowerCase().includes(lowerKeyword) ||
+        device.name.toLowerCase().includes(lowerKeyword) ||
+        device.type.toLowerCase().includes(lowerKeyword) ||
+        device.room.toLowerCase().includes(lowerKeyword);
+
+      const matchRoom = filterRoom === 'All' || device.room === filterRoom;
+      const matchType = filterType === 'All' || device.type === filterType;
+
+      const matchStatus =
+        filterStatus === 'All' ||
+        (filterStatus === 'need-handle'
+          ? ['Báo hỏng', 'Đang sửa', 'Bảo trì'].includes(device.status)
+          : device.status === filterStatus);
+
+      return matchKeyword && matchRoom && matchType && matchStatus;
+    });
+  }, [devices, keyword, filterRoom, filterType, filterStatus]);
+
+  const stats = useMemo(() => {
+    return {
+      total: devices.length,
+      good: devices.filter((device) => device.status === 'Hoạt động').length,
+      needFix: devices.filter((device) =>
+        ['Báo hỏng', 'Đang sửa', 'Bảo trì'].includes(device.status),
+      ).length,
+      discarded: devices.filter((device) => device.status === 'Thanh lý').length,
+    };
+  }, [devices]);
+
+  const openAddModal = () => {
+    setEditingDevice(null);
+
+    setDeviceForm({
+      ...emptyDevice,
+      id: 'Tự động',
+      type: typeOptions[0] || 'Khác',
+      room: roomOptions[0] || 'Kho',
+      importDate: getToday(),
+    });
+
+    setIsDeviceModalOpen(true);
+  };
+
+  const openEditModal = (device: Device) => {
+    setEditingDevice(device);
+    setDeviceForm(device);
+    setIsDeviceModalOpen(true);
+  };
+
+  const saveDevice = async (e: FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+
+    if (!deviceForm.name.trim()) {
+      alert('Vui lòng nhập tên thiết bị.');
+      return;
+    }
+
+    const categoryId = getCategoryIdByName(deviceForm.type);
+
+    if (!categoryId) {
+      alert('Loại thiết bị không hợp lệ. Vui lòng tạo loại thiết bị trong backend trước.');
+      return;
+    }
+
+    try {
+      if (editingDevice) {
+        await managerApi.updateEquipment(editingDevice.id, {
+          name: deviceForm.name,
+          categoryId,
+          quantity: deviceForm.quantity,
+          status: deviceForm.status,
+          description: deviceForm.note,
+        });
+      } else {
+        const created = await managerApi.createEquipment({
+          name: deviceForm.name,
+          categoryId,
+          quantity: deviceForm.quantity,
+          status: deviceForm.status,
+          description: deviceForm.note,
+        });
+
+        const roomId = getRoomIdByCode(deviceForm.room);
+
+        if (roomId) {
+          await managerApi.allocateEquipment({
+            equipmentId: created.equipmentId,
+            roomId,
+            quantity: deviceForm.quantity,
+            allocatedAt: deviceForm.importDate || getToday(),
+            note: `Gắn thiết bị ${deviceForm.name} vào phòng ${deviceForm.room}`,
+          });
         }
-      />
+      }
+
+      setIsDeviceModalOpen(false);
+      await fetchAllData();
+    } catch (error) {
+      console.error(error);
+      alert('Không thể lưu thiết bị. Kiểm tra backend hoặc dữ liệu nhập.');
+    }
+  };
+
+  const deleteDevice = async (id: string) => {
+    const confirmDelete = window.confirm(`Bạn có chắc chắn muốn xóa thiết bị ${id}?`);
+
+    if (!confirmDelete) return;
+
+    try {
+      await managerApi.deleteEquipment(id);
+      await fetchAllData();
+    } catch (error) {
+      console.error(error);
+      alert('Không thể xóa thiết bị.');
+    }
+  };
+
+  const openStatusModal = (device: Device) => {
+    setStatusDevice(device);
+
+    setStatusForm({
+      status: device.status,
+      note: device.note,
+    });
+  };
+
+  const saveStatus = async (e: FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+
+    if (!statusDevice) return;
+
+    try {
+      await managerApi.updateEquipmentStatus(statusDevice.id, {
+        status: statusForm.status,
+        description: statusForm.note,
+      });
+
+      setStatusDevice(null);
+      await fetchAllData();
+    } catch (error) {
+      console.error(error);
+      alert('Không thể cập nhật trạng thái thiết bị.');
+    }
+  };
+
+  const openTransferModal = (device: Device) => {
+    setTransferDevice(device);
+
+    const suggestedRoom = roomOptions.find((room) => room !== device.room) || roomOptions[0] || '';
+
+    setTransferForm({
+      toRoom: suggestedRoom,
+      date: getToday(),
+      handler: 'Cán bộ QLTB',
+      reason: '',
+    });
+  };
+
+  const saveTransfer = async (e: FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+
+    if (!transferDevice) return;
+
+    const fromRoomId = getRoomIdByCode(transferDevice.room);
+    const toRoomId = getRoomIdByCode(transferForm.toRoom);
+
+    if (!fromRoomId || !toRoomId) {
+      alert('Không xác định được phòng hiện tại hoặc phòng mới.');
+      return;
+    }
+
+    if (fromRoomId === toRoomId) {
+      alert('Phòng mới phải khác phòng hiện tại.');
+      return;
+    }
+
+    try {
+      await managerApi.createTransfer({
+        equipmentId: Number(transferDevice.id),
+        fromRoomId,
+        toRoomId,
+        quantity: Math.max(1, transferDevice.quantity || 1),
+        transferredAt: transferForm.date,
+        executorId: getExecutorId(),
+        note: transferForm.reason || 'Điều chuyển theo nhu cầu sử dụng phòng học.',
+      });
+
+      setTransferDevice(null);
+      setActiveTab('transfer');
+      await fetchAllData();
+    } catch (error) {
+      console.error(error);
+      alert('Không thể điều chuyển thiết bị. Kiểm tra dữ liệu phòng, thiết bị hoặc người thực hiện.');
+    }
+  };
+
+  return (
+    <ManagerLayout>
+      <div className="mb-6 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-black text-slate-800">Cán bộ quản lý thiết bị</h1>
+
+          <p className="text-sm text-slate-500 mt-1">
+            Quản lý danh mục thiết bị, phân bổ phòng học, điều chuyển và cập nhật trạng thái.
+          </p>
+        </div>
+
+        <button
+          type="button"
+          onClick={openAddModal}
+          className="flex items-center justify-center px-4 py-2 bg-indigo-600 text-white text-sm font-medium rounded-lg hover:bg-indigo-700 transition shadow-sm"
+        >
+          <FiPlus className="mr-2 text-lg" />
+          Thêm thiết bị mới
+        </button>
+      </div>
+
+      {errorMessage && (
+        <div className="mb-4 bg-rose-50 border border-rose-200 text-rose-700 rounded-xl p-4">
+          {errorMessage}
+        </div>
+      )}
+
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+        <SummaryCard icon={<FiBox />} label="Tổng thiết bị" value={stats.total} />
+        <SummaryCard icon={<FiCheckCircle />} label="Hoạt động" value={stats.good} />
+        <SummaryCard icon={<FiTool />} label="Cần xử lý" value={stats.needFix} />
+        <SummaryCard icon={<FiXCircle />} label="Thanh lý" value={stats.discarded} />
+      </div>
 
       <div className="border-b border-slate-200 mb-6">
-        <nav className="-mb-px flex space-x-8">
-          <button onClick={() => setActiveTab('all')} className={`flex items-center pb-4 px-1 border-b-2 font-medium text-sm transition-colors ${activeTab === 'all' ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-500 hover:text-slate-700'}`}>
-            <FiBox className="mr-2 text-lg" /> Tất cả thiết bị
-          </button>
-          <button onClick={() => setActiveTab('byRoom')} className={`flex items-center pb-4 px-1 border-b-2 font-medium text-sm transition-colors ${activeTab === 'byRoom' ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-500 hover:text-slate-700'}`}>
-            <FiLayers className="mr-2 text-lg" /> Quản lý theo phòng học
-          </button>
+        <nav className="flex flex-wrap gap-x-8 gap-y-3">
+          <TabButton
+            active={activeTab === 'all'}
+            onClick={() => setActiveTab('all')}
+            icon={<FiBox />}
+            label="Danh mục thiết bị"
+          />
+
+          <TabButton
+            active={activeTab === 'byRoom'}
+            onClick={() => setActiveTab('byRoom')}
+            icon={<FiLayers />}
+            label="Thiết bị theo phòng"
+          />
+
+          <TabButton
+            active={activeTab === 'transfer'}
+            onClick={() => setActiveTab('transfer')}
+            icon={<FiCornerUpRight />}
+            label="Điều chuyển thiết bị"
+          />
         </nav>
       </div>
 
-      {activeTab === 'all' ? (
-        <div className="space-y-4 animate-in fade-in duration-300">
-          <FilterSelect
-            value={filterRoom}
-            onChange={setFilterRoom}
-            options={uniqueRooms}
-            defaultLabel="Tất cả phòng học"
-            optionPrefix="Phòng "
-          />
-
-          <Table 
-        data={filteredDevices}
-        columns={deviceColumns}
-        onEdit={handleOpenEdit}
-        onDelete={(deviceId) => handleDelete(deviceId, `Xóa thiết bị ${deviceId}?`)}
-        emptyMessage="Không tìm thấy thiết bị nào."
-      />
+      {loading && (
+        <div className="bg-white border border-slate-200 rounded-xl p-8 text-center text-slate-500">
+          Đang tải dữ liệu thiết bị...
         </div>
-      ) : (
-        <Grid
+      )}
+
+      {!loading && activeTab === 'all' && (
+        <div className="space-y-4">
+          <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4 grid grid-cols-1 md:grid-cols-4 gap-3">
+            <div className="relative">
+              <FiSearch className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+
+              <input
+                value={keyword}
+                onChange={(e) => setKeyword(e.target.value)}
+                placeholder="Tìm mã, tên, loại, phòng..."
+                className="w-full pl-9 pr-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:border-blue-500"
+              />
+            </div>
+
+            <FilterSelect
+              value={filterRoom}
+              onChange={setFilterRoom}
+              options={roomOptions}
+              label="Tất cả phòng"
+            />
+
+            <FilterSelect
+              value={filterType}
+              onChange={setFilterType}
+              options={typeOptions}
+              label="Tất cả loại"
+            />
+
+            <select
+              value={filterStatus}
+              onChange={(e) => setFilterStatus(e.target.value)}
+              className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:border-blue-500"
+            >
+              <option value="All">Tất cả trạng thái</option>
+              <option value="need-handle">Cần xử lý</option>
+
+              {deviceStatuses.map((status) => (
+                <option key={status} value={status}>
+                  {status}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <DeviceTable
+            devices={filteredDevices}
+            onEdit={openEditModal}
+            onDelete={deleteDevice}
+            onStatus={openStatusModal}
+            onTransfer={openTransferModal}
+          />
+        </div>
+      )}
+
+      {!loading && activeTab === 'byRoom' && (
+        <DeviceRoomCards
+          rooms={roomOptions.filter((room) => room !== 'Kho')}
           devices={devices}
-          uniqueRooms={uniqueRooms}
-          getStatusStyle={getStatusStyle}
-          onEdit={handleOpenEdit}
-          onDelete={(deviceId) => handleDelete(deviceId, `Bạn có chắc chắn muốn xóa thiết bị mã ${deviceId}?`)}
+          onStatus={openStatusModal}
+          onTransfer={openTransferModal}
         />
       )}
 
-      <DynamicFormModal
-        isOpen={isModalOpen}
-        onClose={() => setIsModalOpen(false)}
-        onSave={handleSaveDevice}
-        initialData={editingDevice}
-        fields={deviceFields}
-        titleAdd="Thêm thiết bị mới"
-        titleEdit={`Cập nhật thiết bị - ${editingDevice?.id}`}
-      />
-    </MainLayout>
+      {!loading && activeTab === 'transfer' && <TransferHistory transfers={transfers} />}
+
+      {isDeviceModalOpen && (
+        <DeviceFormModal
+          editingDevice={editingDevice}
+          deviceForm={deviceForm}
+          setDeviceForm={setDeviceForm}
+          roomOptions={roomOptions}
+          typeOptions={typeOptions}
+          onClose={() => setIsDeviceModalOpen(false)}
+          onSubmit={saveDevice}
+        />
+      )}
+
+      {statusDevice && (
+        <DeviceStatusModal
+          device={statusDevice}
+          statusForm={statusForm}
+          setStatusForm={setStatusForm}
+          onClose={() => setStatusDevice(null)}
+          onSubmit={saveStatus}
+        />
+      )}
+
+      {transferDevice && (
+        <DeviceTransferModal
+          device={transferDevice}
+          transferForm={transferForm}
+          setTransferForm={setTransferForm}
+          roomOptions={roomOptions.filter((room) => room !== 'Kho')}
+          onClose={() => setTransferDevice(null)}
+          onSubmit={saveTransfer}
+        />
+      )}
+    </ManagerLayout>
   );
 };

@@ -1,177 +1,446 @@
-import { useState } from 'react';
-import { MainLayout } from '../layout/MainLayout';
-import { FiMessageSquare, FiFilter, FiCheckCircle, FiTool, FiEye, FiX, FiSave } from 'react-icons/fi';
+// Component quản lý phản ánh báo hỏng dành cho Cán bộ quản lý thiết bị.
+// Bản này đã nối API backend thật:
+// - GET /reports
+// - PATCH /reports/:reportId/handle
+//
+// Có hỗ trợ URL query:
+// /manager/incidents?status=Mới tiếp nhận
+// /manager/incidents?room=A201
+// /manager/incidents?report=1
+
+import { useEffect, useMemo, useState } from 'react';
+import type { FormEvent } from 'react';
+import { useSearchParams } from 'react-router-dom';
+import {
+  FiAlertTriangle,
+  FiCheckCircle,
+  FiClock,
+  FiEye,
+  FiFilter,
+  FiSearch,
+  FiTool,
+} from 'react-icons/fi';
+
+import { ManagerLayout } from '../../components/layout/ManagerLayout';
+import type { IncidentReport, ReportStatus } from '../../types/manager';
+import { managerApi } from '../../services/managerApi';
+import {
+  FieldInput,
+  FieldSelect,
+  FieldTextArea,
+  Modal,
+  StatusBadge,
+  SummaryCard,
+  TableHead,
+} from './common/ManagerCommon';
+
+// Danh sách trạng thái phản ánh hiển thị trên frontend
+const reportStatuses: ReportStatus[] = [
+  'Mới tiếp nhận',
+  'Đang xử lý',
+  'Đã xử lý',
+  'Từ chối',
+];
 
 export const IncidentManager = () => {
-  // 1. Mock Data: Danh sách phản ánh từ Giảng viên/Sinh viên
-  const [reports, setReports] = useState([
-    { id: 'PA001', sender: 'SV001 - Phạm Văn D', room: 'A201', device: 'Máy chiếu Panasonic', issue: 'Máy chiếu cắm điện không lên đèn, có mùi khét.', date: '04/05/2026', status: 'Mới tiếp nhận' },
-    { id: 'PA002', sender: 'GV001 - Lê Văn C', room: 'B105', device: 'Điều hòa Daikin', issue: 'Điều hòa không mát, bị chảy nước xuống bàn.', date: '03/05/2026', status: 'Đang xử lý' },
-    { id: 'PA003', sender: 'SV005 - Trần Thị E', room: 'A202', device: 'Dây cáp HDMI', issue: 'Mất đầu chuyển type-C sang HDMI tại bàn giáo viên.', date: '01/05/2026', status: 'Đã xử lý' },
-  ]);
+  // Đọc tham số từ URL
+  const [searchParams, setSearchParams] = useSearchParams();
+  const searchKey = searchParams.toString();
 
-  const [filterStatus, setFilterStatus] = useState('All');
-  
-  // State cho Modal Cập nhật trạng thái
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [selectedReport, setSelectedReport] = useState<any>(null);
+  // State lưu danh sách phản ánh lấy từ backend
+  const [reports, setReports] = useState<IncidentReport[]>([]);
 
-  // Mở Modal xem chi tiết & cập nhật
-  const handleOpenModal = (report: any) => {
-    setSelectedReport(report);
-    setIsModalOpen(true);
-  };
+  // State lưu phản ánh đang được chọn để xem chi tiết hoặc xử lý
+  const [selectedReport, setSelectedReport] = useState<IncidentReport | null>(null);
 
-  // Xử lý lưu trạng thái mới
-  const handleUpdateStatus = (e: React.FormEvent) => {
-    e.preventDefault();
-    setReports(reports.map(r => r.id === selectedReport.id ? selectedReport : r));
-    setIsModalOpen(false);
-    setSelectedReport(null);
-  };
+  // State loading/error
+  const [loading, setLoading] = useState(true);
+  const [errorMessage, setErrorMessage] = useState('');
 
-  // Định dạng màu sắc cho Badges trạng thái
-  const getStatusStyle = (status: string) => {
-    switch(status) {
-      case 'Mới tiếp nhận': return 'bg-rose-100 text-rose-700 border-rose-200';
-      case 'Đang xử lý': return 'bg-amber-100 text-amber-700 border-amber-200';
-      case 'Đã xử lý': return 'bg-emerald-100 text-emerald-700 border-emerald-200';
-      default: return 'bg-slate-100 text-slate-700 border-slate-200';
+  // State tìm kiếm và lọc
+  const [keyword, setKeyword] = useState('');
+  const [filterStatus, setFilterStatus] = useState(searchParams.get('status') || 'All');
+  const [filterRoom, setFilterRoom] = useState(searchParams.get('room') || 'All');
+
+  // Lấy ID cán bộ đang đăng nhập.
+  // Nếu chưa có userId trong localStorage thì tạm dùng 1.
+  // Lưu ý: trong database phải có userId = 1, nếu không backend sẽ báo "Người xử lý không tồn tại".
+  const getCurrentUserId = () => {
+    const rawUser = localStorage.getItem('currentUser');
+
+    if (!rawUser) return 1;
+
+    try {
+      const user = JSON.parse(rawUser);
+      return Number(user.userId || user.id || 1);
+    } catch {
+      return 1;
     }
   };
 
-  // Lọc dữ liệu theo trạng thái
-  const filteredReports = filterStatus === 'All' 
-    ? reports 
-    : reports.filter(r => r.status === filterStatus);
+  // Gọi API lấy danh sách phản ánh từ backend
+  const fetchReports = async () => {
+    try {
+      setLoading(true);
+      setErrorMessage('');
+
+      const data = await managerApi.getReports();
+      setReports(data);
+    } catch (error) {
+      console.error(error);
+      setErrorMessage('Không thể tải danh sách phản ánh từ backend.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Khi mở trang thì gọi API
+  useEffect(() => {
+    fetchReports();
+  }, []);
+
+  // Khi URL thay đổi thì cập nhật bộ lọc
+  useEffect(() => {
+    const params = new URLSearchParams(searchKey);
+
+    setFilterStatus(params.get('status') || 'All');
+    setFilterRoom(params.get('room') || 'All');
+
+    const reportId = params.get('report');
+
+    if (reportId && reports.length > 0) {
+      const foundReport = reports.find((report) => report.id === reportId);
+
+      if (foundReport) {
+        setSelectedReport({
+          ...foundReport,
+          handlerName: foundReport.handlerName || 'Cán bộ QLTB',
+          handlerNote: foundReport.handlerNote || '',
+        });
+      }
+    }
+  }, [searchKey, reports]);
+
+  // Lấy danh sách phòng từ danh sách phản ánh để đưa vào bộ lọc
+  const roomOptions = useMemo(() => {
+    return Array.from(new Set(reports.map((report) => report.room).filter(Boolean)));
+  }, [reports]);
+
+  // Lọc phản ánh ở frontend theo từ khóa, trạng thái và phòng
+  const filteredReports = useMemo(() => {
+    const lowerKeyword = keyword.trim().toLowerCase();
+
+    return reports.filter((report) => {
+      const matchKeyword =
+        !lowerKeyword ||
+        report.id.toLowerCase().includes(lowerKeyword) ||
+        report.sender.toLowerCase().includes(lowerKeyword) ||
+        report.room.toLowerCase().includes(lowerKeyword) ||
+        report.device.toLowerCase().includes(lowerKeyword) ||
+        report.issue.toLowerCase().includes(lowerKeyword);
+
+      const matchStatus = filterStatus === 'All' || report.status === filterStatus;
+      const matchRoom = filterRoom === 'All' || report.room === filterRoom;
+
+      return matchKeyword && matchStatus && matchRoom;
+    });
+  }, [reports, keyword, filterStatus, filterRoom]);
+
+  // Tính số liệu thống kê phản ánh
+  const stats = useMemo(() => {
+    return {
+      total: reports.length,
+      pending: reports.filter((report) => report.status === 'Mới tiếp nhận').length,
+      processing: reports.filter((report) => report.status === 'Đang xử lý').length,
+      resolved: reports.filter((report) => report.status === 'Đã xử lý').length,
+    };
+  }, [reports]);
+
+  // Mở modal chi tiết phản ánh
+  const openDetailModal = (report: IncidentReport) => {
+    setSelectedReport({
+      ...report,
+      handlerName: report.handlerName || 'Cán bộ QLTB',
+      handlerNote: report.handlerNote || '',
+    });
+  };
+
+  // Đóng modal.
+  // Nếu URL có ?report=... thì xóa riêng tham số report, giữ lại status/room nếu có.
+  const closeDetailModal = () => {
+    setSelectedReport(null);
+
+    const params = new URLSearchParams(searchParams);
+    params.delete('report');
+    setSearchParams(params);
+  };
+
+  // Cập nhật xử lý phản ánh lên backend
+  const updateReport = async (e: FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+
+    if (!selectedReport) return;
+
+    try {
+      await managerApi.handleReport(selectedReport.id, {
+        status: selectedReport.status,
+        handlerId: getCurrentUserId(),
+        resolutionContent: selectedReport.handlerNote || '',
+        result: selectedReport.handlerNote || '',
+      });
+
+      setSelectedReport(null);
+
+      const params = new URLSearchParams(searchParams);
+      params.delete('report');
+      setSearchParams(params);
+
+      await fetchReports();
+    } catch (error) {
+      console.error(error);
+      alert(
+        'Không thể cập nhật phản ánh. Kiểm tra backend, dữ liệu phản ánh hoặc userId người xử lý.',
+      );
+    }
+  };
 
   return (
-    <MainLayout>
-      <div className="mb-8 flex flex-col sm:flex-row justify-between items-start sm:items-end gap-4">
-        <div>
-          <h2 className="text-2xl font-bold text-slate-800">Quản lý Phản ánh báo hỏng</h2>
-          <p className="text-sm text-slate-500 mt-1">Tiếp nhận và xử lý các sự cố thiết bị do Giảng viên, Sinh viên gửi lên</p>
+    <ManagerLayout>
+      {/* Tiêu đề trang */}
+      <div className="mb-6">
+        <h1 className="text-2xl font-black text-slate-800">Quản lý phản ánh báo hỏng</h1>
+
+        <p className="text-sm text-slate-500 mt-1">
+          Tiếp nhận, xem chi tiết và cập nhật trạng thái xử lý các phản ánh sự cố thiết bị.
+        </p>
+      </div>
+
+      {/* Thông báo lỗi khi không gọi được backend */}
+      {errorMessage && (
+        <div className="mb-4 bg-rose-50 border border-rose-200 text-rose-700 rounded-xl p-4">
+          {errorMessage}
         </div>
-        
-        {/* Bộ lọc trạng thái */}
-        <div className="relative w-full sm:w-64">
-          <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-            <FiFilter className="text-slate-400" />
-          </div>
+      )}
+
+      {/* Card thống kê số lượng phản ánh */}
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+        <SummaryCard icon={<FiClock />} label="Tổng phản ánh" value={stats.total} />
+        <SummaryCard icon={<FiAlertTriangle />} label="Mới tiếp nhận" value={stats.pending} />
+        <SummaryCard icon={<FiTool />} label="Đang xử lý" value={stats.processing} />
+        <SummaryCard icon={<FiCheckCircle />} label="Đã xử lý" value={stats.resolved} />
+      </div>
+
+      {/* Bộ lọc tìm kiếm phản ánh */}
+      <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4 grid grid-cols-1 md:grid-cols-3 gap-3 mb-4">
+        <div className="relative">
+          <FiSearch className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+
+          <input
+            value={keyword}
+            onChange={(e) => setKeyword(e.target.value)}
+            placeholder="Tìm mã, người gửi, phòng, thiết bị..."
+            className="w-full pl-9 pr-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:border-blue-500"
+          />
+        </div>
+
+        <div className="relative">
+          <FiFilter className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+
           <select
             value={filterStatus}
             onChange={(e) => setFilterStatus(e.target.value)}
-            className="w-full pl-9 pr-3 py-2 bg-white border border-slate-200 rounded-lg text-sm font-medium text-slate-700 focus:outline-none focus:border-blue-500 shadow-sm"
+            className="w-full pl-9 pr-3 py-2 bg-white border border-slate-200 rounded-lg text-sm focus:outline-none focus:border-blue-500"
           >
             <option value="All">Tất cả trạng thái</option>
-            <option value="Mới tiếp nhận">Mới tiếp nhận</option>
-            <option value="Đang xử lý">Đang xử lý</option>
-            <option value="Đã xử lý">Đã xử lý</option>
+
+            {reportStatuses.map((status) => (
+              <option key={status} value={status}>
+                {status}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        <div className="relative">
+          <FiFilter className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+
+          <select
+            value={filterRoom}
+            onChange={(e) => setFilterRoom(e.target.value)}
+            className="w-full pl-9 pr-3 py-2 bg-white border border-slate-200 rounded-lg text-sm focus:outline-none focus:border-blue-500"
+          >
+            <option value="All">Tất cả phòng học</option>
+
+            {roomOptions.map((room) => (
+              <option key={room} value={room}>
+                Phòng {room}
+              </option>
+            ))}
           </select>
         </div>
       </div>
 
-      {/* Bảng danh sách phản ánh */}
-      <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse">
-            <thead>
-              <tr className="bg-slate-50 border-b border-slate-200">
-                <th className="px-6 py-4 text-xs font-semibold text-slate-500 uppercase">Mã PA</th>
-                <th className="px-6 py-4 text-xs font-semibold text-slate-500 uppercase">Người gửi</th>
-                <th className="px-6 py-4 text-xs font-semibold text-slate-500 uppercase">Phòng / Thiết bị</th>
-                <th className="px-6 py-4 text-xs font-semibold text-slate-500 uppercase">Nội dung tóm tắt</th>
-                <th className="px-6 py-4 text-xs font-semibold text-slate-500 uppercase">Thời gian</th>
-                <th className="px-6 py-4 text-xs font-semibold text-slate-500 uppercase">Trạng thái</th>
-                <th className="px-6 py-4 text-xs font-semibold text-slate-500 uppercase text-right">Thao tác</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100">
-              {filteredReports.map((report, index) => (
-                <tr key={index} className="hover:bg-slate-50 transition-colors">
-                  <td className="px-6 py-4 text-sm font-bold text-slate-700">{report.id}</td>
-                  <td className="px-6 py-4 text-sm text-slate-600">{report.sender}</td>
-                  <td className="px-6 py-4 text-sm text-slate-800">
-                    <span className="font-semibold text-blue-600">{report.room}</span>
-                    <br/><span className="text-xs text-slate-500">{report.device}</span>
-                  </td>
-                  <td className="px-6 py-4 text-sm text-slate-600 max-w-xs truncate" title={report.issue}>
-                    {report.issue}
-                  </td>
-                  <td className="px-6 py-4 text-sm text-slate-500">{report.date}</td>
-                  <td className="px-6 py-4 text-sm">
-                    <span className={`px-2.5 py-1 rounded-full text-xs font-semibold border ${getStatusStyle(report.status)}`}>
-                      {report.status === 'Đã xử lý' && <FiCheckCircle className="inline mr-1 mb-0.5" />}
-                      {report.status === 'Đang xử lý' && <FiTool className="inline mr-1 mb-0.5" />}
-                      {report.status}
-                    </span>
-                  </td>
-                  <td className="px-6 py-4 text-sm text-right">
-                    <button 
-                      onClick={() => handleOpenModal(report)}
-                      className="px-3 py-1.5 bg-blue-50 text-blue-600 hover:bg-blue-100 rounded-lg text-xs font-medium transition-colors flex items-center inline-flex"
-                    >
-                      <FiEye className="mr-1.5" /> Xử lý
-                    </button>
-                  </td>
-                </tr>
-              ))}
-              {filteredReports.length === 0 && (
-                <tr><td colSpan={7} className="px-6 py-12 text-center text-slate-500">Không có phiếu phản ánh nào.</td></tr>
-              )}
-            </tbody>
-          </table>
+      {/* Loading khi đang gọi API */}
+      {loading && (
+        <div className="bg-white border border-slate-200 rounded-xl p-8 text-center text-slate-500">
+          Đang tải danh sách phản ánh...
         </div>
-      </div>
+      )}
 
-      {/* Modal Chi tiết và Cập nhật trạng thái */}
-      {isModalOpen && selectedReport && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg overflow-hidden animate-in zoom-in-95 duration-200">
-            <div className="px-6 py-4 border-b border-slate-200 flex justify-between items-center bg-slate-50">
-              <h3 className="text-lg font-bold text-slate-800">Chi tiết phản ánh - {selectedReport.id}</h3>
-              <button onClick={() => setIsModalOpen(false)} className="text-slate-400 hover:text-slate-600 p-1"><FiX className="text-xl" /></button>
-            </div>
-            
-            <form onSubmit={handleUpdateStatus} className="p-6 space-y-5">
-              {/* Thông tin readonly */}
-              <div className="bg-slate-50 rounded-lg p-4 border border-slate-200 space-y-3">
-                <div className="grid grid-cols-2 gap-4 text-sm">
-                  <div><span className="text-slate-500 block text-xs">Người gửi:</span> <span className="font-medium text-slate-800">{selectedReport.sender}</span></div>
-                  <div><span className="text-slate-500 block text-xs">Thời gian:</span> <span className="font-medium text-slate-800">{selectedReport.date}</span></div>
-                  <div><span className="text-slate-500 block text-xs">Phòng học:</span> <span className="font-bold text-blue-600">{selectedReport.room}</span></div>
-                  <div><span className="text-slate-500 block text-xs">Thiết bị lỗi:</span> <span className="font-medium text-slate-800">{selectedReport.device}</span></div>
-                </div>
-                <div>
-                  <span className="text-slate-500 block text-xs mb-1">Nội dung chi tiết:</span>
-                  <p className="text-sm text-slate-700 bg-white p-3 rounded border border-slate-200">{selectedReport.issue}</p>
-                </div>
-              </div>
+      {/* Bảng danh sách phản ánh báo hỏng */}
+      {!loading && (
+        <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full text-left border-collapse">
+              <thead>
+                <tr className="bg-slate-50 border-b border-slate-200">
+                  <TableHead>Mã PA</TableHead>
+                  <TableHead>Người gửi</TableHead>
+                  <TableHead>Phòng / Thiết bị</TableHead>
+                  <TableHead>Nội dung sự cố</TableHead>
+                  <TableHead>Trạng thái</TableHead>
+                  <TableHead alignRight>Thao tác</TableHead>
+                </tr>
+              </thead>
 
-              {/* Phần cập nhật trạng thái */}
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1.5">Cập nhật tiến độ xử lý</label>
-                <select 
-                  value={selectedReport.status}
-                  onChange={(e) => setSelectedReport({...selectedReport, status: e.target.value})}
-                  className="w-full border border-slate-300 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
-                >
-                  <option value="Mới tiếp nhận">Mới tiếp nhận (Chưa xử lý)</option>
-                  <option value="Đang xử lý">Đang xử lý (Chờ linh kiện / Đang sửa)</option>
-                  <option value="Đã xử lý">Đã xử lý xong (Hoạt động bình thường)</option>
-                </select>
-              </div>
+              <tbody className="divide-y divide-slate-100">
+                {filteredReports.map((report) => (
+                  <tr key={report.id} className="hover:bg-slate-50">
+                    <td className="px-6 py-4 text-sm font-bold text-slate-800">
+                      PA{String(report.id).padStart(3, '0')}
+                    </td>
 
-              <div className="pt-2 flex justify-end space-x-3">
-                <button type="button" onClick={() => setIsModalOpen(false)} className="px-4 py-2 bg-white border border-slate-300 text-slate-700 text-sm font-medium rounded-lg hover:bg-slate-50">Đóng</button>
-                <button type="submit" className="flex items-center px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 shadow-sm">
-                  <FiSave className="mr-2" /> Lưu trạng thái
-                </button>
-              </div>
-            </form>
+                    <td className="px-6 py-4 text-sm">
+                      <p className="font-semibold text-slate-800">{report.sender}</p>
+                      <p className="text-xs text-slate-400 mt-0.5">{report.date}</p>
+                    </td>
+
+                    <td className="px-6 py-4 text-sm">
+                      <p className="font-semibold text-slate-700">Phòng {report.room}</p>
+                      <p className="text-xs text-slate-500 mt-0.5">{report.device}</p>
+                    </td>
+
+                    <td className="px-6 py-4 text-sm text-slate-600 max-w-md">
+                      <p className="line-clamp-2">{report.issue}</p>
+
+                      {report.handlerNote && (
+                        <p className="text-xs text-slate-400 mt-1">
+                          Ghi chú: {report.handlerNote}
+                        </p>
+                      )}
+                    </td>
+
+                    <td className="px-6 py-4 text-sm">
+                      <StatusBadge status={report.status} type="report" />
+                    </td>
+
+                    <td className="px-6 py-4 text-sm">
+                      <div className="flex justify-end">
+                        <button
+                          type="button"
+                          onClick={() => openDetailModal(report)}
+                          className="inline-flex items-center px-3 py-1.5 rounded-lg text-sm font-medium text-blue-600 bg-blue-50 hover:bg-blue-100"
+                        >
+                          <FiEye className="mr-1.5" />
+                          Xử lý
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+
+                {filteredReports.length === 0 && (
+                  <tr>
+                    <td colSpan={6} className="px-6 py-12 text-center text-sm text-slate-500">
+                      Không tìm thấy phản ánh phù hợp.
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+
+          <div className="px-6 py-4 border-t border-slate-200 bg-slate-50 text-sm text-slate-500">
+            Hiển thị {filteredReports.length} phản ánh
           </div>
         </div>
       )}
-    </MainLayout>
+
+      {/* Modal xem chi tiết và cập nhật xử lý phản ánh */}
+      {selectedReport && (
+        <Modal
+          title={`Chi tiết phản ánh - PA${String(selectedReport.id).padStart(3, '0')}`}
+          onClose={closeDetailModal}
+          onSubmit={updateReport}
+          submitText="Lưu xử lý"
+        >
+          <div className="bg-slate-50 border border-slate-200 rounded-lg p-4 space-y-2">
+            <InfoRow label="Người gửi" value={selectedReport.sender} />
+            <InfoRow label="Phòng học" value={selectedReport.room} />
+            <InfoRow label="Thiết bị" value={selectedReport.device} />
+            <InfoRow label="Thời gian gửi" value={selectedReport.date} />
+
+            <div>
+              <p className="text-xs font-semibold text-slate-500 uppercase">Nội dung sự cố</p>
+              <p className="text-sm text-slate-800 mt-1">{selectedReport.issue}</p>
+            </div>
+          </div>
+
+          <FieldSelect
+            label="Trạng thái xử lý"
+            value={selectedReport.status}
+            options={reportStatuses}
+            onChange={(value) =>
+              setSelectedReport({
+                ...selectedReport,
+                status: value as ReportStatus,
+              })
+            }
+          />
+
+          <FieldInput
+            label="Người xử lý"
+            value={selectedReport.handlerName || 'Cán bộ QLTB'}
+            onChange={(value) =>
+              setSelectedReport({
+                ...selectedReport,
+                handlerName: value,
+              })
+            }
+          />
+
+          <FieldTextArea
+            label="Ghi chú xử lý"
+            value={selectedReport.handlerNote || ''}
+            placeholder="Ví dụ: Đã kiểm tra, cần thay dây HDMI..."
+            onChange={(value) =>
+              setSelectedReport({
+                ...selectedReport,
+                handlerNote: value,
+              })
+            }
+          />
+
+          {selectedReport.handledAt && (
+            <p className="text-xs text-slate-400">
+              Cập nhật gần nhất: {selectedReport.handledAt}
+            </p>
+          )}
+        </Modal>
+      )}
+    </ManagerLayout>
   );
 };
+
+interface InfoRowProps {
+  label: string;
+  value: string;
+}
+
+// Dòng thông tin nhỏ dùng trong modal chi tiết phản ánh
+const InfoRow = ({ label, value }: InfoRowProps) => (
+  <div className="grid grid-cols-3 gap-3 text-sm">
+    <span className="text-slate-500">{label}</span>
+    <span className="col-span-2 font-semibold text-slate-800">{value || 'Không có'}</span>
+  </div>
+);
