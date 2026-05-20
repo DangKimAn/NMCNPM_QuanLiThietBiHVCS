@@ -7,7 +7,6 @@ import { PrismaService } from '../prisma/prisma.service';
 export class ManagerDashboardService {
   constructor(private readonly prisma: PrismaService) {}
 
-  // API tổng quan cho trang dashboard của cán bộ quản lý thiết bị
   async getOverview() {
     const [
       totalDevices,
@@ -15,64 +14,73 @@ export class ManagerDashboardService {
       brokenDevices,
       repairingDevices,
       discardedDevices,
+
       totalReports,
       pendingReports,
       processingReports,
       resolvedReports,
       rejectedReports,
+
       rooms,
       latestReports,
       latestTransfers,
     ] = await Promise.all([
-      // Tổng số thiết bị
       this.prisma.equipment.count(),
 
-      // Thiết bị hoạt động tốt
       this.prisma.equipment.count({
-        where: { status: EquipmentStatus.GOOD },
+        where: {
+          status: EquipmentStatus.GOOD,
+        },
       }),
 
-      // Thiết bị báo hỏng
       this.prisma.equipment.count({
-        where: { status: EquipmentStatus.BROKEN },
+        where: {
+          status: EquipmentStatus.BROKEN,
+        },
       }),
 
-      // Thiết bị đang sửa
       this.prisma.equipment.count({
-        where: { status: EquipmentStatus.UNDER_REPAIR },
+        where: {
+          status: EquipmentStatus.UNDER_REPAIR,
+        },
       }),
 
-      // Thiết bị thanh lý
       this.prisma.equipment.count({
-        where: { status: EquipmentStatus.DISCARDED },
+        where: {
+          status: EquipmentStatus.DISCARDED,
+        },
       }),
 
-      // Tổng phản ánh
       this.prisma.report.count(),
 
-      // Phản ánh mới tiếp nhận
       this.prisma.report.count({
-        where: { status: ReportStatus.PENDING },
+        where: {
+          status: ReportStatus.PENDING,
+        },
       }),
 
-      // Phản ánh đang xử lý
       this.prisma.report.count({
-        where: { status: ReportStatus.PROCESSING },
+        where: {
+          status: ReportStatus.PROCESSING,
+        },
       }),
 
-      // Phản ánh đã xử lý
       this.prisma.report.count({
-        where: { status: ReportStatus.RESOLVED },
+        where: {
+          status: ReportStatus.RESOLVED,
+        },
       }),
 
-      // Phản ánh bị từ chối
       this.prisma.report.count({
-        where: { status: ReportStatus.REJECTED },
+        where: {
+          status: ReportStatus.REJECTED,
+        },
       }),
 
-      // Danh sách phòng kèm thiết bị được phân bổ
       this.prisma.room.findMany({
-        orderBy: { roomId: 'asc' },
+        orderBy: {
+          roomId: 'asc',
+        },
         include: {
           allocations: {
             include: {
@@ -82,10 +90,11 @@ export class ManagerDashboardService {
         },
       }),
 
-      // 5 phản ánh mới nhất
       this.prisma.report.findMany({
         take: 5,
-        orderBy: { reportedAt: 'desc' },
+        orderBy: {
+          reportedAt: 'desc',
+        },
         include: {
           reporter: true,
           handler: true,
@@ -94,10 +103,11 @@ export class ManagerDashboardService {
         },
       }),
 
-      // 5 lần điều chuyển gần nhất
       this.prisma.equipmentTransfer.findMany({
         take: 5,
-        orderBy: { transferredAt: 'desc' },
+        orderBy: {
+          transferredAt: 'desc',
+        },
         include: {
           equipment: true,
           fromRoom: true,
@@ -107,7 +117,6 @@ export class ManagerDashboardService {
       }),
     ]);
 
-    // Thống kê thiết bị theo từng phòng học
     const roomStats = rooms.map((room) => {
       const totalQuantity = room.allocations.reduce(
         (sum, allocation) => sum + allocation.quantity,
@@ -115,7 +124,9 @@ export class ManagerDashboardService {
       );
 
       const activeQuantity = room.allocations
-        .filter((allocation) => allocation.equipment.status === EquipmentStatus.GOOD)
+        .filter((allocation) => {
+          return allocation.equipment.status === EquipmentStatus.GOOD;
+        })
         .reduce((sum, allocation) => sum + allocation.quantity, 0);
 
       const needHandleQuantity = room.allocations

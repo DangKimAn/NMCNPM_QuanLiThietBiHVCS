@@ -8,7 +8,6 @@ import { ManagerDashboardService } from './manager-dashboard.service';
 export class ManagerDashboardController {
   constructor(private readonly dashboardService: ManagerDashboardService) {}
 
-  // GET /manager-dashboard/overview
   @Get('overview')
   getOverview() {
     return this.dashboardService.getOverview();
