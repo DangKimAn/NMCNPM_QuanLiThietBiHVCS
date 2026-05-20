@@ -27,6 +27,7 @@ function App() {
         <Route path="/register" element={<Register />} />
 
         {/* Cán bộ quản lý thiết bị */}
+        <Route path="/manager" element={<Navigate to="/manager/overview" replace />} />
         <Route path="/manager/overview" element={<ManagerOverview />} />
         <Route path="/manager/devices" element={<DeviceManager />} />
         <Route path="/manager/incidents" element={<IncidentManager />} />
@@ -38,11 +39,12 @@ function App() {
         <Route path="/admin/logs" element={<SystemLogViewer />} />
 
         {/* Giảng viên / Sinh viên */}
+        <Route path="/student" element={<Navigate to="/student/overview" replace />} />
         <Route path="/student/overview" element={<StudentOverview />} />
         <Route path="/student/reports" element={<StudentReport />} />
         <Route path="/student/my-reports" element={<StudentMyReports />} />
 
-        {/* Nếu nhập sai đường dẫn thì quay về login */}
+        {/* Sai đường dẫn thì quay về login */}
         <Route path="*" element={<Navigate to="/login" replace />} />
       </Routes>
     </Router>
