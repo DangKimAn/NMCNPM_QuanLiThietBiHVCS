@@ -11,7 +11,7 @@ import { Table } from '../../components/ui/Table';
 const userFields: FormField[] = [
   { name: 'id', label: 'Mã người dùng', type: 'text', required: true, readOnlyOnEdit: true },
   { name: 'username', label: 'Tên đăng nhập', type: 'text', required: true, readOnlyOnEdit: true },
-  { name: 'fullName', label: 'Họ và tên', type: 'text', required: true, fullWidth: true },
+  { name: 'fullName', label: 'Họ và tên', type: 'text', required: true , fullWidth : true},
   { name: 'role', label: 'Vai trò', type: 'select', options: ['Quản trị viên', 'Cán bộ QLTB', 'Giảng viên', 'Sinh viên'], defaultValue: 'Sinh viên' },
   { name: 'status', label: 'Trạng thái', type: 'select', options: ['Hoạt động', 'Đã khóa'], defaultValue: 'Hoạt động' }
 ];
@@ -27,7 +27,7 @@ const initialUsers = [
 const userColumns: TableColumn[] = [
   { header: 'Mã ND', key: 'id', render: (item) => <span className="font-medium text-slate-900">{item.id}</span> },
   { header: 'Tên đăng nhập', key: 'username', render: (item) => <span className="font-medium text-indigo-600">{item.username}</span> },
-  { header: 'Họ và tên', key: 'fullName', render: (item) => <span className="text-slate-700">{item.fullName}</span> },
+  { header: 'Họ và tên', key: 'fullName', render: (item) => <span className="font-medium text-indigo-900">{item.fullName}</span> },
   {
     header: 'Vai trò', key: 'role', render: (item) => (
       <span className="bg-indigo-50 text-indigo-700 px-2.5 py-1 rounded-md text-xs font-medium border border-indigo-100">
