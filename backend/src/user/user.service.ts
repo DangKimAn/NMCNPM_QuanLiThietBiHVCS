@@ -11,19 +11,17 @@ import { plainToInstance } from 'class-transformer';
 @Injectable()
 export class UserService {
 
-    constructor(private readonly prismaService: PrismaService) {
-
-    }
+    constructor(private readonly prismaService: PrismaService) {}
+    
     async getAllUser(): Promise<UserDto[]> {
         try {
-            const  users : UserDto[] =  await this.prismaService.user.findMany()
+            const users : UserDto[] =  await this.prismaService.user.findMany()
             return plainToInstance(UserDto, users, { excludeExtraneousValues: true });
 
         } catch (error) {
             throw new InternalServerErrorException(error)
         }
     }
-
 
     async getUserByUserId(userId: number): Promise<UserDto> {
         try { 
@@ -151,6 +149,44 @@ export class UserService {
 
             console.error(`Lỗi ở deleteUser (ID: ${userId}):`, error);
             throw new InternalServerErrorException('Lỗi hệ thống khi xóa người dùng!');
+        }
+    }
+    
+    // Hàm bổ sung phục vụ riêng cho vòng Guard Check Quyền (JWT Strategy gọi qua đây)
+    async findUserWithRole(userId: number) {
+        return await this.prismaService.user.findUnique({
+            where: { userId },
+            include: { role: true },
+        });
+    }
+
+    // --- HÀM MỚI BỔ SUNG: CHUYỂN ĐỔI QUYỀN SANG MANAGER (HOẶC ROLE KHÁC) ---
+    async changeUserRole(userId: number, roleName: string): Promise<{ message: string; user: UserDto }> {
+        // 1. Tìm bản ghi nhóm quyền trong Database xem có đúng tên hay không
+        const targetRole = await this.prismaService.role.findUnique({
+            where: { roleName: roleName },
+        });
+
+        if (!targetRole) {
+            throw new NotFoundException(`Nhóm quyền [${roleName}] không tồn tại trong hệ thống!`);
+        }
+
+        try {
+            // 2. Tiến hành update đè trường roleId của User đích
+            const updatedUser = await this.prismaService.user.update({
+                where: { userId },
+                data: { roleId: targetRole.roleId },
+            });
+
+            return {
+                message: `Đổi quyền tài khoản thành công sang nhóm [${roleName}]`,
+                user: plainToInstance(UserDto, updatedUser, { excludeExtraneousValues: true }),
+            };
+        } catch (error) {
+            if (error.code === 'P2025') {
+                throw new NotFoundException(`Không tìm thấy người dùng mang ID ${userId} để chuyển quyền!`);
+            }
+            throw new InternalServerErrorException('Lỗi hệ thống trong quá trình cập nhật quyền hạn người dùng.');
         }
     }
 }
