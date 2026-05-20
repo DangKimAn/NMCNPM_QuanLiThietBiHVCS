@@ -11,7 +11,7 @@ import {
   FiTool,
 } from 'react-icons/fi';
 
-import { MainLayout } from '../../components/layout/MainLayout';
+import { ManagerLayout } from '../../components/layout/ManagerLayout';
 import { StatusBadge, TableHead } from '../../components/manager/common/ManagerCommon';
 import { managerApi, type DashboardOverview } from '../../services/managerApi';
 import type { DeviceStatus, ReportStatus } from '../../types/manager';
@@ -71,7 +71,7 @@ export const ManagerOverview = () => {
   }, [deviceStatusStats]);
 
   return (
-    <MainLayout>
+    <ManagerLayout>
       <div className="mb-6">
         <h1 className="text-2xl font-black text-slate-800">Tổng quan cán bộ quản lý</h1>
 
@@ -361,7 +361,7 @@ export const ManagerOverview = () => {
           </div>
         </>
       )}
-    </MainLayout>
+    </ManagerLayout>
   );
 };
 

@@ -21,7 +21,7 @@ import {
   FiTool,
 } from 'react-icons/fi';
 
-import { MainLayout } from '../layout/MainLayout';
+import { ManagerLayout } from '../../components/layout/ManagerLayout';
 import type { IncidentReport, ReportStatus } from '../../types/manager';
 import { managerApi } from '../../services/managerApi';
 import {
@@ -205,7 +205,7 @@ export const IncidentManager = () => {
   };
 
   return (
-    <MainLayout>
+    <ManagerLayout>
       {/* Tiêu đề trang */}
       <div className="mb-6">
         <h1 className="text-2xl font-black text-slate-800">Quản lý phản ánh báo hỏng</h1>
@@ -428,7 +428,7 @@ export const IncidentManager = () => {
           )}
         </Modal>
       )}
-    </MainLayout>
+    </ManagerLayout>
   );
 };
 
