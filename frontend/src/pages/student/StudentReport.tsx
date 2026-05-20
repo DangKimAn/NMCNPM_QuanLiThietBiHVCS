@@ -1,193 +1,375 @@
-import { useState, useRef } from 'react';
-import { MainLayout } from '../../components/layout/MainLayout';
-import { FiSend, FiClock, FiCheckCircle, FiImage, FiX } from 'react-icons/fi';
-import { PageHeader } from '../../components/ui/PageHeader';
+import { useEffect, useMemo, useState } from 'react';
+import type { FormEvent } from 'react';
+import { Link } from 'react-router-dom';
+import {
+  FiAlertTriangle,
+  FiCheckCircle,
+  FiEdit3,
+  FiMonitor,
+  FiRefreshCw,
+} from 'react-icons/fi';
+
+import { StudentTeacherLayout } from '../../components/layout/StudentTeacherLayout';
+import {
+  FieldTextArea,
+  SummaryCard,
+} from '../../components/manager/common/ManagerCommon';
+import {
+  createStudentReport,
+  getCurrentStudentUser,
+  mockEquipments,
+  mockRooms,
+  type StudentEquipmentOption,
+  type StudentRoomOption,
+} from '../../data/studentMockData';
+
+interface ReportForm {
+  roomId: string;
+  equipmentId: string;
+  reportContent: string;
+}
+
+const emptyForm: ReportForm = {
+  roomId: '',
+  equipmentId: '',
+  reportContent: '',
+};
+
 export const StudentReport = () => {
-  const [reports] = useState([
-    { id: 'PA001', room: 'A201', issue: 'Máy chiếu bị mờ, không rõ chữ', date: '04/05/2026', status: 'Đã xử lý' },
-    { id: 'PA002', room: 'B105', issue: 'Điều hòa không mát', date: '02/05/2026', status: 'Đang chờ' },
-  ]);
+  const currentUser = getCurrentStudentUser();
 
-  // States quản lý Form
-  const [room, setRoom] = useState('');
-  const [device, setDevice] = useState('');
-  const [description, setDescription] = useState('');
+  const [rooms, setRooms] = useState<StudentRoomOption[]>([]);
+  const [equipments, setEquipments] = useState<StudentEquipmentOption[]>([]);
 
-  // States quản lý hình ảnh
-  const [imageFile, setImageFile] = useState<File | null>(null);
-  const [imagePreview, setImagePreview] = useState<string | null>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [form, setForm] = useState<ReportForm>(emptyForm);
 
-  // Hàm xử lý khi chọn ảnh
-  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      setImageFile(file);
-      // Dùng FileReader để tạo preview URL cho ảnh
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setImagePreview(reader.result as string);
-      };
-      reader.readAsDataURL(file);
+  const [loading, setLoading] = useState(true);
+  const [submitting, setSubmitting] = useState(false);
+
+  const [errorMessage, setErrorMessage] = useState('');
+  const [successMessage, setSuccessMessage] = useState('');
+
+  const fetchData = () => {
+    try {
+      setLoading(true);
+      setErrorMessage('');
+
+      setRooms(mockRooms);
+      setEquipments(mockEquipments);
+
+      setForm((current) => ({
+        ...current,
+        roomId: current.roomId || String(mockRooms[0]?.roomId || ''),
+        equipmentId: current.equipmentId || String(mockEquipments[0]?.equipmentId || ''),
+      }));
+    } catch (error) {
+      console.error(error);
+      setErrorMessage('Không thể tải dữ liệu mẫu phòng học hoặc thiết bị.');
+    } finally {
+      setLoading(false);
     }
   };
 
-  // Hàm xóa ảnh đã chọn
-  const handleRemoveImage = () => {
-    setImageFile(null);
-    setImagePreview(null);
-    if (fileInputRef.current) {
-      fileInputRef.current.value = '';
-    }
-  };
+  useEffect(() => {
+    fetchData();
+  }, []);
 
-  // Hàm gửi phản ánh
-  const handleSubmit = (e: React.FormEvent) => {
+  const filteredEquipments = useMemo(() => {
+    const selectedRoomId = Number(form.roomId);
+
+    const byRoom = equipments.filter(
+      (equipment) => equipment.roomId === selectedRoomId,
+    );
+
+    return byRoom.length > 0 ? byRoom : equipments;
+  }, [equipments, form.roomId]);
+
+  const selectedRoom = rooms.find(
+    (room) => String(room.roomId) === form.roomId,
+  );
+
+  const selectedEquipment = equipments.find(
+    (equipment) => String(equipment.equipmentId) === form.equipmentId,
+  );
+
+  const submitReport = (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    // TODO: Gắn API call bằng Axios gửi FormData (text + file) lên NestJS
-    console.log("Dữ liệu gửi đi:", { room, device, description, imageFile });
-    alert('Đã gửi phản ánh thành công!');
 
-    // Reset form sau khi gửi
-    setRoom('');
-    setDevice('');
-    setDescription('');
-    handleRemoveImage();
+    setSuccessMessage('');
+
+    if (!form.roomId) {
+      alert('Vui lòng chọn phòng học.');
+      return;
+    }
+
+    if (!form.equipmentId) {
+      alert('Vui lòng chọn thiết bị cần phản ánh.');
+      return;
+    }
+
+    if (!form.reportContent.trim()) {
+      alert('Vui lòng nhập nội dung phản ánh.');
+      return;
+    }
+
+    try {
+      setSubmitting(true);
+
+      createStudentReport({
+        reporterId: currentUser.userId,
+        roomId: Number(form.roomId),
+        equipmentId: Number(form.equipmentId),
+        reportContent: form.reportContent.trim(),
+      });
+
+      setSuccessMessage(
+        'Gửi phản ánh thành công. Cán bộ quản lý thiết bị sẽ tiếp nhận xử lý.',
+      );
+
+      setForm({
+        roomId: form.roomId,
+        equipmentId: form.equipmentId,
+        reportContent: '',
+      });
+    } catch (error) {
+      console.error(error);
+      alert('Không thể gửi phản ánh.');
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   return (
-    <MainLayout>
+    <StudentTeacherLayout>
+      <div className="mb-6">
+        <h1 className="text-2xl font-black text-slate-800">
+          Gửi phản ánh thiết bị
+        </h1>
 
+        <p className="text-sm text-slate-500 mt-1">
+          Khi phát hiện thiết bị trong phòng học bị lỗi, bạn có thể gửi phản ánh
+          để cán bộ quản lý tiếp nhận.
+        </p>
+      </div>
 
-      <PageHeader
-        title="Phản ánh sự cố thiết bị"
-        description="Báo cáo các thiết bị hỏng hóc hoặc sự cố trong phòng học"
-
-      />
-
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        {/* Cột trái: Form gửi phản ánh */}
-        <div className="lg:col-span-1">
-          <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
-            <h3 className="text-lg font-semibold text-slate-800 mb-4">Tạo phiếu mới</h3>
-            <form onSubmit={handleSubmit} className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">Phòng học</label>
-                <select
-                  required
-                  value={room}
-                  onChange={(e) => setRoom(e.target.value)}
-                  className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
-                >
-                  <option value="" disabled>Chọn phòng học...</option>
-                  <option value="A201">Phòng A201</option>
-                  <option value="A202">Phòng A202</option>
-                  <option value="B105">Phòng B105</option>
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">Thiết bị gặp sự cố</label>
-                <select
-                  required
-                  value={device}
-                  onChange={(e) => setDevice(e.target.value)}
-                  className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
-                >
-                  <option value="" disabled>Chọn thiết bị...</option>
-                  <option value="Máy chiếu">Máy chiếu</option>
-                  <option value="Micro / Âm thanh">Micro / Âm thanh</option>
-                  <option value="Điều hòa">Điều hòa</option>
-                  <option value="Khác">Khác</option>
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">Mô tả chi tiết</label>
-                <textarea
-                  required
-                  rows={3}
-                  value={description}
-                  onChange={(e) => setDescription(e.target.value)}
-                  placeholder="Ví dụ: Máy chiếu cắm điện không lên đèn..."
-                  className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
-                ></textarea>
-              </div>
-
-              {/* KHU VỰC UPLOAD ẢNH */}
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">Hình ảnh đính kèm (không bắt buộc)</label>
-                {imagePreview ? (
-                  <div className="relative inline-block">
-                    <img src={imagePreview} alt="Preview" className="h-28 w-auto rounded-lg border border-slate-200 object-cover shadow-sm" />
-                    <button
-                      type="button"
-                      onClick={handleRemoveImage}
-                      className="absolute -top-2 -right-2 bg-rose-500 text-white rounded-full p-1 hover:bg-rose-600 shadow-md transition-colors"
-                      title="Xóa ảnh"
-                    >
-                      <FiX className="text-xs" />
-                    </button>
-                  </div>
-                ) : (
-                  <div
-                    onClick={() => fileInputRef.current?.click()}
-                    className="w-full border-2 border-dashed border-slate-300 rounded-lg p-4 flex flex-col items-center justify-center text-slate-500 hover:bg-blue-50 hover:border-blue-400 hover:text-blue-500 transition-colors cursor-pointer"
-                  >
-                    <FiImage className="text-2xl mb-1" />
-                    <span className="text-sm font-medium">Click để tải ảnh lên</span>
-                    <span className="text-xs mt-0.5 text-slate-400">Hỗ trợ JPG, PNG</span>
-                    <input
-                      type="file"
-                      accept="image/png, image/jpeg"
-                      className="hidden"
-                      ref={fileInputRef}
-                      onChange={handleImageChange}
-                    />
-                  </div>
-                )}
-              </div>
-
-              <button type="submit" className="w-full flex items-center justify-center px-4 py-2.5 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-all shadow-sm">
-                <FiSend className="mr-2" /> Gửi phản ánh
-              </button>
-            </form>
-          </div>
+      {errorMessage && (
+        <div className="mb-4 bg-rose-50 border border-rose-200 text-rose-700 rounded-xl p-4">
+          {errorMessage}
         </div>
+      )}
 
-        {/* Cột phải: Lịch sử phản ánh (Giữ nguyên) */}
-        <div className="lg:col-span-2">
-          <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
-            <div className="p-6 border-b border-slate-200">
-              <h3 className="text-lg font-semibold text-slate-800">Lịch sử phản ánh của bạn</h3>
-            </div>
-            <div className="divide-y divide-slate-100">
-              {reports.map((report, index) => (
-                <div key={index} className="p-6 flex items-start justify-between hover:bg-slate-50 transition-colors">
-                  <div>
-                    <div className="flex items-center space-x-3 mb-1">
-                      <span className="text-sm font-bold text-slate-800">{report.room}</span>
-                      <span className="text-xs text-slate-500">{report.date}</span>
-                    </div>
-                    <p className="text-sm text-slate-600">{report.issue}</p>
-                  </div>
-                  <div>
-                    {report.status === 'Đã xử lý' ? (
-                      <span className="flex items-center text-xs font-medium text-emerald-600 bg-emerald-50 px-2.5 py-1 rounded-full border border-emerald-200">
-                        <FiCheckCircle className="mr-1.5" /> {report.status}
-                      </span>
-                    ) : (
-                      <span className="flex items-center text-xs font-medium text-amber-600 bg-amber-50 px-2.5 py-1 rounded-full border border-amber-200">
-                        <FiClock className="mr-1.5" /> {report.status}
-                      </span>
-                    )}
-                  </div>
-                </div>
-              ))}
-            </div>
+      {successMessage && (
+        <div className="mb-4 bg-emerald-50 border border-emerald-200 text-emerald-700 rounded-xl p-4 flex items-center gap-2">
+          <FiCheckCircle />
+          <span>{successMessage}</span>
+        </div>
+      )}
+
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+        <SummaryCard icon={<FiMonitor />} label="Phòng học" value={rooms.length} />
+
+        <SummaryCard
+          icon={<FiAlertTriangle />}
+          label="Thiết bị"
+          value={equipments.length}
+        />
+
+        <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4 flex items-center gap-3">
+          <div className="w-10 h-10 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center text-xl">
+            <FiEdit3 />
+          </div>
+
+          <div>
+            <p className="text-xs font-medium text-slate-500 uppercase tracking-wide">
+              Người gửi
+            </p>
+
+            <p className="text-lg font-black text-slate-800 mt-0.5">
+              {currentUser.fullName}
+            </p>
           </div>
         </div>
       </div>
-    </MainLayout>
+
+      {loading && (
+        <div className="bg-white border border-slate-200 rounded-xl p-8 text-center text-slate-500">
+          Đang tải dữ liệu phòng học và thiết bị...
+        </div>
+      )}
+
+      {!loading && (
+        <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
+          <div className="xl:col-span-2 bg-white rounded-xl border border-slate-200 shadow-sm p-6">
+            <div className="flex items-start justify-between gap-4 mb-5">
+              <div>
+                <h2 className="text-lg font-bold text-slate-800">
+                  Thông tin phản ánh
+                </h2>
+
+                <p className="text-sm text-slate-500 mt-1">
+                  Chọn phòng học, thiết bị và mô tả rõ sự cố để việc xử lý nhanh
+                  hơn.
+                </p>
+              </div>
+
+              <button
+                type="button"
+                onClick={fetchData}
+                className="inline-flex items-center px-3 py-2 rounded-lg text-sm font-semibold text-blue-600 bg-blue-50 hover:bg-blue-100"
+              >
+                <FiRefreshCw className="mr-2" />
+                Làm mới
+              </button>
+            </div>
+
+            <form onSubmit={submitReport} className="space-y-4">
+              <div>
+                <label className="block text-sm font-semibold text-slate-700 mb-1">
+                  Phòng học
+                </label>
+
+                <select
+                  value={form.roomId}
+                  onChange={(e) => {
+                    const selectedRoomId = Number(e.target.value);
+
+                    const firstEquipmentInRoom = equipments.find(
+                      (equipment) => equipment.roomId === selectedRoomId,
+                    );
+
+                    setForm({
+                      ...form,
+                      roomId: e.target.value,
+                      equipmentId: firstEquipmentInRoom
+                        ? String(firstEquipmentInRoom.equipmentId)
+                        : '',
+                    });
+                  }}
+                  className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:border-blue-500 bg-white"
+                >
+                  {rooms.map((room) => (
+                    <option key={room.roomId} value={room.roomId}>
+                      {room.code} - {room.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-sm font-semibold text-slate-700 mb-1">
+                  Thiết bị gặp sự cố
+                </label>
+
+                <select
+                  value={form.equipmentId}
+                  onChange={(e) =>
+                    setForm({
+                      ...form,
+                      equipmentId: e.target.value,
+                    })
+                  }
+                  className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:border-blue-500 bg-white"
+                >
+                  {filteredEquipments.map((equipment) => (
+                    <option
+                      key={equipment.equipmentId}
+                      value={equipment.equipmentId}
+                    >
+                      {equipment.name} - Phòng {equipment.roomCode}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <FieldTextArea
+                label="Nội dung phản ánh"
+                value={form.reportContent}
+                placeholder="Ví dụ: Máy chiếu không lên hình, loa bị rè, điều hòa không hoạt động..."
+                onChange={(value) =>
+                  setForm({
+                    ...form,
+                    reportContent: value,
+                  })
+                }
+              />
+
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 pt-2">
+                <p className="text-xs text-slate-500">
+                  Người gửi:{' '}
+                  <span className="font-semibold">{currentUser.fullName}</span> -
+                  Tài khoản:{' '}
+                  <span className="font-semibold">{currentUser.username}</span>
+                </p>
+
+                <button
+                  type="submit"
+                  disabled={submitting}
+                  className="inline-flex items-center justify-center px-5 py-2.5 rounded-lg bg-blue-600 text-white text-sm font-semibold hover:bg-blue-700 disabled:opacity-60"
+                >
+                  {submitting ? 'Đang gửi...' : 'Gửi phản ánh'}
+                </button>
+              </div>
+            </form>
+          </div>
+
+          <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6">
+            <h2 className="text-lg font-bold text-slate-800">
+              Thông tin đã chọn
+            </h2>
+
+            <div className="mt-4 space-y-4 text-sm">
+              <InfoBox
+                label="Phòng học"
+                value={
+                  selectedRoom
+                    ? `${selectedRoom.code} - ${selectedRoom.name}`
+                    : 'Chưa chọn'
+                }
+              />
+
+              <InfoBox
+                label="Thiết bị"
+                value={selectedEquipment?.name || 'Chưa chọn'}
+              />
+
+              <InfoBox
+                label="Trạng thái thiết bị"
+                value={selectedEquipment?.status || 'Không có'}
+              />
+            </div>
+
+            <div className="mt-6 p-4 rounded-xl bg-blue-50 border border-blue-100">
+              <p className="text-sm font-bold text-slate-800">Lưu ý</p>
+
+              <p className="text-sm text-slate-600 mt-1">
+                Bạn nên mô tả rõ lỗi, thời điểm phát hiện và tình trạng thiết bị
+                để cán bộ quản lý xử lý nhanh hơn.
+              </p>
+            </div>
+
+            <Link
+              to="/student/my-reports"
+              className="mt-5 inline-flex items-center justify-center w-full px-4 py-2 rounded-lg bg-slate-100 text-slate-700 text-sm font-semibold hover:bg-slate-200"
+            >
+              Xem phản ánh của tôi
+            </Link>
+          </div>
+        </div>
+      )}
+    </StudentTeacherLayout>
   );
 };
+
+interface InfoBoxProps {
+  label: string;
+  value: string;
+}
+
+const InfoBox = ({ label, value }: InfoBoxProps) => (
+  <div className="p-4 rounded-xl bg-slate-50 border border-slate-100">
+    <p className="text-xs font-semibold uppercase text-slate-400">{label}</p>
+    <p className="font-bold text-slate-800 mt-1">{value}</p>
+  </div>
+);
+
+export default StudentReport;

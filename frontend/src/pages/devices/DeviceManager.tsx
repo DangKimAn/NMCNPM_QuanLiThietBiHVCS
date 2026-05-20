@@ -12,7 +12,7 @@ import {
   FiXCircle,
 } from 'react-icons/fi';
 
-import { MainLayout } from '../../components/layout/MainLayout';
+import { ManagerLayout } from '../../components/layout/ManagerLayout';
 import {
   FilterSelect,
   getToday,
@@ -380,7 +380,7 @@ export const DeviceManager = () => {
   };
 
   return (
-    <MainLayout>
+    <ManagerLayout>
       <div className="mb-6 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
         <div>
           <h1 className="text-2xl font-black text-slate-800">Cán bộ quản lý thiết bị</h1>
@@ -541,6 +541,6 @@ export const DeviceManager = () => {
           onSubmit={saveTransfer}
         />
       )}
-    </MainLayout>
+    </ManagerLayout>
   );
 };
