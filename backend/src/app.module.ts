@@ -13,6 +13,7 @@ import { PermissionModule } from './permission/permission.module';
 import { RoomModule } from './room/room.module';
 import { EquipmentModule } from './equipment/equipment.module';
 import { ReportModule } from './report/report.module';
+import { AuthModule } from './auth/auth.module';
 
 @Module({
   imports: [
@@ -30,6 +31,7 @@ import { ReportModule } from './report/report.module';
     RoomModule,
     EquipmentModule,
     ReportModule,
+    AuthModule,
   ],
 
   controllers: [AppController],

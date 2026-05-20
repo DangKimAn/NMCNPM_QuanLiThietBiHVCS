@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { FiUser, FiLock, FiMail } from 'react-icons/fi';
-// TODO: Sửa lại 2 đường dẫn import này cho khớp với thư mục dự án của bạn
+import { useNavigate } from 'react-router-dom'; // 👈 Thêm hook để chuyển hướng trang
+import axios from 'axios'; // 👈 Thêm axios để đẩy API
 import { AuthLayout } from '../../components/layout/AuthLayout'; 
 import { InputGroup } from '../../components/ui/InputGroup';
 
@@ -10,15 +11,51 @@ export const Register = () => {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+  
+  // Các state hỗ trợ thông báo trạng thái
+  const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
+  const [loading, setLoading] = useState(false);
 
-  const handleRegister = (e: React.FormEvent) => {
+  const navigate = useNavigate();
+
+  const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
+    setError('');
+    setSuccess('');
+
+    // Kiểm tra nhanh mật khẩu nhập lại
     if (password !== confirmPassword) {
-      alert("Mật khẩu xác nhận không khớp!");
+      setError("Mật khẩu xác nhận không trùng khớp!");
       return;
     }
-    // TODO: Xử lý logic gọi API đăng ký tại đây
-    console.log('Register with:', { fullName, email, username, password });
+
+    setLoading(true);
+
+    try {
+      // 1. Gửi request POST sang cổng NestJS (nhớ check lại port 3000 hoặc port thực tế của bạn)
+      await axios.post('http://localhost:3000/auth/register', {
+        fullName,
+        email,
+        username,
+        password
+      });
+
+      // 2. Báo thành công lên giao diện
+      setSuccess('Đăng ký tài khoản học viện thành công! Đang chuyển hướng...');
+
+      // 3. Delay 2 giây rồi đưa user sang màn hình đăng nhập
+      setTimeout(() => {
+        navigate('/login');
+      }, 2000);
+
+    } catch (err: any) {
+      console.error('Lỗi đăng ký hệ thống:', err);
+      // Lấy câu thông báo chi tiết từ NestJS (nếu có), không thì hiển thị câu mặc định
+      setError(err.response?.data?.message || 'Đăng ký thất bại. Tên đăng nhập hoặc Email đã tồn tại!');
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -32,6 +69,21 @@ export const Register = () => {
       footerLinkTo="/login"
     >
       <form onSubmit={handleRegister} className="space-y-4">
+        
+        {/* Khối hiển thị thông báo lỗi nếu có */}
+        {error && (
+          <div className="p-3 text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg">
+            {error}
+          </div>
+        )}
+
+        {/* Khối hiển thị thông báo thành công */}
+        {success && (
+          <div className="p-3 text-sm text-green-600 bg-green-50 border border-green-200 rounded-lg">
+            {success}
+          </div>
+        )}
+
         <InputGroup 
           label="Họ và tên" 
           type="text" 
@@ -39,6 +91,7 @@ export const Register = () => {
           onChange={(e) => setFullName(e.target.value)}
           placeholder="VD: Nguyễn Văn A"
           required
+          disabled={loading}
         />
         <InputGroup 
           label="Email học viện" 
@@ -48,6 +101,7 @@ export const Register = () => {
           onChange={(e) => setEmail(e.target.value)}
           placeholder="nva@hvcs.edu.vn"
           required
+          disabled={loading}
         />
         <InputGroup 
           label="Tên đăng nhập" 
@@ -57,6 +111,7 @@ export const Register = () => {
           onChange={(e) => setUsername(e.target.value)}
           placeholder="Nhập tên đăng nhập"
           required
+          disabled={loading}
         />
         <div className="grid grid-cols-2 gap-4">
           <InputGroup 
@@ -67,6 +122,7 @@ export const Register = () => {
             onChange={(e) => setPassword(e.target.value)}
             placeholder="••••••••"
             required
+            disabled={loading}
           />
           <InputGroup 
             label="Xác nhận" 
@@ -76,13 +132,16 @@ export const Register = () => {
             onChange={(e) => setConfirmPassword(e.target.value)}
             placeholder="••••••••"
             required
+            disabled={loading}
           />
         </div>
+        
         <button 
           type="submit" 
-          className="w-full py-2.5 px-4 mt-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold rounded-lg shadow-sm transition-colors"
+          disabled={loading}
+          className="w-full py-2.5 px-4 mt-2 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white text-sm font-semibold rounded-lg shadow-sm transition-colors"
         >
-          Đăng ký tài khoản
+          {loading ? 'Đang xử lý...' : 'Đăng ký tài khoản'}
         </button>
       </form>
     </AuthLayout>

@@ -15,6 +15,8 @@ import { StudentReport } from './pages/student/StudentReport';
 import { StudentOverview } from './pages/student/StudentOverview';
 import { StudentMyReports } from './pages/student/StudentMyReports';
 
+import { ProtectedRoute } from './components/auth/ProtectedRoute';
+
 function App() {
   return (
     <Router>
@@ -27,22 +29,28 @@ function App() {
         <Route path="/register" element={<Register />} />
 
         {/* Cán bộ quản lý thiết bị */}
-        <Route path="/manager" element={<Navigate to="/manager/overview" replace />} />
-        <Route path="/manager/overview" element={<ManagerOverview />} />
-        <Route path="/manager/devices" element={<DeviceManager />} />
-        <Route path="/manager/incidents" element={<IncidentManager />} />
+        <Route element={<ProtectedRoute allowedRoles={['MANAGER', 'ADMIN']} />}>
+          <Route path="/manager" element={<Navigate to="/manager/overview" replace />} />
+          <Route path="/manager/overview" element={<ManagerOverview />} />
+          <Route path="/manager/devices" element={<DeviceManager />} />
+          <Route path="/manager/incidents" element={<IncidentManager />} />
+        </Route>
 
         {/* Admin */}
-        <Route path="/admin" element={<Navigate to="/admin/users" replace />} />
-        <Route path="/admin/users" element={<UserManager />} />
-        <Route path="/admin/roles" element={<RolePermissionManager />} />
-        <Route path="/admin/logs" element={<SystemLogViewer />} />
+        <Route element={<ProtectedRoute allowedRoles={['ADMIN']} />}>
+          <Route path="/admin" element={<Navigate to="/admin/users" replace />} />
+          <Route path="/admin/users" element={<UserManager />} />
+          <Route path="/admin/roles" element={<RolePermissionManager />} />
+          <Route path="/admin/logs" element={<SystemLogViewer />} />
+        </Route>
 
         {/* Giảng viên / Sinh viên */}
-        <Route path="/student" element={<Navigate to="/student/overview" replace />} />
-        <Route path="/student/overview" element={<StudentOverview />} />
-        <Route path="/student/reports" element={<StudentReport />} />
-        <Route path="/student/my-reports" element={<StudentMyReports />} />
+        <Route element={<ProtectedRoute allowedRoles={['USER', 'MANAGER', 'ADMIN']} />}>
+          <Route path="/student" element={<Navigate to="/student/overview" replace />} />
+          <Route path="/student/overview" element={<StudentOverview />} />
+          <Route path="/student/reports" element={<StudentReport />} />
+          <Route path="/student/my-reports" element={<StudentMyReports />} />
+        </Route>
 
         {/* Sai đường dẫn thì quay về login */}
         <Route path="*" element={<Navigate to="/login" replace />} />

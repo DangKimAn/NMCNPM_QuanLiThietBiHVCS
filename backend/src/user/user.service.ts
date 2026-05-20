@@ -7,6 +7,7 @@ import { hashPassword, verifyPassword } from 'src/common/bcrypt';
 import { UpdateUserDto } from './dto/updateUser.dto';
 import { User } from '@prisma/client';
 import { plainToInstance } from 'class-transformer';
+
 @Injectable()
 export class UserService {
 
