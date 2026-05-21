@@ -110,14 +110,14 @@ export class ReportService {
     return report;
   }
 
-  // Tạo phản ánh mới
-  async create(dto: CreateReportDto) {
+  // ✨ SỬA Ở ĐÂY: Nhận thêm tham số userId từ Controller truyền sang
+  async create(dto: CreateReportDto, userId: number) {
     const reporter = await this.prisma.user.findUnique({
-      where: { userId: dto.reporterId },
+      where: { userId: userId }, //Thay vì tin dùng dto.reporterId, dùng luôn userId bảo mật từ token
     });
 
     if (!reporter) {
-      throw new BadRequestException('Người gửi phản ánh không tồn tại');
+      throw new BadRequestException('Người gửi phản ánh không tồn tại hoặc chưa đăng nhập');
     }
 
     const room = await this.prisma.room.findUnique({
@@ -140,7 +140,7 @@ export class ReportService {
 
     return this.prisma.report.create({
       data: {
-        reporterId: dto.reporterId,
+        reporterId: userId, // Đưa dữ liệu sạch từ Token vào DB
         roomId: dto.roomId,
         equipmentId: dto.equipmentId,
         reportContent: dto.reportContent,
@@ -154,19 +154,18 @@ export class ReportService {
     });
   }
 
-  // Cán bộ quản lý thiết bị xử lý phản ánh
-  async handle(reportId: number, dto: HandleReportDto) {
+  // ✨ SỬA Ở ĐÂY: Nhận thêm tham số handlerId để gán đúng quản lý xử lý ứng dụng
+  async handle(reportId: number, dto: HandleReportDto, handlerId: number) {
     await this.findOne(reportId);
 
     const handler = await this.prisma.user.findUnique({
-      where: { userId: dto.handlerId },
+      where: { userId: handlerId },
     });
 
     if (!handler) {
-      throw new BadRequestException('Người xử lý không tồn tại');
+      throw new BadRequestException('Người xử lý không tồn tại hoặc phiên đăng nhập hết hạn');
     }
 
-    // Nếu trạng thái đã xử lý hoặc từ chối thì lưu thời gian resolvedAt
     const shouldSetResolvedAt =
       dto.status === ReportStatus.RESOLVED || dto.status === ReportStatus.REJECTED;
 
@@ -174,7 +173,7 @@ export class ReportService {
       where: { reportId },
       data: {
         status: dto.status,
-        handlerId: dto.handlerId,
+        handlerId: handlerId, // Tự động cập nhật ID của Manager đang thực hiện gọi API này
         resolutionContent: dto.resolutionContent,
         result: dto.result,
         resolvedAt: shouldSetResolvedAt ? new Date() : null,

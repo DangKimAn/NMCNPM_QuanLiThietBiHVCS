@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, Param, Patch, Post, Query } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Patch, Post, Query, UseGuards } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 import { EquipmentStatus } from '@prisma/client';
 
@@ -7,14 +7,20 @@ import { CreateEquipmentDto } from './dto/create-equipment.dto';
 import { UpdateEquipmentDto } from './dto/update-equipment.dto';
 import { UpdateEquipmentStatusDto } from './dto/update-equipment-status.dto';
 
+// Import các bộ bảo vệ quyền truy cập của bạn
+import { JwtAuthGuard } from 'src/auth/guards/jwt-auth.guard'; 
+import { RolesGuard } from 'src/auth/guards/roles.guard';
+import { Roles } from 'src/auth/decorators/roles.decorator';
+
 @ApiTags('Equipments - Thiết bị')
 @Controller('equipments')
+@UseGuards(JwtAuthGuard, RolesGuard) // 🛡️ Bọc toàn bộ file: Phải đăng nhập mới được sờ vào các API này
 export class EquipmentController {
   constructor(private readonly equipmentService: EquipmentService) {}
 
-  // GET /equipments?search=may&status=GOOD&roomId=1&categoryId=1
-  // status=need-handle sẽ lọc các thiết bị BROKEN hoặc UNDER_REPAIR
+  //AI CŨNG XEM ĐƯỢC: Giáo viên/Học sinh có thể xem danh sách thiết bị để báo hỏng
   @Get()
+  @Roles('MANAGER', 'ADMIN', 'TEACHER', 'STUDENT') 
   findAll(
     @Query('search') search?: string,
     @Query('status') status?: EquipmentStatus | 'need-handle',
@@ -29,20 +35,23 @@ export class EquipmentController {
     });
   }
 
-  // GET /equipments/1
+  //AI CŨNG XEM ĐƯỢC: Xem chi tiết một thiết bị
   @Get(':equipmentId')
+  @Roles('MANAGER', 'ADMIN', 'TEACHER', 'STUDENT')
   findOne(@Param('equipmentId') equipmentId: string) {
     return this.equipmentService.findOne(Number(equipmentId));
   }
 
-  // POST /equipments
+  //CHỈ MANAGER & ADMIN: Mới có quyền tạo thiết bị mới
   @Post()
+  @Roles('MANAGER', 'ADMIN')
   create(@Body() dto: CreateEquipmentDto) {
     return this.equipmentService.create(dto);
   }
 
-  // PATCH /equipments/1
+  //CHỈ MANAGER & ADMIN: Mới có quyền cập nhật thông tin thiết bị
   @Patch(':equipmentId')
+  @Roles('MANAGER', 'ADMIN')
   update(
     @Param('equipmentId') equipmentId: string,
     @Body() dto: UpdateEquipmentDto,
@@ -50,8 +59,9 @@ export class EquipmentController {
     return this.equipmentService.update(Number(equipmentId), dto);
   }
 
-  // PATCH /equipments/1/status
+  //CHỈ MANAGER & ADMIN: Mới có quyền duyệt/đổi trạng thái thiết bị
   @Patch(':equipmentId/status')
+  @Roles('MANAGER', 'ADMIN')
   updateStatus(
     @Param('equipmentId') equipmentId: string,
     @Body() dto: UpdateEquipmentStatusDto,
@@ -59,8 +69,9 @@ export class EquipmentController {
     return this.equipmentService.updateStatus(Number(equipmentId), dto);
   }
 
-  // DELETE /equipments/1
+  //CHỈ MANAGER & ADMIN: Mới được quyền xóa thiết bị khỏi hệ thống
   @Delete(':equipmentId')
+  @Roles('MANAGER', 'ADMIN')
   remove(@Param('equipmentId') equipmentId: string) {
     return this.equipmentService.remove(Number(equipmentId));
   }
