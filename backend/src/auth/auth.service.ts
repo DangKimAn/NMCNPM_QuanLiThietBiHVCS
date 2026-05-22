@@ -65,46 +65,34 @@ export class AuthService {
     }
 
     // ================= AUTO ROLE =================
-    const emailLower = dto.email.trim().toLowerCase();
+  const emailLower = dto.email.trim().toLowerCase();
 
-    let roleTarget = '';
+  let roleTarget = '';
 
-    if (emailLower.endsWith('@student.ptithcm.edu.vn')) {
-      roleTarget = 'Student';
-    } else if (emailLower.endsWith('@ptithcm.edu.vn')) {
-      roleTarget = 'Teacher';
-    } else {
-      throw new BadRequestException(
-        'Email không hợp lệ! Hệ thống chỉ chấp nhận email thuộc học viện.',
-      );
-    }
+  if (emailLower.endsWith('@student.ptithcm.edu.vn')) {
+    roleTarget = 'STUDENT';
+  } else if (emailLower.endsWith('@ptithcm.edu.vn')) {
+    roleTarget = 'TEACHER';
+  } else {
+    throw new BadRequestException(
+      'Email không hợp lệ! Hệ thống chỉ chấp nhận email thuộc học viện.',
+    );
+  }
 
-    // ================= FIND ROLE =================
-    let defaultRole = await this.prismaService.role.findFirst({
-      where: {
-        roleName: roleTarget,
-      },
-    });
+  // ================= FIND ROLE =================
+  const defaultRole = await this.prismaService.role.findFirst({
+    where: {
+      roleName: roleTarget,
+    },
+  });
 
-    // ================= AUTO CREATE ROLE =================
-    if (!defaultRole) {
-      try {
-        defaultRole = await this.prismaService.role.create({
-          data: {
-            roleName: roleTarget,
-          },
-        });
-
-        console.log(
-          `[AuthService] Đã tự động tạo role mới: ${roleTarget}`,
-        );
-      } catch (dbError) {
-        throw new InternalServerErrorException(
-          `Không thể tạo role [${roleTarget}] trong DB`,
-        );
-      }
-    }
-
+  // ================= CHECK ROLE EXISTS =================
+  if (!defaultRole) {
+    throw new InternalServerErrorException(
+      `Role [${roleTarget}] không tồn tại trong hệ thống`,
+    );
+  }
+  
     // ================= HASH PASSWORD =================
     const hashedPassword = await hashPassword(dto.password);
 
