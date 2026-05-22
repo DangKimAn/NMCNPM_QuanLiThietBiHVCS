@@ -1,13 +1,17 @@
 import { Body, Controller, Delete, Get, Param, ParseIntPipe, Patch, Post, UseGuards } from '@nestjs/common';
+import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { UserService } from './user.service';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UserDto } from './dto/user.dto';
 import { Role } from 'src/auth/decorators/role.enum';
 import { UpdateUserDto } from './dto/updateUser.dto';
+
 import { JwtAuthGuard } from 'src/auth/guards/jwt-auth.guard'; 
 import { RolesGuard } from 'src/auth/guards/roles.guard';
 import { Roles } from 'src/auth/decorators/roles.decorator';
 
+@ApiTags('User')
+@ApiBearerAuth()
 @Controller('user')
 @UseGuards(JwtAuthGuard, RolesGuard) //Bắt buộc mọi API phải ĐĂNG NHẬP (Nhưng chưa check Role vội)
 export class UserController {
@@ -43,7 +47,7 @@ export class UserController {
   //ADMIN & MANAGER: Tìm kiếm bằng username
   @Get('getUserbyUsername/:username')
   @Roles(Role.ADMIN, Role.MANAGER)
-  async findByUsername(@Param('username') username: string){
+  async findByUsername(@Param('username') username: string) {
     return await this.userService.getUserByUsername(username);
   }
 

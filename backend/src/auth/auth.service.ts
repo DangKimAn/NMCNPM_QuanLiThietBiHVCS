@@ -1,8 +1,16 @@
-import { BadRequestException, Injectable, UnauthorizedException, InternalServerErrorException } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  UnauthorizedException,
+  InternalServerErrorException,
+} from '@nestjs/common';
+
 import { PrismaService } from 'src/prisma/prisma.service';
 import { JwtService } from '@nestjs/jwt';
+
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
+
 import { hashPassword, verifyPassword } from 'src/common/bcrypt';
 
 @Injectable()
@@ -12,34 +20,54 @@ export class AuthService {
     private jwtService: JwtService,
   ) {}
 
-  async generateTokens(userId: number, username: string) {
-    const payload = { sub: userId, username };
+  // ================= GENERATE TOKENS =================
+  async generateTokens(
+    userId: number,
+    username: string,
+    role: string,
+  ) {
+    const payload = {
+      sub: userId,
+      username,
+      role,
+    };
 
     const [accessToken, refreshToken] = await Promise.all([
       this.jwtService.signAsync(payload, {
         secret: 'ACCESS_TOKEN_SECRET_KEY_123',
         expiresIn: '15m',
       }),
+
       this.jwtService.signAsync(payload, {
         secret: 'REFRESH_TOKEN_SECRET_KEY_456',
         expiresIn: '7d',
       }),
     ]);
 
-    return { accessToken, refreshToken };
+    return {
+      accessToken,
+      refreshToken,
+    };
   }
 
   // ================= REGISTER =================
   async register(dto: RegisterDto) {
     const userExists = await this.prismaService.user.findFirst({
-      where: { OR: [{ username: dto.username }, { email: dto.email }] },
+      where: {
+        OR: [
+          { username: dto.username },
+          { email: dto.email },
+        ],
+      },
     });
 
     if (userExists) {
-      throw new BadRequestException('Username hoặc Email học viện đã được sử dụng');
+      throw new BadRequestException(
+        'Username hoặc Email học viện đã được sử dụng',
+      );
     }
 
-    // --- LOGIC PHÂN QUYỀN TỰ ĐỘNG DỰA TRÊN EMAIL ---
+    // ================= AUTO ROLE =================
     const emailLower = dto.email.trim().toLowerCase();
 
     let roleTarget = '';
@@ -50,34 +78,40 @@ export class AuthService {
       roleTarget = 'Teacher';
     } else {
       throw new BadRequestException(
-        'Email không hợp lệ! Hệ thống chỉ chấp nhận email thuộc học viện.'
+        'Email không hợp lệ! Hệ thống chỉ chấp nhận email thuộc học viện.',
       );
     }
 
-    // Tìm role trong DB
+    // ================= FIND ROLE =================
     let defaultRole = await this.prismaService.role.findFirst({
-      where: { roleName: roleTarget },
+      where: {
+        roleName: roleTarget,
+      },
     });
 
-    // Auto-create role nếu DB chưa có
+    // ================= AUTO CREATE ROLE =================
     if (!defaultRole) {
       try {
         defaultRole = await this.prismaService.role.create({
-          data: { roleName: roleTarget },
+          data: {
+            roleName: roleTarget,
+          },
         });
 
         console.log(
-          `[AuthService] Đã tự động tạo role mới: ${roleTarget}`
+          `[AuthService] Đã tự động tạo role mới: ${roleTarget}`,
         );
       } catch (dbError) {
         throw new InternalServerErrorException(
-          `Không thể tạo role [${roleTarget}] trong DB`
+          `Không thể tạo role [${roleTarget}] trong DB`,
         );
       }
     }
 
+    // ================= HASH PASSWORD =================
     const hashedPassword = await hashPassword(dto.password);
 
+    // ================= CREATE USER =================
     const newUser = await this.prismaService.user.create({
       data: {
         username: dto.username,
@@ -100,26 +134,60 @@ export class AuthService {
   async login(dto: LoginDto) {
     const user = await this.prismaService.user.findFirst({
       where: {
-        OR: [{ username: dto.usernameOrEmail }, { email: dto.usernameOrEmail }],
+        OR: [
+          { username: dto.usernameOrEmail },
+          { email: dto.usernameOrEmail },
+        ],
+      },
+
+      include: {
+        role: true,
       },
     });
 
-    if (!user)
-      throw new UnauthorizedException('Tài khoản hoặc mật khẩu không chính xác');
+    if (!user) {
+      throw new UnauthorizedException(
+        'Tài khoản hoặc mật khẩu không chính xác',
+      );
+    }
 
-    const isPasswordMatches = await verifyPassword(dto.password, user.hashedPassword);
-    if (!isPasswordMatches)
-      throw new UnauthorizedException('Tài khoản hoặc mật khẩu không chính xác');
+    const isPasswordMatches = await verifyPassword(
+      dto.password,
+      user.hashedPassword,
+    );
 
-    if (user.status !== 'ACTIVE')
-      throw new UnauthorizedException('Tài khoản đã bị khóa hoặc chưa được kích hoạt');
+    if (!isPasswordMatches) {
+      throw new UnauthorizedException(
+        'Tài khoản hoặc mật khẩu không chính xác',
+      );
+    }
 
-    const tokens = await this.generateTokens(user.userId, user.username);
+    if (user.status !== 'ACTIVE') {
+      throw new UnauthorizedException(
+        'Tài khoản đã bị khóa hoặc chưa được kích hoạt',
+      );
+    }
 
-    const hashedRefreshToken = await hashPassword(tokens.refreshToken);
+    // ================= GENERATE TOKENS =================
+    const tokens = await this.generateTokens(
+      user.userId,
+      user.username,
+      user.role.roleName,
+    );
+
+    // ================= SAVE REFRESH TOKEN =================
+    const hashedRefreshToken = await hashPassword(
+      tokens.refreshToken,
+    );
+
     await this.prismaService.user.update({
-      where: { userId: user.userId },
-      data: { refreshToken: hashedRefreshToken },
+      where: {
+        userId: user.userId,
+      },
+
+      data: {
+        refreshToken: hashedRefreshToken,
+      },
     });
 
     return tokens;
@@ -128,44 +196,84 @@ export class AuthService {
   // ================= LOGOUT =================
   async logout(userId: number) {
     await this.prismaService.user.update({
-      where: { userId },
-      data: { refreshToken: null },
+      where: {
+        userId,
+      },
+
+      data: {
+        refreshToken: null,
+      },
     });
 
-    return { message: 'Đăng xuất thành công' };
+    return {
+      message: 'Đăng xuất thành công',
+    };
   }
 
-  // ================= REFRESH TOKEN =================
+  // ================= REFRESH TOKENS =================
   async refreshTokens(refreshToken: string) {
     try {
-      const payload = await this.jwtService.verifyAsync(refreshToken, {
-        secret: 'REFRESH_TOKEN_SECRET_KEY_456',
-      });
+      const payload = await this.jwtService.verifyAsync(
+        refreshToken,
+        {
+          secret: 'REFRESH_TOKEN_SECRET_KEY_456',
+        },
+      );
 
       const user = await this.prismaService.user.findUnique({
-        where: { userId: payload.sub },
+        where: {
+          userId: payload.sub,
+        },
+
+        include: {
+          role: true,
+        },
       });
 
       if (!user || !user.refreshToken) {
-        throw new UnauthorizedException('Phiên đăng nhập không tồn tại');
+        throw new UnauthorizedException(
+          'Phiên đăng nhập không tồn tại',
+        );
       }
 
-      const isValid = await verifyPassword(refreshToken, user.refreshToken);
+      const isValid = await verifyPassword(
+        refreshToken,
+        user.refreshToken,
+      );
+
       if (!isValid) {
-        throw new UnauthorizedException('Refresh token không hợp lệ');
+        throw new UnauthorizedException(
+          'Refresh token không hợp lệ',
+        );
       }
 
-      const tokens = await this.generateTokens(user.userId, user.username);
+      // ================= GENERATE NEW TOKENS =================
+      const tokens = await this.generateTokens(
+        user.userId,
+        user.username,
+        user.role.roleName,
+      );
 
-      const hashedRefreshToken = await hashPassword(tokens.refreshToken);
+      // ================= UPDATE REFRESH TOKEN =================
+      const hashedRefreshToken = await hashPassword(
+        tokens.refreshToken,
+      );
+
       await this.prismaService.user.update({
-        where: { userId: user.userId },
-        data: { refreshToken: hashedRefreshToken },
+        where: {
+          userId: user.userId,
+        },
+
+        data: {
+          refreshToken: hashedRefreshToken,
+        },
       });
 
       return tokens;
     } catch (err) {
-      throw new UnauthorizedException('Refresh token hết hạn, vui lòng đăng nhập lại');
+      throw new UnauthorizedException(
+        'Refresh token hết hạn, vui lòng đăng nhập lại',
+      );
     }
   }
 }
