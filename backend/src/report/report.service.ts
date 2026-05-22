@@ -1,4 +1,5 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+// src/report/report.service.ts
+import { BadRequestException, Injectable, NotFoundException, ForbiddenException } from '@nestjs/common';
 import { Prisma, ReportStatus } from '@prisma/client';
 
 import { PrismaService } from '../prisma/prisma.service';
@@ -9,7 +10,7 @@ import { HandleReportDto } from './dto/handle-report.dto';
 export class ReportService {
   constructor(private readonly prisma: PrismaService) {}
 
-  // Lấy danh sách phản ánh
+  // Lấy danh sách phản ánh (Chỉ dành cho MANAGER)
   async findAll(query: {
     status?: ReportStatus;
     roomId?: number;
@@ -79,8 +80,8 @@ export class ReportService {
     });
   }
 
-  // Lấy chi tiết một phản ánh
-  async findOne(reportId: number) {
+  // Lấy chi tiết một phản ánh - ĐÃ TÍCH HỢP KIỂM TRA CHÍNH CHỦ
+  async findOne(reportId: number, currentUserId: number, currentUserRole: string) {
     const report = await this.prisma.report.findUnique({
       where: { reportId },
       include: {
@@ -107,13 +108,19 @@ export class ReportService {
       throw new NotFoundException('Không tìm thấy phản ánh');
     }
 
+    //LOGIC CHECK CHÍNH CHỦ:
+    // Nếu KHÔNG PHẢI Manager, hệ thống bắt buộc reporterId (người tạo) phải trùng với ID người đang xem
+    if (currentUserRole !== 'MANAGER' && report.reporterId !== currentUserId) {
+      throw new ForbiddenException('Bạn không có quyền xem chi tiết phản ánh của tài khoản khác');
+    }
+
     return report;
   }
 
-  // ✨ SỬA Ở ĐÂY: Nhận thêm tham số userId từ Controller truyền sang
+  // Gửi phản ánh báo hỏng lên hệ thống (STUDENT & TEACHER)
   async create(dto: CreateReportDto, userId: number) {
     const reporter = await this.prisma.user.findUnique({
-      where: { userId: userId }, //Thay vì tin dùng dto.reporterId, dùng luôn userId bảo mật từ token
+      where: { userId: userId }, 
     });
 
     if (!reporter) {
@@ -140,7 +147,7 @@ export class ReportService {
 
     return this.prisma.report.create({
       data: {
-        reporterId: userId, // Đưa dữ liệu sạch từ Token vào DB
+        reporterId: userId, 
         roomId: dto.roomId,
         equipmentId: dto.equipmentId,
         reportContent: dto.reportContent,
@@ -154,9 +161,10 @@ export class ReportService {
     });
   }
 
-  // ✨ SỬA Ở ĐÂY: Nhận thêm tham số handlerId để gán đúng quản lý xử lý ứng dụng
+  // Xử lý phản ánh dành riêng cho MANAGER
   async handle(reportId: number, dto: HandleReportDto, handlerId: number) {
-    await this.findOne(reportId);
+    // Truyền đầy đủ tham số nội bộ để hàm findOne không bị lỗi biên dịch
+    await this.findOne(reportId, handlerId, 'MANAGER');
 
     const handler = await this.prisma.user.findUnique({
       where: { userId: handlerId },
@@ -173,7 +181,7 @@ export class ReportService {
       where: { reportId },
       data: {
         status: dto.status,
-        handlerId: handlerId, // Tự động cập nhật ID của Manager đang thực hiện gọi API này
+        handlerId: handlerId, 
         resolutionContent: dto.resolutionContent,
         result: dto.result,
         resolvedAt: shouldSetResolvedAt ? new Date() : null,

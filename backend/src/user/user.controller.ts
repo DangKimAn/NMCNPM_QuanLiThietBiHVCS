@@ -2,6 +2,7 @@ import { Body, Controller, Delete, Get, Param, ParseIntPipe, Patch, Post, UseGua
 import { UserService } from './user.service';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UserDto } from './dto/user.dto';
+import { Role } from 'src/auth/decorators/role.enum';
 import { UpdateUserDto } from './dto/updateUser.dto';
 import { JwtAuthGuard } from 'src/auth/guards/jwt-auth.guard'; 
 import { RolesGuard } from 'src/auth/guards/roles.guard';
@@ -14,21 +15,21 @@ export class UserController {
 
   //CHỈ ADMIN: Mới được tạo User bằng tay
   @Post()
-  @Roles('ADMIN')
+  @Roles(Role.ADMIN)
   async create(@Body() createUserDto: CreateUserDto): Promise<UserDto> {
     return await this.userService.createUser(createUserDto);
   }
 
   //CHỈ ADMIN: Xem toàn bộ danh sách User
   @Get()
-  @Roles('ADMIN')
+  @Roles(Role.ADMIN)
   async findAll(): Promise<UserDto[]> {
     return await this.userService.getAllUser();
   }
 
   //ADMIN & MANAGER: Xem thông tin user qua Email
   @Get('getUserbyEmail/:email')
-  @Roles('ADMIN', 'MANAGER')
+  @Roles(Role.ADMIN, Role.MANAGER)
   async findByEmail(@Param('email') email: string): Promise<UserDto> {
     return await this.userService.getUserByEmail(email);
   }
@@ -41,7 +42,7 @@ export class UserController {
 
   //ADMIN & MANAGER: Tìm kiếm bằng username
   @Get('getUserbyUsername/:username')
-  @Roles('ADMIN', 'MANAGER')
+  @Roles(Role.ADMIN, Role.MANAGER)
   async findByUsername(@Param('username') username: string){
     return await this.userService.getUserByUsername(username);
   }
@@ -57,14 +58,14 @@ export class UserController {
 
   //CHỈ ADMIN: Mới được quyền xóa User
   @Delete(':userId')
-  @Roles('ADMIN')
+  @Roles(Role.ADMIN)
   async remove(@Param('userId', ParseIntPipe) userId: number): Promise<{ message: string }> {
     return await this.userService.deleteUser(userId);
   }
 
   //CHỈ ADMIN: Quyền tối cao nâng cấp tài khoản thành MANAGER hoặc hạ quyền
   @Patch(':userId/role')
-  @Roles('ADMIN') 
+  @Roles(Role.ADMIN) 
   async changeRole(
     @Param('userId', ParseIntPipe) userId: number,
     @Body('roleName') roleName: string, 

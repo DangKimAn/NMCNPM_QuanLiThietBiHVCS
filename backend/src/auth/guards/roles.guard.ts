@@ -1,7 +1,8 @@
-import { Injectable, CanActivate, ExecutionContext, ForbiddenException } from '@nestjs/common';
+// src/auth/guard/roles.guard.ts
+import { Injectable, CanActivate, ExecutionContext, ForbiddenException, UnauthorizedException } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
-import { Role } from './role.enum';
-import { ROLES_KEY } from './roles.decorator';
+import { Role } from '../decorators/role.enum';
+import { ROLES_KEY } from '../decorators/roles.decorator';
 
 @Injectable()
 export class RolesGuard implements CanActivate {
@@ -22,7 +23,11 @@ export class RolesGuard implements CanActivate {
     // 2. Lấy thông tin user từ request (đã được JwtAuthGuard điền vào trước đó)
     const { user } = context.switchToHttp().getRequest();
     
-    if (!user || !user.role) {
+    if (!user) {
+      throw new UnauthorizedException('Bạn chưa đăng nhập hoặc phiên làm việc đã hết hạn');
+    }
+
+    if (!user.role) {
       throw new ForbiddenException('Bạn không có quyền truy cập tài nguyên này');
     }
 

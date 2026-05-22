@@ -6,6 +6,7 @@ import { EquipmentService } from './equipment.service';
 import { CreateEquipmentDto } from './dto/create-equipment.dto';
 import { UpdateEquipmentDto } from './dto/update-equipment.dto';
 import { UpdateEquipmentStatusDto } from './dto/update-equipment-status.dto';
+import { Role } from 'src/auth/decorators/role.enum'; 
 
 // Import các bộ bảo vệ quyền truy cập của bạn
 import { JwtAuthGuard } from 'src/auth/guards/jwt-auth.guard'; 
@@ -14,13 +15,13 @@ import { Roles } from 'src/auth/decorators/roles.decorator';
 
 @ApiTags('Equipments - Thiết bị')
 @Controller('equipments')
-@UseGuards(JwtAuthGuard, RolesGuard) // 🛡️ Bọc toàn bộ file: Phải đăng nhập mới được sờ vào các API này
+@UseGuards(JwtAuthGuard, RolesGuard) // Bọc toàn bộ file: Phải đăng nhập mới được sờ vào các API này
 export class EquipmentController {
   constructor(private readonly equipmentService: EquipmentService) {}
 
   //AI CŨNG XEM ĐƯỢC: Giáo viên/Học sinh có thể xem danh sách thiết bị để báo hỏng
   @Get()
-  @Roles('MANAGER', 'ADMIN', 'TEACHER', 'STUDENT') 
+  @Roles(Role.MANAGER, Role.ADMIN, Role.TEACHER, Role.STUDENT) 
   findAll(
     @Query('search') search?: string,
     @Query('status') status?: EquipmentStatus | 'need-handle',
@@ -37,21 +38,21 @@ export class EquipmentController {
 
   //AI CŨNG XEM ĐƯỢC: Xem chi tiết một thiết bị
   @Get(':equipmentId')
-  @Roles('MANAGER', 'ADMIN', 'TEACHER', 'STUDENT')
+  @Roles(Role.MANAGER, Role.ADMIN, Role.TEACHER, Role.STUDENT)
   findOne(@Param('equipmentId') equipmentId: string) {
     return this.equipmentService.findOne(Number(equipmentId));
   }
 
   //CHỈ MANAGER & ADMIN: Mới có quyền tạo thiết bị mới
   @Post()
-  @Roles('MANAGER', 'ADMIN')
+  @Roles(Role.MANAGER, Role.ADMIN)
   create(@Body() dto: CreateEquipmentDto) {
     return this.equipmentService.create(dto);
   }
 
-  //CHỈ MANAGER & ADMIN: Mới có quyền cập nhật thông tin thiết bị
+ // CHỈ MANAGER: Mới có quyền cập nhật thông tin thiết bị (ADMIN không có quyền)
   @Patch(':equipmentId')
-  @Roles('MANAGER', 'ADMIN')
+  @Roles(Role.MANAGER) 
   update(
     @Param('equipmentId') equipmentId: string,
     @Body() dto: UpdateEquipmentDto,
@@ -59,9 +60,9 @@ export class EquipmentController {
     return this.equipmentService.update(Number(equipmentId), dto);
   }
 
-  //CHỈ MANAGER & ADMIN: Mới có quyền duyệt/đổi trạng thái thiết bị
+  // CHỈ MANAGER: Mới có quyền duyệt/đổi trạng thái thiết bị (ADMIN không có quyền)
   @Patch(':equipmentId/status')
-  @Roles('MANAGER', 'ADMIN')
+  @Roles(Role.MANAGER) 
   updateStatus(
     @Param('equipmentId') equipmentId: string,
     @Body() dto: UpdateEquipmentStatusDto,
@@ -71,7 +72,7 @@ export class EquipmentController {
 
   //CHỈ MANAGER & ADMIN: Mới được quyền xóa thiết bị khỏi hệ thống
   @Delete(':equipmentId')
-  @Roles('MANAGER', 'ADMIN')
+  @Roles(Role.MANAGER, Role.ADMIN)
   remove(@Param('equipmentId') equipmentId: string) {
     return this.equipmentService.remove(Number(equipmentId));
   }
