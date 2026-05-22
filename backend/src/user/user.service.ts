@@ -15,11 +15,12 @@ export class UserService {
     
     async getAllUser(): Promise<UserDto[]> {
         try {
-            const users : UserDto[] =  await this.prismaService.user.findMany()
-            return plainToInstance(UserDto, users, { excludeExtraneousValues: true });
-
+            const users = await this.prismaService.user.findMany();
+            // Bỏ option excludeExtraneousValues để class-transformer map tự động dựa trên các trường có sẵn
+            return plainToInstance(UserDto, users); 
         } catch (error) {
-            throw new InternalServerErrorException(error)
+            console.error("Lỗi tại getAllUser:", error);
+            throw new InternalServerErrorException('Lỗi hệ thống khi lấy danh sách người dùng');
         }
     }
 
