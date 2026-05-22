@@ -1,12 +1,7 @@
 import { Navigate, Outlet } from 'react-router-dom';
 
-interface ProtectedRouteProps {
-  allowedRoles?: string[]; // Danh sách các quyền được phép truy cập (VD: ['ADMIN', 'MANAGER'])
-}
-
-export const ProtectedRoute = ({ allowedRoles }: ProtectedRouteProps) => {
+export const ProtectedRoute = ({ allowedRoles }) => {
   const accessToken = localStorage.getItem('accessToken');
-  // Lấy thông tin user (được lưu lại khi đăng nhập thành công)
   const userString = localStorage.getItem('user');
   const user = userString ? JSON.parse(userString) : null;
 
@@ -15,14 +10,44 @@ export const ProtectedRoute = ({ allowedRoles }: ProtectedRouteProps) => {
     return <Navigate to="/login" replace />;
   }
 
-  // 2. Nếu có yêu cầu phân quyền cụ thể, check quyền của user
-  if (allowedRoles && (!user || !allowedRoles.includes(user.role))) {
-    // Không có quyền thì đá về trang mặc định theo role thực tế của họ
-    if (user?.role === 'ADMIN') return <Navigate to="/admin" replace />;
-    if (user?.role === 'MANAGER') return <Navigate to="/manager" replace />;
-    return <Navigate to="/student" replace />;
+  // Chuẩn hóa role của user hiện tại sang chữ IN HOA để so sánh chính xác
+  const userRole = user?.role ? user.role.toUpperCase() : null;
+  
+  // Lấy đường dẫn hiện tại trình duyệt đang đứng
+  const currentPath = window.location.pathname.toLowerCase();
+
+  // 2. Nếu route yêu cầu phân quyền cụ thể (allowedRoles)
+  if (allowedRoles) {
+    const upperAllowedRoles = allowedRoles.map(role => role.toUpperCase());
+
+    // Nếu Role của user hợp lệ, cho phép đi tiếp vào luôn trang con
+    if (userRole && upperAllowedRoles.includes(userRole)) {
+      return <Outlet />;
+    }
+
+    // --- XỬ LÝ KHI SAI QUYỀN (ĐIỀU HƯỚNG AN TOÀN - CHỐNG LẶP VÔ HẠN) ---
+    
+    if (userRole === 'ADMIN') {
+      if (currentPath === '/admin') return <Outlet />; // Đang ở đúng trang thì dừng lại hiển thị giao diện
+      return <Navigate to="/admin" replace />;
+    }
+    
+    if (userRole === 'MANAGER') {
+      if (currentPath === '/manager') return <Outlet />;
+      return <Navigate to="/manager" replace />;
+    }
+    
+    if (userRole === 'STUDENT' || userRole === 'TEACHER') {
+      // Nếu đang đứng ở trang /student rồi thì KHÔNG ĐƯỢC điều hướng tiếp, ép hiển thị giao diện ra luôn
+      if (currentPath === '/student') return <Outlet />; 
+      return <Navigate to="/student" replace />;
+    }
+    
+    // Nếu role lạ lẫm không thuộc các nhóm trên, clear bộ nhớ và đẩy về Login
+    localStorage.clear();
+    return <Navigate to="/login" replace />;
   }
 
-  // Nếu thỏa mãn hết điều kiện, cho phép đi tiếp vào các trang con
+  // Nếu route không yêu cầu allowedRoles (route tự do nhưng cần đăng nhập), cho qua luôn
   return <Outlet />;
 };

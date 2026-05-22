@@ -1,15 +1,12 @@
-import {
-  BadRequestException,
-  Injectable,
-  UnauthorizedException,
-  InternalServerErrorException,
-} from '@nestjs/common';
+import {BadRequestException, Injectable, UnauthorizedException, InternalServerErrorException,} from '@nestjs/common';
 
 import { PrismaService } from 'src/prisma/prisma.service';
 import { JwtService } from '@nestjs/jwt';
 
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
+import { UserDto } from '../user/dto/user.dto';
+import { plainToInstance } from 'class-transformer'; 
 
 import { hashPassword, verifyPassword } from 'src/common/bcrypt';
 
@@ -130,7 +127,7 @@ export class AuthService {
     };
   }
 
-  // ================= LOGIN =================
+  // ================= LOGIN (HOÀN CHỈNH) =================
   async login(dto: LoginDto) {
     const user = await this.prismaService.user.findFirst({
       where: {
@@ -139,7 +136,6 @@ export class AuthService {
           { email: dto.usernameOrEmail },
         ],
       },
-
       include: {
         role: true,
       },
@@ -184,13 +180,25 @@ export class AuthService {
       where: {
         userId: user.userId,
       },
-
       data: {
         refreshToken: hashedRefreshToken,
       },
     });
 
-    return tokens;
+    // 🛠️ CHUẨN HÓA DỮ LIỆU USER TRƯỚC KHI TRẢ VỀ FRONTEND
+    const userWithRoleField = {
+      ...user,
+      role: user.role.roleName, // Gán chuỗi tên quyền trực tiếp vào đây
+    };
+
+    // Đi qua plainToInstance để lọc bỏ hashedPassword & giữ lại các trường có @Expose()
+    const userData = plainToInstance(UserDto, userWithRoleField, { excludeExtraneousValues: true });
+
+    // Trả về cả token lẫn thông tin user đầy đủ
+    return {
+      ...tokens,
+      user: userData,
+    };
   }
 
   // ================= LOGOUT =================
@@ -199,7 +207,6 @@ export class AuthService {
       where: {
         userId,
       },
-
       data: {
         refreshToken: null,
       },
@@ -210,7 +217,7 @@ export class AuthService {
     };
   }
 
-  // ================= REFRESH TOKENS =================
+  // ================= REFRESH TOKENS (HOÀN CHỈNH) =================
   async refreshTokens(refreshToken: string) {
     try {
       const payload = await this.jwtService.verifyAsync(
@@ -224,7 +231,6 @@ export class AuthService {
         where: {
           userId: payload.sub,
         },
-
         include: {
           role: true,
         },
@@ -263,13 +269,22 @@ export class AuthService {
         where: {
           userId: user.userId,
         },
-
         data: {
           refreshToken: hashedRefreshToken,
         },
       });
 
-      return tokens;
+      // 🛠️ Cập nhật map dữ liệu trả về tương tự như hàm Login
+      const userWithRoleField = {
+        ...user,
+        role: user.role.roleName,
+      };
+      const userData = plainToInstance(UserDto, userWithRoleField, { excludeExtraneousValues: true });
+
+      return {
+        ...tokens,
+        user: userData,
+      };
     } catch (err) {
       throw new UnauthorizedException(
         'Refresh token hết hạn, vui lòng đăng nhập lại',
