@@ -14,8 +14,8 @@ export class AuthService {
   ) {}
 
   // Hàm ký cấp mã token
-  async generateTokens(userId: number, username: string) {
-    const payload = { sub: userId, username };
+  async generateTokens(userId: number, username: string, roleName: string) {
+    const payload = { sub: userId, username, role: roleName };
 
     const [accessToken, refreshToken] = await Promise.all([
       this.jwtService.signAsync(payload, {
@@ -43,18 +43,7 @@ export class AuthService {
 
     const hashedPassword = await hashPassword(dto.password);
 
-    // Tìm role mặc định USER
-    let defaultRole = await this.prismaService.role.findUnique({ where: { roleName: 'USER' } });
-
-    // Nếu không có USER, lấy đại role đầu tiên trong DB
-    if (!defaultRole) {
-      defaultRole = await this.prismaService.role.findFirst();
-    }
-
-    // Nếu DB hoàn toàn trống trơn (không có role nào hết)
-    if (!defaultRole) {
-      throw new InternalServerErrorException('Hệ thống chưa thiết lập phân quyền (Role)! Vui lòng liên hệ Admin.');
-    }
+    const role = await this.getRoleByEmailDomain(dto.email);
 
     const newUser = await this.prismaService.user.create({
       data: {
@@ -62,7 +51,7 @@ export class AuthService {
         email: dto.email,
         hashedPassword,
         phoneNumber: dto.phoneNumber,
-        roleId: defaultRole.roleId, 
+        roleId: role.roleId, 
       },
     });
 
@@ -75,6 +64,7 @@ export class AuthService {
       where: {
         OR: [{ username: dto.usernameOrEmail }, { email: dto.usernameOrEmail }],
       },
+      include: { role: true },
     });
 
     if (!user) throw new UnauthorizedException('Tài khoản hoặc mật khẩu không chính xác');
@@ -84,7 +74,7 @@ export class AuthService {
     
     if (user.status !== 'ACTIVE') throw new UnauthorizedException('Tài khoản đã bị khóa');
 
-    const tokens = await this.generateTokens(user.userId, user.username);
+    const tokens = await this.generateTokens(user.userId, user.username, user.role.roleName);
     
     const hashedRefreshToken = await hashPassword(tokens.refreshToken);
     await this.prismaService.user.update({
@@ -117,6 +107,7 @@ export class AuthService {
       // 2. Tìm thông tin người dùng sử dụng đúng biến `this.prismaService`
       const user = await this.prismaService.user.findUnique({
         where: { userId },
+        include: { role: true },
       });
 
       if (!user || !user.refreshToken) {
@@ -129,8 +120,8 @@ export class AuthService {
         throw new UnauthorizedException('Mã xác thực không hợp lệ!');
       }
 
-      // 4. Khớp chính xác 2 tham số (userId, username) theo định nghĩa của hàm generateTokens phía trên
-      const tokens = await this.generateTokens(user.userId, user.username);
+      // 4. Khớp chính xác tham số theo định nghĩa của hàm generateTokens phía trên
+      const tokens = await this.generateTokens(user.userId, user.username, user.role.roleName);
       
       // 5. Băm mã mới bằng `hashPassword` và lưu lại vào DB
       const hashedRefreshToken = await hashPassword(tokens.refreshToken);
@@ -145,5 +136,78 @@ export class AuthService {
       // Bắt toàn bộ lỗi hết hạn token hoặc token sai cấu trúc hạ tầng
       throw new UnauthorizedException('Mã Refresh Token đã hết hạn hoặc không hợp lệ, vui lòng đăng nhập lại!');
     }
+  }
+
+  // Logic đăng nhập bằng Google
+  async googleLogin(req: any) {
+    if (!req.user) {
+      throw new BadRequestException('Không nhận được thông tin từ Google');
+    }
+
+    const { email, firstName, lastName, googleId } = req.user;
+
+    // Kiểm tra xem user đã tồn tại chưa
+    let user = await this.prismaService.user.findUnique({
+      where: { email },
+      include: { role: true },
+    });
+
+    if (!user) {
+      const role = await this.getRoleByEmailDomain(email);
+
+      // Tạo mật khẩu ngẫu nhiên cho user Google
+      const randomPassword = Math.random().toString(36).slice(-8) + Math.random().toString(36).slice(-8);
+      const hashedPassword = await hashPassword(randomPassword);
+
+      // Đảm bảo username là duy nhất
+      let username = email.split('@')[0];
+      let existingUser = await this.prismaService.user.findUnique({ where: { username } });
+      while (existingUser) {
+        username = `${email.split('@')[0]}_${Math.floor(Math.random() * 1000)}`;
+        existingUser = await this.prismaService.user.findUnique({ where: { username } });
+      }
+
+      user = await this.prismaService.user.create({
+        data: {
+          username,
+          email,
+          hashedPassword,
+          roleId: role.roleId,
+        },
+        include: { role: true },
+      });
+    } else {
+      if (user.status !== 'ACTIVE') throw new UnauthorizedException('Tài khoản đã bị khóa');
+    }
+
+    const tokens = await this.generateTokens(user.userId, user.username, user.role.roleName);
+    
+    const hashedRefreshToken = await hashPassword(tokens.refreshToken);
+    await this.prismaService.user.update({
+      where: { userId: user.userId },
+      data: { refreshToken: hashedRefreshToken },
+    });
+
+    return { message: 'Đăng nhập Google thành công', ...tokens };
+  }
+
+  private async getRoleByEmailDomain(email: string) {
+    let roleName = '';
+    if (email.endsWith('@student.ptithcm.edu.vn')) {
+      roleName = 'STUDENT';
+    } else if (email.endsWith('@ptithcm.edu.vn')) {
+      roleName = 'TEACHER';
+    } else if (email.endsWith('@system.com')) {
+      roleName = 'MANAGER';
+    } else {
+      throw new BadRequestException('Email không hợp lệ. Vui lòng sử dụng email đuôi @student.ptithcm.edu.vn, @ptithcm.edu.vn hoặc @system.com.');
+    }
+
+    const role = await this.prismaService.role.findUnique({ where: { roleName } });
+    if (!role) {
+      throw new InternalServerErrorException(`Hệ thống chưa thiết lập phân quyền (${roleName})! Vui lòng chạy seed database hoặc liên hệ Admin.`);
+    }
+
+    return role;
   }
 }

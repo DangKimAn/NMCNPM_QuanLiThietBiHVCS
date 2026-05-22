@@ -34,7 +34,7 @@ export const Register = () => {
 
     try {
       // 1. Gửi request POST sang cổng NestJS (nhớ check lại port 3000 hoặc port thực tế của bạn)
-      await axios.post('http://localhost:3000/auth/register', {
+      await axios.post('http://localhost:3000/api/auth/register', {
         fullName,
         email,
         username,
@@ -63,7 +63,7 @@ export const Register = () => {
       title="Tạo tài khoản mới"
       subtitle="Tham gia hệ thống quản lý thiết bị HVCS"
       ssoText="Đăng ký nhanh bằng Email Học viện"
-      onSsoClick={() => console.log('Chuyển hướng SSO Register...')}
+      onSsoClick={() => window.location.href = 'http://localhost:3000/api/auth/google'}
       footerText="Đã có tài khoản?"
       footerLinkText="Đăng nhập"
       footerLinkTo="/login"
