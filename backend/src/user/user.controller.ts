@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, Param, ParseIntPipe, Patch, Post, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, ParseIntPipe, Patch, Post, UseGuards, ForbiddenException} from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { UserService } from './user.service';
 import { CreateUserDto } from './dto/create-user.dto';
@@ -9,6 +9,7 @@ import { UpdateUserDto } from './dto/updateUser.dto';
 import { JwtAuthGuard } from 'src/auth/guards/jwt-auth.guard'; 
 import { RolesGuard } from 'src/auth/guards/roles.guard';
 import { Roles } from 'src/auth/decorators/roles.decorator';
+import { GetUser } from 'src/auth/decorators/get-user.decorator';
 
 @ApiTags('User')
 @ApiBearerAuth()
@@ -38,9 +39,21 @@ export class UserController {
     return await this.userService.getUserByEmail(email);
   }
 
-  //MỌI USER (Đã đăng nhập): Được phép xem thông tin chi tiết bằng ID
+  //CHỈ CHÍNH USER ĐÓ HOẶC ADMIN: Được phép xem thông tin chi tiết bằng ID
   @Get('getUserbyUserId/:userID')
-  async findOne(@Param('userID', ParseIntPipe) userID: number): Promise<UserDto> {
+  async findOne(
+    @Param('userID', ParseIntPipe) userID: number,
+    @GetUser() currentUser: { userId: number; role: string }
+  ): Promise<UserDto> {
+    const isSelf = currentUser.userId === userID;
+    const isAdmin = currentUser.role === Role.ADMIN;
+
+    if (!isSelf && !isAdmin) {
+      throw new ForbiddenException(
+        'Bạn không có quyền xem thông tin chi tiết của người dùng khác!',
+      );
+    }
+
     return await this.userService.getUserByUserId(userID);
   }
 
@@ -55,8 +68,18 @@ export class UserController {
   @Patch(':userId')
   async update(
     @Param('userId', ParseIntPipe) userId: number, 
-    @Body() updateUserDto: UpdateUserDto
+    @Body() updateUserDto: UpdateUserDto,
+    @GetUser() currentUser: { userId: number; role: string }
   ): Promise<UserDto> {
+    const isSelf = currentUser.userId === userId;
+    const isAdmin = currentUser.role === Role.ADMIN;
+
+    if (!isSelf && !isAdmin) {
+      throw new ForbiddenException(
+        'Bạn không có quyền chỉnh sửa thông tin của người dùng khác!',
+      );
+    }
+
     return await this.userService.updateUser(userId, updateUserDto);
   }
 
