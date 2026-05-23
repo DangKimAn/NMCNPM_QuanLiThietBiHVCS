@@ -1,5 +1,5 @@
-import {BadRequestException, Injectable, UnauthorizedException, InternalServerErrorException,} from '@nestjs/common';
-
+import { BadRequestException, Injectable, UnauthorizedException, InternalServerErrorException } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { JwtService } from '@nestjs/jwt';
 
@@ -15,6 +15,7 @@ export class AuthService {
   constructor(
     private prismaService: PrismaService,
     private jwtService: JwtService,
+    private configService: ConfigService,
   ) {}
 
   // ================= GENERATE TOKENS =================
@@ -31,12 +32,12 @@ export class AuthService {
 
     const [accessToken, refreshToken] = await Promise.all([
       this.jwtService.signAsync(payload, {
-        secret: 'ACCESS_TOKEN_SECRET_KEY_123',
+        secret: this.configService.get<string>('JWT_ACCESS_SECRET'),        
         expiresIn: '15m',
       }),
 
       this.jwtService.signAsync(payload, {
-        secret: 'REFRESH_TOKEN_SECRET_KEY_456',
+        secret: this.configService.get<string>('JWT_REFRESH_SECRET'),        
         expiresIn: '7d',
       }),
     ]);
@@ -65,33 +66,32 @@ export class AuthService {
     }
 
     // ================= AUTO ROLE =================
-  const emailLower = dto.email.trim().toLowerCase();
+    const emailLower = dto.email.trim().toLowerCase();
+    let roleTarget = '';
 
-  let roleTarget = '';
+    if (emailLower.endsWith('@student.ptithcm.edu.vn')) {
+      roleTarget = 'STUDENT';
+    } else if (emailLower.endsWith('@ptithcm.edu.vn')) {
+      roleTarget = 'TEACHER';
+    } else {
+      throw new BadRequestException(
+        'Email không hợp lệ! Hệ thống chỉ chấp nhận email thuộc học viện.',
+      );
+    }
 
-  if (emailLower.endsWith('@student.ptithcm.edu.vn')) {
-    roleTarget = 'STUDENT';
-  } else if (emailLower.endsWith('@ptithcm.edu.vn')) {
-    roleTarget = 'TEACHER';
-  } else {
-    throw new BadRequestException(
-      'Email không hợp lệ! Hệ thống chỉ chấp nhận email thuộc học viện.',
-    );
-  }
+    // ================= FIND ROLE =================
+    const defaultRole = await this.prismaService.role.findFirst({
+      where: {
+        roleName: roleTarget,
+      },
+    });
 
-  // ================= FIND ROLE =================
-  const defaultRole = await this.prismaService.role.findFirst({
-    where: {
-      roleName: roleTarget,
-    },
-  });
-
-  // ================= CHECK ROLE EXISTS =================
-  if (!defaultRole) {
-    throw new InternalServerErrorException(
-      `Role [${roleTarget}] không tồn tại trong hệ thống`,
-    );
-  }
+    // ================= CHECK ROLE EXISTS =================
+    if (!defaultRole) {
+      throw new InternalServerErrorException(
+        `Role [${roleTarget}] không tồn tại trong hệ thống`,
+      );
+    }
   
     // ================= HASH PASSWORD =================
     const hashedPassword = await hashPassword(dto.password);
@@ -205,78 +205,82 @@ export class AuthService {
     };
   }
 
-  // ================= REFRESH TOKENS (HOÀN CHỈNH) =================
+  // ================= REFRESH TOKENS (AN TOÀN & GIỮ NGUYÊN LUỒNG CŨ) =================
   async refreshTokens(refreshToken: string) {
+    let payload: { sub: number; username: string };
+
+    //ĐÃ SỬA: Bọc riêng phần verify JWT để bắt chính xác lỗi hết hạn token từ client
     try {
-      const payload = await this.jwtService.verifyAsync(
+      payload = await this.jwtService.verifyAsync(
         refreshToken,
         {
-          secret: 'REFRESH_TOKEN_SECRET_KEY_456',
+          secret: this.configService.get<string>('JWT_REFRESH_SECRET'),        
         },
       );
-
-      const user = await this.prismaService.user.findUnique({
-        where: {
-          userId: payload.sub,
-        },
-        include: {
-          role: true,
-        },
-      });
-
-      if (!user || !user.refreshToken) {
-        throw new UnauthorizedException(
-          'Phiên đăng nhập không tồn tại',
-        );
-      }
-
-      const isValid = await verifyPassword(
-        refreshToken,
-        user.refreshToken,
-      );
-
-      if (!isValid) {
-        throw new UnauthorizedException(
-          'Refresh token không hợp lệ',
-        );
-      }
-
-      // ================= GENERATE NEW TOKENS =================
-      const tokens = await this.generateTokens(
-        user.userId,
-        user.username,
-        user.role.roleName,
-      );
-
-      // ================= UPDATE REFRESH TOKEN =================
-      const hashedRefreshToken = await hashPassword(
-        tokens.refreshToken,
-      );
-
-      await this.prismaService.user.update({
-        where: {
-          userId: user.userId,
-        },
-        data: {
-          refreshToken: hashedRefreshToken,
-        },
-      });
-
-      // 🛠️ Cập nhật map dữ liệu trả về tương tự như hàm Login
-      const userWithRoleField = {
-        ...user,
-        role: user.role.roleName,
-      };
-      const userData = plainToInstance(UserDto, userWithRoleField, { excludeExtraneousValues: true });
-
-      return {
-        ...tokens,
-        user: userData,
-      };
     } catch (err) {
       throw new UnauthorizedException(
-        'Refresh token hết hạn, vui lòng đăng nhập lại',
+        'Refresh token hết hạn hoặc không hợp lệ, vui lòng đăng nhập lại',
       );
     }
+
+    //ĐÃ SỬA: Đưa các logic DB ra ngoài try-catch để hệ thống log lỗi chuẩn xác (nếu sập Supabase, lỗi code...)
+    const user = await this.prismaService.user.findUnique({
+      where: {
+        userId: payload.sub,
+      },
+      include: {
+        role: true,
+      },
+    });
+
+    if (!user || !user.refreshToken) {
+      throw new UnauthorizedException(
+        'Phiên đăng nhập không tồn tại',
+      );
+    }
+
+    const isValid = await verifyPassword(
+      refreshToken,
+      user.refreshToken,
+    );
+
+    if (!isValid) {
+      throw new UnauthorizedException(
+        'Refresh token không hợp lệ',
+      );
+    }
+
+    // ================= GENERATE NEW TOKENS =================
+    const tokens = await this.generateTokens(
+      user.userId,
+      user.username,
+      user.role.roleName,
+    );
+
+    // ================= UPDATE REFRESH TOKEN =================
+    const hashedRefreshToken = await hashPassword(
+      tokens.refreshToken,
+    );
+
+    await this.prismaService.user.update({
+      where: {
+        userId: user.userId,
+      },
+      data: {
+        refreshToken: hashedRefreshToken,
+      },
+    });
+
+    // 🛠️ Cập nhật map dữ liệu trả về tương tự như hàm Login
+    const userWithRoleField = {
+      ...user,
+      role: user.role.roleName,
+    };
+    const userData = plainToInstance(UserDto, userWithRoleField, { excludeExtraneousValues: true });
+
+    return {
+      ...tokens,
+      user: userData,
+    };
   }
 }

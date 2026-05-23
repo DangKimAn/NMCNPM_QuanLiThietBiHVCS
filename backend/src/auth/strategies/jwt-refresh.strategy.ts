@@ -1,16 +1,19 @@
 import { Injectable, UnauthorizedException } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { PassportStrategy } from '@nestjs/passport';
 import { ExtractJwt, Strategy } from 'passport-jwt';
 import { Request } from 'express';
 
 @Injectable()
 export class JwtRefreshStrategy extends PassportStrategy(Strategy, 'jwt-refresh') {
-  constructor() {
+  constructor(private configService: ConfigService) {
     super({
       jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
       ignoreExpiration: false,
-      secretOrKey: 'REFRESH_TOKEN_SECRET_KEY_456', // Nên cấu hình trong file .env khi deploy thực tế
-      passReqToCallback: true, // Cho phép truyền object `req` vào hàm validate bên dưới
+      secretOrKeyProvider: (request, rawJwtToken, done) => {
+        const secret = this.configService.get<string>('JWT_REFRESH_SECRET');
+        done(null, secret);
+      },      passReqToCallback: true, // Cho phép truyền object `req` vào hàm validate bên dưới
     });
   }
 
