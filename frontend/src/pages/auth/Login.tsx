@@ -1,6 +1,6 @@
-import { useState } from 'react';
-import { FiLock, FiMail } from 'react-icons/fi';
-import { useNavigate } from 'react-router-dom'; 
+import { useState, useEffect } from 'react';
+import { FiLock, FiMail, FiAlertCircle } from 'react-icons/fi';
+import { useNavigate, useSearchParams } from 'react-router-dom'; 
 import axios from 'axios'; 
 import { AuthLayout } from '../../components/layout/AuthLayout';
 import { InputGroup } from '../../components/ui/InputGroup';
@@ -12,6 +12,45 @@ export const Login = () => {
   const [loading, setLoading] = useState(false);
   
   const navigate = useNavigate(); 
+  const [searchParams] = useSearchParams();
+
+  useEffect(() => {
+    // Xử lý query params khi Google Redirect về
+    const accessToken = searchParams.get('accessToken');
+    const refreshToken = searchParams.get('refreshToken');
+    const urlError = searchParams.get('error');
+
+    if (urlError) {
+      setError(decodeURIComponent(urlError));
+    } else if (accessToken && refreshToken) {
+      try {
+        localStorage.setItem('accessToken', accessToken);
+        localStorage.setItem('refreshToken', refreshToken);
+
+        const base64Url = accessToken.split('.')[1];
+        const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+        const payload = JSON.parse(window.atob(base64)); 
+        
+        localStorage.setItem('user', JSON.stringify({
+          userId: payload.sub,
+          username: payload.username,
+          role: payload.role || 'USER'
+        }));
+
+        const userRole = payload.role;
+        if (userRole === 'ADMIN') {
+          navigate('/admin/users');
+        } else if (userRole === 'MANAGER' || userRole === 'LEADER') {
+          navigate('/manager/overview');
+        } else {
+          navigate('/student/overview');
+        }
+      } catch (err) {
+        console.error('Lỗi phân tích token từ URL:', err);
+        setError('Có lỗi xảy ra khi xử lý thông tin đăng nhập từ Google');
+      }
+    }
+  }, [searchParams, navigate]); 
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
