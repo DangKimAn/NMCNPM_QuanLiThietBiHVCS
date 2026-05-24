@@ -45,7 +45,7 @@ function App() {
         </Route>
 
         {/* Giảng viên / Sinh viên */}
-        <Route element={<ProtectedRoute allowedRoles={['USER', 'MANAGER', 'ADMIN']} />}>
+        <Route element={<ProtectedRoute allowedRoles={['TEACHER', 'STUDENT', 'MANAGER', 'ADMIN']} />}>
           <Route path="/student" element={<Navigate to="/student/overview" replace />} />
           <Route path="/student/overview" element={<StudentOverview />} />
           <Route path="/student/reports" element={<StudentReport />} />

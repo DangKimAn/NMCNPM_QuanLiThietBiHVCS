@@ -1,17 +1,17 @@
 import { useState } from 'react';
 import { FiLock, FiMail } from 'react-icons/fi';
-import { useNavigate } from 'react-router-dom'; // 👈 Thêm hook điều hướng
-import axios from 'axios'; // 👈 Thêm axios để gọi API
+import { useNavigate } from 'react-router-dom'; 
+import axios from 'axios'; 
 import { AuthLayout } from '../../components/layout/AuthLayout';
 import { InputGroup } from '../../components/ui/InputGroup';
 
 export const Login = () => {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
-  const [error, setError] = useState(''); // 👈 State để hứng lỗi hiển thị ra màn hình
+  const [error, setError] = useState(''); 
   const [loading, setLoading] = useState(false);
   
-  const navigate = useNavigate(); // 👈 Khởi tạo navigate
+  const navigate = useNavigate(); 
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();

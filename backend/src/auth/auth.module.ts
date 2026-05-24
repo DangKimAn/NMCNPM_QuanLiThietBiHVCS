@@ -3,14 +3,25 @@ import { AuthService } from './auth.service';
 import { AuthController } from './auth.controller';
 import { PrismaModule } from 'src/prisma/prisma.module';
 import { JwtModule } from '@nestjs/jwt';
+import { PassportModule } from '@nestjs/passport';
+import { JwtStrategy } from './strategies/jwt.strategy';
+import { JwtRefreshStrategy } from './strategies/jwt-refresh.strategy';
+import { ConfigService } from '@nestjs/config';
 
 @Module({
   imports: [
     PrismaModule, 
-    JwtModule.register({}), // Hoặc dùng ConfigService để lấy secret key từ file .env
+    PassportModule.register({ defaultStrategy: 'jwt' }), //Cấu hình Passport nhận mặc định jwt
+    JwtModule.registerAsync({
+      useFactory: async (configService: ConfigService) => ({
+        secret: configService.get<string>('JWT_ACCESS_SECRET'), 
+        signOptions: { expiresIn: '15m' },
+      }),
+      inject: [ConfigService],
+    }),
   ],
   controllers: [AuthController],
-  providers: [AuthService],
-  exports: [AuthService],
+  providers: [AuthService, JwtStrategy, JwtRefreshStrategy], //BẮT BUỘC: Điền cả 2 vào đây để NestJS không bắt lỗi thiếu Dependency khi compile
+  exports: [AuthService, PassportModule, JwtModule], //Export ra ngoài cho các Module khác xài chung Guard
 })
 export class AuthModule {}
