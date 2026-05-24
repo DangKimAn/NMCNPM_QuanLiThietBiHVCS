@@ -1,6 +1,6 @@
-import { useState } from 'react';
-import { FiLock, FiMail } from 'react-icons/fi';
-import { useNavigate } from 'react-router-dom'; 
+import { useState, useEffect } from 'react';
+import { FiLock, FiMail, FiAlertCircle } from 'react-icons/fi';
+import { useNavigate, useSearchParams } from 'react-router-dom'; 
 import axios from 'axios'; 
 import { AuthLayout } from '../../components/layout/AuthLayout';
 import { InputGroup } from '../../components/ui/InputGroup';
@@ -12,6 +12,45 @@ export const Login = () => {
   const [loading, setLoading] = useState(false);
   
   const navigate = useNavigate(); 
+  const [searchParams] = useSearchParams();
+
+  useEffect(() => {
+    // Xử lý query params khi Google Redirect về
+    const accessToken = searchParams.get('accessToken');
+    const refreshToken = searchParams.get('refreshToken');
+    const urlError = searchParams.get('error');
+
+    if (urlError) {
+      setError(decodeURIComponent(urlError));
+    } else if (accessToken && refreshToken) {
+      try {
+        localStorage.setItem('accessToken', accessToken);
+        localStorage.setItem('refreshToken', refreshToken);
+
+        const base64Url = accessToken.split('.')[1];
+        const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+        const payload = JSON.parse(window.atob(base64)); 
+        
+        localStorage.setItem('user', JSON.stringify({
+          userId: payload.sub,
+          username: payload.username,
+          role: payload.role || 'USER'
+        }));
+
+        const userRole = payload.role;
+        if (userRole === 'ADMIN') {
+          navigate('/admin/users');
+        } else if (userRole === 'MANAGER' || userRole === 'LEADER') {
+          navigate('/manager/overview');
+        } else {
+          navigate('/student/overview');
+        }
+      } catch (err) {
+        console.error('Lỗi phân tích token từ URL:', err);
+        setError('Có lỗi xảy ra khi xử lý thông tin đăng nhập từ Google');
+      }
+    }
+  }, [searchParams, navigate]); 
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -20,7 +59,7 @@ export const Login = () => {
 
     try {
       // 1. Gọi API đăng nhập đến NestJS (Đổi lại port nếu Back-end của bạn chạy port khác)
-      const response = await axios.post('http://localhost:3000/auth/login', {
+      const response = await axios.post('http://localhost:3000/api/auth/login', {
         usernameOrEmail: username,
         password: password,
       });
@@ -50,7 +89,7 @@ export const Login = () => {
       const userRole = payload.role;
       if (userRole === 'ADMIN') {
         navigate('/admin/users');
-      } else if (userRole === 'MANAGER') {
+      } else if (userRole === 'MANAGER' || userRole === 'LEADER') {
         navigate('/manager/overview');
       } else {
         navigate('/student/overview');
@@ -76,7 +115,7 @@ export const Login = () => {
       title={titleNode}
       subtitle="Hệ thống Quản lý Thiết bị Phòng học"
       ssoText="Đăng nhập bằng Email Học viện"
-      onSsoClick={() => console.log('Chuyển hướng SSO Login...')}
+      onSsoClick={() => window.location.href = 'http://localhost:3000/api/auth/google'}
       footerText="Chưa có tài khoản?"
       footerLinkText="Đăng ký ngay"
       footerLinkTo="/register"
@@ -84,8 +123,9 @@ export const Login = () => {
       <form onSubmit={handleLogin} className="space-y-5">
         {/* Hiển thị thông báo lỗi nếu đăng nhập thất bại */}
         {error && (
-          <div className="p-3 text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg">
-            {error}
+          <div className="flex items-center gap-3 p-3.5 text-sm text-red-700 bg-red-50 border border-red-200 rounded-xl shadow-sm">
+            <FiAlertCircle className="w-5 h-5 text-red-500 flex-shrink-0" />
+            <span className="font-medium leading-relaxed">{error}</span>
           </div>
         )}
 

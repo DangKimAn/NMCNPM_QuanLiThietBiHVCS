@@ -29,7 +29,7 @@ function App() {
         <Route path="/register" element={<Register />} />
 
         {/* Cán bộ quản lý thiết bị */}
-        <Route element={<ProtectedRoute allowedRoles={['MANAGER', 'ADMIN']} />}>
+        <Route element={<ProtectedRoute allowedRoles={['MANAGER', 'ADMIN', 'LEADER']} />}>
           <Route path="/manager" element={<Navigate to="/manager/overview" replace />} />
           <Route path="/manager/overview" element={<ManagerOverview />} />
           <Route path="/manager/devices" element={<DeviceManager />} />
@@ -46,6 +46,7 @@ function App() {
 
         {/* Giảng viên / Sinh viên */}
         <Route element={<ProtectedRoute allowedRoles={['TEACHER', 'STUDENT', 'MANAGER', 'ADMIN']} />}>
+
           <Route path="/student" element={<Navigate to="/student/overview" replace />} />
           <Route path="/student/overview" element={<StudentOverview />} />
           <Route path="/student/reports" element={<StudentReport />} />

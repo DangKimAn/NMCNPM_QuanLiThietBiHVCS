@@ -7,6 +7,9 @@ import { AppModule } from './app.module';
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
 
+  // Đặt prefix /api cho tất cả các route
+  app.setGlobalPrefix('api');
+
   // Cho phép frontend React/Vite gọi API backend
   // Frontend thường chạy ở http://localhost:5173
   app.enableCors({
