@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { FiUser, FiLock, FiMail } from 'react-icons/fi';
-import { useNavigate } from 'react-router-dom'; // 👈 Thêm hook để chuyển hướng trang
-import axios from 'axios'; // 👈 Thêm axios để đẩy API
+import { useNavigate } from 'react-router-dom'; 
+import axios from 'axios';
 import { AuthLayout } from '../../components/layout/AuthLayout'; 
 import { InputGroup } from '../../components/ui/InputGroup';
 

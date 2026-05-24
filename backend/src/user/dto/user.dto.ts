@@ -30,7 +30,10 @@ export class UserDto {
     @Expose()
     @IsInt()
     roleId : number
-
+    
+    @Expose()
+    @IsString()
+    role: string;
     
     @Expose()
     @IsString()

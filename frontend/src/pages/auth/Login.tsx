@@ -1,59 +1,17 @@
-import { useState, useEffect } from 'react';
-import { FiLock, FiMail, FiAlertCircle } from 'react-icons/fi';
-import { useNavigate, useLocation } from 'react-router-dom'; // 👈 Thêm hook điều hướng
-import axios from 'axios'; // 👈 Thêm axios để gọi API
+import { useState } from 'react';
+import { FiLock, FiMail } from 'react-icons/fi';
+import { useNavigate } from 'react-router-dom'; 
+import axios from 'axios'; 
 import { AuthLayout } from '../../components/layout/AuthLayout';
 import { InputGroup } from '../../components/ui/InputGroup';
 
 export const Login = () => {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
-  const [error, setError] = useState(''); // 👈 State để hứng lỗi hiển thị ra màn hình
+  const [error, setError] = useState(''); 
   const [loading, setLoading] = useState(false);
   
-  const navigate = useNavigate(); // 👈 Khởi tạo navigate
-  const location = useLocation();
-
-  useEffect(() => {
-    // Bắt query params nếu được redirect từ Google Auth về
-    const queryParams = new URLSearchParams(location.search);
-    const urlAccessToken = queryParams.get('accessToken');
-    const urlRefreshToken = queryParams.get('refreshToken');
-
-    if (urlAccessToken && urlRefreshToken) {
-      // Lưu token
-      localStorage.setItem('accessToken', urlAccessToken);
-      localStorage.setItem('refreshToken', urlRefreshToken);
-
-      // Giải mã JWT
-      const base64Url = urlAccessToken.split('.')[1];
-      const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
-      const payload = JSON.parse(window.atob(base64)); 
-      
-      localStorage.setItem('user', JSON.stringify({
-        userId: payload.sub,
-        username: payload.username,
-        role: payload.role || 'USER'
-      }));
-
-      // Điều hướng
-      const userRole = payload.role || 'USER';
-      if (userRole === 'ADMIN') {
-        navigate('/admin/users');
-      } else if (userRole === 'MANAGER' || userRole === 'LEADER') {
-        navigate('/manager/overview');
-      } else {
-        navigate('/student/overview');
-      }
-    }
-
-    const urlError = queryParams.get('error');
-    if (urlError) {
-      setError(urlError);
-      // Xóa query param trên thanh URL để đẹp mắt hơn
-      navigate('/login', { replace: true });
-    }
-  }, [location.search, navigate]);
+  const navigate = useNavigate(); 
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
