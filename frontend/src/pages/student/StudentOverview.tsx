@@ -14,30 +14,58 @@ import {
   SummaryCard,
   TableHead,
 } from '../../components/manager/common/ManagerCommon';
-import {
-  getCurrentStudentUser,
-  getMyReports,
-  type StudentReportItem,
-} from '../../data/studentMockData';
+import { studentApi, type StudentReportItem } from '../../services/studentApi';
+
+const getCurrentUserFromStorage = () => {
+  const rawUser =
+    localStorage.getItem('currentUser') ||
+    localStorage.getItem('user') ||
+    localStorage.getItem('authUser');
+
+  if (!rawUser) return null;
+
+  try {
+    return JSON.parse(rawUser);
+  } catch {
+    return null;
+  }
+};
 
 export const StudentOverview = () => {
-  const currentUser = getCurrentStudentUser();
+  const currentUser = getCurrentUserFromStorage();
 
   const [reports, setReports] = useState<StudentReportItem[]>([]);
   const [loading, setLoading] = useState(true);
 
+  const loadReports = async () => {
+    try {
+      setLoading(true);
+
+      // Dùng đúng API giống trang "Phản ánh của tôi"
+      const data = await studentApi.getMyReports();
+
+      setReports(data);
+    } catch (error) {
+      console.error('Lỗi tải phản ánh gần đây:', error);
+      setReports([]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   useEffect(() => {
-    const data = getMyReports(currentUser.userId);
-    setReports(data);
-    setLoading(false);
-  }, [currentUser.userId]);
+    loadReports();
+  }, []);
 
   const stats = useMemo(() => {
     return {
       total: reports.length,
-      pending: reports.filter((report) => report.status === 'Mới tiếp nhận').length,
-      processing: reports.filter((report) => report.status === 'Đang xử lý').length,
-      resolved: reports.filter((report) => report.status === 'Đã xử lý').length,
+      pending: reports.filter((report) => report.status === 'Mới tiếp nhận')
+        .length,
+      processing: reports.filter((report) => report.status === 'Đang xử lý')
+        .length,
+      resolved: reports.filter((report) => report.status === 'Đã xử lý')
+        .length,
     };
   }, [reports]);
 
@@ -51,15 +79,36 @@ export const StudentOverview = () => {
         </h1>
 
         <p className="text-sm text-slate-500 mt-1">
-          Xin chào {currentUser.fullName}, bạn có thể gửi phản ánh và theo dõi tình trạng xử lý tại đây.
+          Xin chào{' '}
+          {currentUser?.fullName || currentUser?.username || 'Người dùng'}, bạn
+          có thể gửi phản ánh và theo dõi tình trạng xử lý tại đây.
         </p>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-        <SummaryCard icon={<FiFileText />} label="Tổng phản ánh" value={stats.total} />
-        <SummaryCard icon={<FiAlertTriangle />} label="Mới tiếp nhận" value={stats.pending} />
-        <SummaryCard icon={<FiTool />} label="Đang xử lý" value={stats.processing} />
-        <SummaryCard icon={<FiCheckCircle />} label="Đã xử lý" value={stats.resolved} />
+        <SummaryCard
+          icon={<FiFileText />}
+          label="Tổng phản ánh"
+          value={stats.total}
+        />
+
+        <SummaryCard
+          icon={<FiAlertTriangle />}
+          label="Mới tiếp nhận"
+          value={stats.pending}
+        />
+
+        <SummaryCard
+          icon={<FiTool />}
+          label="Đang xử lý"
+          value={stats.processing}
+        />
+
+        <SummaryCard
+          icon={<FiCheckCircle />}
+          label="Đã xử lý"
+          value={stats.resolved}
+        />
       </div>
 
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
@@ -107,7 +156,7 @@ export const StudentOverview = () => {
                       </td>
 
                       <td className="px-6 py-4 text-sm text-slate-600">
-                        {report.room || 'Không có'}
+                        {report.room ? `Phòng ${report.room}` : 'Không có'}
                       </td>
 
                       <td className="px-6 py-4 text-sm text-slate-700">
@@ -146,7 +195,8 @@ export const StudentOverview = () => {
           </h2>
 
           <p className="text-sm text-slate-500 mt-2">
-            Khi phát hiện thiết bị trong phòng học bị lỗi, bạn có thể gửi phản ánh để cán bộ quản lý thiết bị tiếp nhận xử lý.
+            Khi phát hiện thiết bị trong phòng học bị lỗi, bạn có thể gửi phản
+            ánh để cán bộ quản lý thiết bị tiếp nhận xử lý.
           </p>
 
           <Link
