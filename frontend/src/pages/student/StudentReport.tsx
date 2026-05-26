@@ -8,20 +8,19 @@ import {
   FiMonitor,
   FiRefreshCw,
 } from 'react-icons/fi';
+import Select from 'react-select';
 
 import { StudentTeacherLayout } from '../../components/layout/StudentTeacherLayout';
 import {
   FieldTextArea,
   SummaryCard,
 } from '../../components/manager/common/ManagerCommon';
+import { getCurrentStudentUser } from '../../data/studentMockData';
 import {
-  createStudentReport,
-  getCurrentStudentUser,
-  mockEquipments,
-  mockRooms,
+  studentApi,
   type StudentEquipmentOption,
   type StudentRoomOption,
-} from '../../data/studentMockData';
+} from '../../services/studentApi';
 
 interface ReportForm {
   roomId: string;
@@ -49,22 +48,28 @@ export const StudentReport = () => {
   const [errorMessage, setErrorMessage] = useState('');
   const [successMessage, setSuccessMessage] = useState('');
 
-  const fetchData = () => {
+  const fetchData = async () => {
     try {
       setLoading(true);
       setErrorMessage('');
 
-      setRooms(mockRooms);
-      setEquipments(mockEquipments);
+      const [fetchedRooms, fetchedEquipments] = await Promise.all([
+        studentApi.getRooms(),
+        studentApi.getEquipments(),
+      ]);
+
+      const filteredRooms = fetchedRooms.filter(room => room.building !== 'Kho');
+      setRooms(filteredRooms);
+      setEquipments(fetchedEquipments);
 
       setForm((current) => ({
         ...current,
-        roomId: current.roomId || String(mockRooms[0]?.roomId || ''),
-        equipmentId: current.equipmentId || String(mockEquipments[0]?.equipmentId || ''),
+        roomId: current.roomId || String(filteredRooms[0]?.roomId || ''),
+        equipmentId: current.equipmentId || String(fetchedEquipments.find(e => e.roomId === filteredRooms[0]?.roomId)?.equipmentId || ''),
       }));
     } catch (error) {
       console.error(error);
-      setErrorMessage('Không thể tải dữ liệu mẫu phòng học hoặc thiết bị.');
+      setErrorMessage('Không thể tải dữ liệu phòng học hoặc thiết bị từ máy chủ.');
     } finally {
       setLoading(false);
     }
@@ -76,12 +81,7 @@ export const StudentReport = () => {
 
   const filteredEquipments = useMemo(() => {
     const selectedRoomId = Number(form.roomId);
-
-    const byRoom = equipments.filter(
-      (equipment) => equipment.roomId === selectedRoomId,
-    );
-
-    return byRoom.length > 0 ? byRoom : equipments;
+    return equipments.filter((equipment) => equipment.roomId === selectedRoomId);
   }, [equipments, form.roomId]);
 
   const selectedRoom = rooms.find(
@@ -92,7 +92,7 @@ export const StudentReport = () => {
     (equipment) => String(equipment.equipmentId) === form.equipmentId,
   );
 
-  const submitReport = (e: FormEvent<HTMLFormElement>) => {
+  const submitReport = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
 
     setSuccessMessage('');
@@ -115,11 +115,11 @@ export const StudentReport = () => {
     try {
       setSubmitting(true);
 
-      createStudentReport({
-        reporterId: currentUser.userId,
+      await studentApi.createReport({
         roomId: Number(form.roomId),
         equipmentId: Number(form.equipmentId),
         reportContent: form.reportContent.trim(),
+        reporterId: currentUser.userId,
       });
 
       setSuccessMessage(
@@ -165,31 +165,6 @@ export const StudentReport = () => {
         </div>
       )}
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-        <SummaryCard icon={<FiMonitor />} label="Phòng học" value={rooms.length} />
-
-        <SummaryCard
-          icon={<FiAlertTriangle />}
-          label="Thiết bị"
-          value={equipments.length}
-        />
-
-        <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4 flex items-center gap-3">
-          <div className="w-10 h-10 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center text-xl">
-            <FiEdit3 />
-          </div>
-
-          <div>
-            <p className="text-xs font-medium text-slate-500 uppercase tracking-wide">
-              Người gửi
-            </p>
-
-            <p className="text-lg font-black text-slate-800 mt-0.5">
-              {currentUser.fullName}
-            </p>
-          </div>
-        </div>
-      </div>
 
       {loading && (
         <div className="bg-white border border-slate-200 rounded-xl p-8 text-center text-slate-500">
@@ -228,31 +203,40 @@ export const StudentReport = () => {
                   Phòng học
                 </label>
 
-                <select
-                  value={form.roomId}
-                  onChange={(e) => {
-                    const selectedRoomId = Number(e.target.value);
-
+                <Select
+                  options={rooms.map((room) => ({
+                    value: String(room.roomId),
+                    label: `${room.code} - ${room.name}`,
+                  }))}
+                  value={
+                    form.roomId
+                      ? {
+                          value: form.roomId,
+                          label: (() => {
+                            const r = rooms.find((r) => String(r.roomId) === form.roomId);
+                            return r ? `${r.code} - ${r.name}` : '';
+                          })(),
+                        }
+                      : null
+                  }
+                  onChange={(selectedOption) => {
+                    if (!selectedOption) return;
+                    const selectedRoomId = Number(selectedOption.value);
                     const firstEquipmentInRoom = equipments.find(
                       (equipment) => equipment.roomId === selectedRoomId,
                     );
-
                     setForm({
                       ...form,
-                      roomId: e.target.value,
+                      roomId: selectedOption.value,
                       equipmentId: firstEquipmentInRoom
                         ? String(firstEquipmentInRoom.equipmentId)
                         : '',
                     });
                   }}
-                  className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:border-blue-500 bg-white"
-                >
-                  {rooms.map((room) => (
-                    <option key={room.roomId} value={room.roomId}>
-                      {room.code} - {room.name}
-                    </option>
-                  ))}
-                </select>
+                  placeholder="Tìm kiếm và chọn phòng..."
+                  noOptionsMessage={() => "Không tìm thấy phòng"}
+                  className="text-sm"
+                />
               </div>
 
               <div>
@@ -260,25 +244,36 @@ export const StudentReport = () => {
                   Thiết bị gặp sự cố
                 </label>
 
-                <select
-                  value={form.equipmentId}
-                  onChange={(e) =>
+                <Select
+                  options={filteredEquipments.map((equipment) => ({
+                    value: String(equipment.equipmentId),
+                    label: equipment.name,
+                  }))}
+                  value={
+                    form.equipmentId
+                      ? {
+                          value: form.equipmentId,
+                          label: (() => {
+                            const eq = filteredEquipments.find(
+                              (e) => String(e.equipmentId) === form.equipmentId,
+                            );
+                            return eq ? eq.name : '';
+                          })(),
+                        }
+                      : null
+                  }
+                  onChange={(selectedOption) => {
+                    if (!selectedOption) return;
                     setForm({
                       ...form,
-                      equipmentId: e.target.value,
-                    })
-                  }
-                  className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:border-blue-500 bg-white"
-                >
-                  {filteredEquipments.map((equipment) => (
-                    <option
-                      key={equipment.equipmentId}
-                      value={equipment.equipmentId}
-                    >
-                      {equipment.name} - Phòng {equipment.roomCode}
-                    </option>
-                  ))}
-                </select>
+                      equipmentId: selectedOption.value,
+                    });
+                  }}
+                  isDisabled={filteredEquipments.length === 0}
+                  placeholder={filteredEquipments.length === 0 ? "-- Phòng này không có thiết bị --" : "Tìm kiếm và chọn thiết bị..."}
+                  noOptionsMessage={() => "Không tìm thấy thiết bị"}
+                  className="text-sm"
+                />
               </div>
 
               <FieldTextArea

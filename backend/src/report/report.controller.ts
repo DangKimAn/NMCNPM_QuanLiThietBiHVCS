@@ -19,20 +19,28 @@ import { Roles } from 'src/auth/decorators/roles.decorator';
 export class ReportController {
   constructor(private readonly reportService: ReportService) {}
 
-  //MANAGER: Được xem danh sách toàn bộ các phản ánh để quản lý hệ thống tổng
+  //MANAGER: Được xem danh sách toàn bộ các phản ánh.
+  //STUDENT, TEACHER: Được xem danh sách các phản ánh của chính mình.
   @Get()
-  @Roles(Role.MANAGER)
+  @Roles(Role.MANAGER, Role.STUDENT, Role.TEACHER)
   findAll(
     @Query('status') status?: ReportStatus,
     @Query('roomId') roomId?: string,
     @Query('equipmentId') equipmentId?: string,
     @Query('search') search?: string,
+    @Request() req?,
   ) {
+    const role = req.user.role;
+    const currentUserId = req.user.userId;
+    // Nếu không phải Manager/Admin thì ép buộc chỉ lấy report do chính user đó tạo
+    const isManager = role === Role.MANAGER || role === Role.ADMIN;
+    
     return this.reportService.findAll({
       status,
       roomId: roomId ? Number(roomId) : undefined,
       equipmentId: equipmentId ? Number(equipmentId) : undefined,
       search,
+      reporterId: isManager ? undefined : currentUserId,
     });
   }
 
@@ -44,7 +52,7 @@ export class ReportController {
     @Param('reportId') reportId: string,
     @Request() req, 
   ) {
-    const currentUserId = req.user.id;
+    const currentUserId = req.user.userId;
     const currentUserRole = req.user.role;
 
     return this.reportService.findOne(Number(reportId), Number(currentUserId), currentUserRole);
@@ -57,7 +65,7 @@ export class ReportController {
     @Body() dto: CreateReportDto,
     @Request() req,
   ) {
-    const userId = req.user.id; 
+    const userId = req.user.userId; 
     return this.reportService.create(dto, Number(userId)); 
   }
 
@@ -69,7 +77,7 @@ export class ReportController {
     @Body() dto: HandleReportDto,
     @Request() req, 
   ) {
-    const handlerId = req.user.id; 
+    const handlerId = req.user.userId; 
     return this.reportService.handle(Number(reportId), dto, Number(handlerId)); 
   }
 }

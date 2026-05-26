@@ -10,14 +10,19 @@ import { HandleReportDto } from './dto/handle-report.dto';
 export class ReportService {
   constructor(private readonly prisma: PrismaService) {}
 
-  // Lấy danh sách phản ánh (Chỉ dành cho MANAGER)
+  // Lấy danh sách phản ánh
   async findAll(query: {
     status?: ReportStatus;
     roomId?: number;
     equipmentId?: number;
     search?: string;
+    reporterId?: number;
   }) {
     const where: Prisma.ReportWhereInput = {};
+
+    if (query.reporterId) {
+      where.reporterId = query.reporterId;
+    }
 
     if (query.status) {
       where.status = query.status;

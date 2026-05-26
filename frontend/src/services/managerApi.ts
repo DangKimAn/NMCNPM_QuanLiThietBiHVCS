@@ -62,14 +62,28 @@ export const toBackendReportStatus = (status: ReportStatus) => {
 // Hàm gọi API dùng chung
 // =======================
 
+function getAuthHeaders(): Record<string, string> {
+  const token = localStorage.getItem('accessToken');
+  return {
+    'Content-Type': 'application/json',
+    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+  };
+}
+
 async function request<T>(url: string, options?: RequestInit): Promise<T> {
   const response = await fetch(`${API_BASE_URL}${url}`, {
     headers: {
-      'Content-Type': 'application/json',
+      ...getAuthHeaders(),
       ...(options?.headers || {}),
     },
     ...options,
   });
+
+  if (response.status === 401) {
+    localStorage.clear();
+    window.location.href = '/login';
+    throw new Error('Phiên đăng nhập hết hạn, vui lòng đăng nhập lại.');
+  }
 
   if (!response.ok) {
     const errorText = await response.text();

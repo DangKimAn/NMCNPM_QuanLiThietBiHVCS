@@ -17,11 +17,8 @@ import {
   TableHead,
 } from '../../components/manager/common/ManagerCommon';
 import type { ReportStatus } from '../../types/manager';
-import {
-  getCurrentStudentUser,
-  getMyReports,
-  type StudentReportItem,
-} from '../../data/studentMockData';
+import { getCurrentStudentUser } from '../../data/studentMockData';
+import { studentApi, type StudentReportItem } from '../../services/studentApi';
 
 const reportStatuses: ReportStatus[] = [
   'Mới tiếp nhận',
@@ -45,9 +42,18 @@ export const StudentMyReports = () => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const data = getMyReports(currentUser.userId);
-    setReports(data);
-    setLoading(false);
+    const fetchReports = async () => {
+      try {
+        setLoading(true);
+        const data = await studentApi.getMyReports();
+        setReports(data);
+      } catch (error) {
+        console.error('Lỗi khi lấy danh sách phản ánh:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchReports();
   }, [currentUser.userId]);
 
   useEffect(() => {
