@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 import { Link, NavLink, useNavigate } from 'react-router-dom';
 import {
@@ -27,6 +27,16 @@ interface AppLayoutBaseProps {
   onSearch?: (keyword: string) => string;
 }
 
+interface CurrentUser {
+  userId: number;
+  username: string;
+  fullName: string;
+  email: string;
+  role: string;
+}
+
+const API_BASE_URL = 'http://localhost:3000/api';
+
 // Layout nền dùng chung cho Admin, Cán bộ quản lý, Sinh viên/Giảng viên
 export const AppLayoutBase = ({
   children,
@@ -38,15 +48,21 @@ export const AppLayoutBase = ({
 }: AppLayoutBaseProps) => {
   const navigate = useNavigate();
 
-  // State đóng/mở menu avatar
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
 
-  // Ref dùng để đóng dropdown khi click ra ngoài
+  const [currentUser, setCurrentUser] = useState<CurrentUser>({
+    userId: 0,
+    username: 'user',
+    fullName: 'Người dùng',
+    email: '',
+    role: 'USER',
+  });
+
   const userMenuRef = useRef<HTMLDivElement | null>(null);
 
-  // Lấy thông tin người dùng đang đăng nhập từ localStorage
-  const currentUser = useMemo(() => {
+  // Lấy user từ localStorage
+  const getUserFromLocalStorage = (): CurrentUser => {
     const rawUser =
       localStorage.getItem('currentUser') ||
       localStorage.getItem('user') ||
@@ -54,56 +70,108 @@ export const AppLayoutBase = ({
 
     if (!rawUser) {
       return {
-        userId: 1,
-        fullName: 'Người dùng',
+        userId: 0,
         username: 'user',
-        role: 'User',
+        fullName: 'Người dùng',
+        email: '',
+        role: 'USER',
       };
     }
 
     try {
       const user = JSON.parse(rawUser);
 
+      const username =
+        user.username ||
+        user.userName ||
+        user.taiKhoan ||
+        user.tenDangNhap ||
+        user.email ||
+        'user';
+
+      const fullName =
+        user.fullName ||
+        user.hoTen ||
+        user.hoten ||
+        user.name ||
+        user.displayName ||
+        username;
+
       return {
-        userId: user.userId || user.id || 1,
-
-        fullName:
-          user.fullName ||
-          user.name ||
-          user.hoTen ||
-          user.hoten ||
-          user.displayName ||
-          'Người dùng',
-
-        username:
-          user.username ||
-          user.userName ||
-          user.taiKhoan ||
-          user.tenDangNhap ||
-          user.email ||
-          'user',
-
-        role: user.role || user.roleName || 'User',
+        userId: user.userId || user.id || user.sub || 0,
+        username,
+        fullName,
+        email: user.email || '',
+        role: user.role || user.roleName || 'USER',
       };
     } catch {
       return {
-        userId: 1,
-        fullName: 'Người dùng',
+        userId: 0,
         username: 'user',
-        role: 'User',
+        fullName: 'Người dùng',
+        email: '',
+        role: 'USER',
       };
     }
+  };
+
+  // Lấy lại thông tin user đầy đủ từ backend để đảm bảo fullName đúng
+  const fetchFullUserInfo = async (username: string) => {
+    const token = localStorage.getItem('accessToken');
+
+    if (!token || !username || username === 'user') return;
+
+    try {
+      const response = await fetch(
+        `${API_BASE_URL}/user/getUserbyUsername/${encodeURIComponent(
+          username,
+        )}`,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        },
+      );
+
+      if (!response.ok) return;
+
+      const fullUser = await response.json();
+
+      const updatedUser: CurrentUser = {
+        userId: fullUser.userId || currentUser.userId,
+        username: fullUser.username || username,
+        fullName: fullUser.fullName || fullUser.username || username,
+        email: fullUser.email || '',
+        role: fullUser.role || 'USER',
+      };
+
+      setCurrentUser(updatedUser);
+
+      localStorage.setItem('user', JSON.stringify(updatedUser));
+      localStorage.setItem('currentUser', JSON.stringify(updatedUser));
+    } catch (error) {
+      console.error('Không lấy được thông tin user đầy đủ:', error);
+    }
+  };
+
+  useEffect(() => {
+    const localUser = getUserFromLocalStorage();
+    setCurrentUser(localUser);
+
+    // Nếu đăng nhập bằng Email Học viện, lấy lại fullName thật từ backend
+    fetchFullUserInfo(localUser.username);
   }, []);
 
   // Lấy chữ viết tắt cho avatar
   const getAvatarText = (fullName: string) => {
-    const words = fullName.trim().split(/\s+/);
+    const safeName = fullName?.trim() || currentUser.username || 'U';
+    const words = safeName.split(/\s+/);
 
     if (words.length >= 2) {
       return `${words[0][0]}${words[words.length - 1][0]}`.toUpperCase();
     }
 
-    return fullName.slice(0, 2).toUpperCase();
+    return safeName.slice(0, 2).toUpperCase();
   };
 
   // Click ra ngoài dropdown thì tự đóng
@@ -145,6 +213,7 @@ export const AppLayoutBase = ({
     localStorage.removeItem('authUser');
     localStorage.removeItem('token');
     localStorage.removeItem('accessToken');
+    localStorage.removeItem('refreshToken');
 
     setIsUserMenuOpen(false);
     navigate('/login');
@@ -329,10 +398,10 @@ export const AppLayoutBase = ({
         <main className="p-8">{children}</main>
       </div>
 
-      <UserProfileModal 
-        isOpen={isProfileModalOpen} 
-        onClose={() => setIsProfileModalOpen(false)} 
-        userId={currentUser.userId} 
+      <UserProfileModal
+        isOpen={isProfileModalOpen}
+        onClose={() => setIsProfileModalOpen(false)}
+        userId={currentUser.userId}
       />
     </div>
   );

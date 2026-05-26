@@ -1,4 +1,10 @@
-import { BadRequestException, Injectable, NotFoundException, UnauthorizedException, InternalServerErrorException } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  InternalServerErrorException,
+  NotFoundException,
+  UnauthorizedException,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { JwtService } from '@nestjs/jwt';
@@ -21,18 +27,20 @@ export class AuthService {
     private jwtService: JwtService,
     private configService: ConfigService,
     private mailerService: MailerService,
-  ) { }
+  ) {}
 
   // ================= GENERATE TOKENS =================
   async generateTokens(
     userId: number,
     username: string,
     role: string,
+    fullName?: string | null,
   ) {
     const payload = {
       sub: userId,
       username,
       role,
+      fullName: fullName || username,
     };
 
     const [accessToken, refreshToken] = await Promise.all([
@@ -40,7 +48,6 @@ export class AuthService {
         secret: this.configService.get<string>('JWT_ACCESS_SECRET'),
         expiresIn: '15m',
       }),
-
       this.jwtService.signAsync(payload, {
         secret: this.configService.get<string>('JWT_REFRESH_SECRET'),
         expiresIn: '7d',
@@ -54,13 +61,12 @@ export class AuthService {
   }
 
   // ================= REGISTER =================
+  // Lưu ý: API register bên controller đã bị chặn.
+  // Hàm này giữ lại để tránh lỗi phụ thuộc code cũ.
   async register(dto: RegisterDto) {
     const userExists = await this.prismaService.user.findFirst({
       where: {
-        OR: [
-          { username: dto.username },
-          { email: dto.email },
-        ],
+        OR: [{ username: dto.username }, { email: dto.email }],
       },
     });
 
@@ -70,7 +76,6 @@ export class AuthService {
       );
     }
 
-    // ================= AUTO ROLE =================
     const emailLower = dto.email.trim().toLowerCase();
     let roleTarget = '';
 
@@ -84,27 +89,24 @@ export class AuthService {
       );
     }
 
-    // ================= FIND ROLE =================
     const defaultRole = await this.prismaService.role.findFirst({
       where: {
         roleName: roleTarget,
       },
     });
 
-    // ================= CHECK ROLE EXISTS =================
     if (!defaultRole) {
       throw new InternalServerErrorException(
         `Role [${roleTarget}] không tồn tại trong hệ thống`,
       );
     }
 
-    // ================= HASH PASSWORD =================
     const hashedPassword = await hashPassword(dto.password);
 
-    // ================= CREATE USER =================
     const newUser = await this.prismaService.user.create({
       data: {
         username: dto.username,
+        fullName: dto.username,
         email: dto.email,
         hashedPassword,
         phoneNumber: dto.phoneNumber,
@@ -120,14 +122,11 @@ export class AuthService {
     };
   }
 
-  // ================= LOGIN (HOÀN CHỈNH) =================
+  // ================= LOGIN =================
   async login(dto: LoginDto) {
     const user = await this.prismaService.user.findFirst({
       where: {
-        OR: [
-          { username: dto.usernameOrEmail },
-          { email: dto.usernameOrEmail },
-        ],
+        OR: [{ username: dto.usernameOrEmail }, { email: dto.usernameOrEmail }],
       },
       include: {
         role: true,
@@ -157,17 +156,14 @@ export class AuthService {
       );
     }
 
-    // ================= GENERATE TOKENS =================
     const tokens = await this.generateTokens(
       user.userId,
       user.username,
       user.role.roleName,
+      user.fullName,
     );
 
-    // ================= SAVE REFRESH TOKEN =================
-    const hashedRefreshToken = await hashPassword(
-      tokens.refreshToken,
-    );
+    const hashedRefreshToken = await hashPassword(tokens.refreshToken);
 
     await this.prismaService.user.update({
       where: {
@@ -178,16 +174,15 @@ export class AuthService {
       },
     });
 
-    // 🛠️ CHUẨN HÓA DỮ LIỆU USER TRƯỚC KHI TRẢ VỀ FRONTEND
     const userWithRoleField = {
       ...user,
-      role: user.role.roleName, // Gán chuỗi tên quyền trực tiếp vào đây
+      role: user.role.roleName,
     };
 
-    // Đi qua plainToInstance để lọc bỏ hashedPassword & giữ lại các trường có @Expose()
-    const userData = plainToInstance(UserDto, userWithRoleField, { excludeExtraneousValues: true });
+    const userData = plainToInstance(UserDto, userWithRoleField, {
+      excludeExtraneousValues: true,
+    });
 
-    // Trả về cả token lẫn thông tin user đầy đủ
     return {
       ...tokens,
       user: userData,
@@ -210,25 +205,20 @@ export class AuthService {
     };
   }
 
-  // ================= REFRESH TOKENS (AN TOÀN & GIỮ NGUYÊN LUỒNG CŨ) =================
+  // ================= REFRESH TOKENS =================
   async refreshTokens(refreshToken: string) {
-    let payload: { sub: number; username: string };
+    let payload: { sub: number; username: string; fullName?: string };
 
-    //ĐÃ SỬA: Bọc riêng phần verify JWT để bắt chính xác lỗi hết hạn token từ client
     try {
-      payload = await this.jwtService.verifyAsync(
-        refreshToken,
-        {
-          secret: this.configService.get<string>('JWT_REFRESH_SECRET'),
-        },
-      );
+      payload = await this.jwtService.verifyAsync(refreshToken, {
+        secret: this.configService.get<string>('JWT_REFRESH_SECRET'),
+      });
     } catch (err) {
       throw new UnauthorizedException(
         'Refresh token hết hạn hoặc không hợp lệ, vui lòng đăng nhập lại',
       );
     }
 
-    //ĐÃ SỬA: Đưa các logic DB ra ngoài try-catch để hệ thống log lỗi chuẩn xác (nếu sập Supabase, lỗi code...)
     const user = await this.prismaService.user.findUnique({
       where: {
         userId: payload.sub,
@@ -239,33 +229,23 @@ export class AuthService {
     });
 
     if (!user || !user.refreshToken) {
-      throw new UnauthorizedException(
-        'Phiên đăng nhập không tồn tại',
-      );
+      throw new UnauthorizedException('Phiên đăng nhập không tồn tại');
     }
 
-    const isValid = await verifyPassword(
-      refreshToken,
-      user.refreshToken,
-    );
+    const isValid = await verifyPassword(refreshToken, user.refreshToken);
 
     if (!isValid) {
-      throw new UnauthorizedException(
-        'Refresh token không hợp lệ',
-      );
+      throw new UnauthorizedException('Refresh token không hợp lệ');
     }
 
-    // ================= GENERATE NEW TOKENS =================
     const tokens = await this.generateTokens(
       user.userId,
       user.username,
       user.role.roleName,
+      user.fullName,
     );
 
-    // ================= UPDATE REFRESH TOKEN =================
-    const hashedRefreshToken = await hashPassword(
-      tokens.refreshToken,
-    );
+    const hashedRefreshToken = await hashPassword(tokens.refreshToken);
 
     await this.prismaService.user.update({
       where: {
@@ -276,12 +256,14 @@ export class AuthService {
       },
     });
 
-    // 🛠️ Cập nhật map dữ liệu trả về tương tự như hàm Login
     const userWithRoleField = {
       ...user,
       role: user.role.roleName,
     };
-    const userData = plainToInstance(UserDto, userWithRoleField, { excludeExtraneousValues: true });
+
+    const userData = plainToInstance(UserDto, userWithRoleField, {
+      excludeExtraneousValues: true,
+    });
 
     return {
       ...tokens,
@@ -289,110 +271,61 @@ export class AuthService {
     };
   }
 
-  // Logic đăng nhập bằng Google
+  // ================= GOOGLE LOGIN =================
+  // Chỉ cho phép đăng nhập Google nếu tài khoản đã được Admin tạo trước
   async googleLogin(req: any) {
     if (!req.user) {
       throw new BadRequestException('Không nhận được thông tin từ Google');
     }
 
-    const { email, firstName, lastName, googleId } = req.user;
-    
-    // Tạo Tên hiển thị từ Google (họ + tên) và xóa bỏ phần mã lớp nếu có (VD: "D23CQCN01-N")
-    let rawFullName = [lastName, firstName].filter(Boolean).join(' ').trim();
-    rawFullName = rawFullName.replace(/\b[A-Za-z0-9-]*\d+[A-Za-z0-9-]*\b/g, '').replace(/\s+/g, ' ').trim();
-    const googleFullName = rawFullName || email.split('@')[0];
+    const { email } = req.user;
 
-    // Kiểm tra xem user đã tồn tại chưa
-    let user = await this.prismaService.user.findUnique({
+    const user = await this.prismaService.user.findUnique({
       where: { email },
       include: { role: true },
     });
 
     if (!user) {
-      const role = await this.getRoleByEmailDomain(email);
-
-      // Tạo mật khẩu ngẫu nhiên cho user Google
-      const randomPassword = Math.random().toString(36).slice(-8) + Math.random().toString(36).slice(-8);
-      const hashedPassword = await hashPassword(randomPassword);
-
-      // Đảm bảo username là duy nhất
-      let username = googleFullName;
-      let existingUser = await this.prismaService.user.findUnique({ where: { username } });
-      let counter = 1;
-      while (existingUser) {
-        username = `${googleFullName}_${counter}`;
-        existingUser = await this.prismaService.user.findUnique({ where: { username } });
-        counter++;
-      }
-
-      user = await this.prismaService.user.create({
-        data: {
-          username,
-          email,
-          hashedPassword,
-          roleId: role.roleId,
-        },
-        include: { role: true },
-      });
-    } else {
-      if (user.status !== 'ACTIVE') throw new UnauthorizedException('Tài khoản đã bị khóa');
-      
-      // Cập nhật lại username bằng tên từ Google nếu người dùng đã tồn tại
-      // (Phòng trường hợp tài khoản cũ bị lưu sai tên hiển thị)
-      if (user.username !== googleFullName) {
-        let newUsername = googleFullName;
-        let existingUser = await this.prismaService.user.findUnique({ where: { username: newUsername } });
-        let counter = 1;
-        while (existingUser && existingUser.userId !== user.userId) {
-          newUsername = `${googleFullName}_${counter}`;
-          existingUser = await this.prismaService.user.findUnique({ where: { username: newUsername } });
-          counter++;
-        }
-        
-        user = await this.prismaService.user.update({
-          where: { userId: user.userId },
-          data: { username: newUsername },
-          include: { role: true }
-        });
-      }
+      throw new UnauthorizedException(
+        'Tài khoản này chưa được Quản trị viên cấp. Vui lòng liên hệ Admin để được tạo tài khoản.',
+      );
     }
 
-  // Chỉ cho phép đăng nhập Google nếu tài khoản đã được Admin tạo trước
-  const user = await this.prismaService.user.findUnique({
-    where: { email },
-    include: { role: true },
-  });
+    if (user.status !== 'ACTIVE') {
+      throw new UnauthorizedException('Tài khoản đã bị khóa');
+    }
 
-  if (!user) {
-    throw new UnauthorizedException(
-      'Tài khoản này chưa được Quản trị viên cấp. Vui lòng liên hệ Admin để được tạo tài khoản.',
+    const tokens = await this.generateTokens(
+      user.userId,
+      user.username,
+      user.role.roleName,
+      user.fullName,
     );
+
+    const hashedRefreshToken = await hashPassword(tokens.refreshToken);
+
+    await this.prismaService.user.update({
+      where: { userId: user.userId },
+      data: { refreshToken: hashedRefreshToken },
+    });
+
+    const userWithRoleField = {
+      ...user,
+      role: user.role.roleName,
+    };
+
+    const userData = plainToInstance(UserDto, userWithRoleField, {
+      excludeExtraneousValues: true,
+    });
+
+    return {
+      message: 'Đăng nhập Google thành công',
+      ...tokens,
+      user: userData,
+    };
   }
 
-  if (user.status !== 'ACTIVE') {
-    throw new UnauthorizedException('Tài khoản đã bị khóa');
-  }
-
-  const tokens = await this.generateTokens(
-    user.userId,
-    user.username,
-    user.role.roleName,
-  );
-
-  const hashedRefreshToken = await hashPassword(tokens.refreshToken);
-
-  await this.prismaService.user.update({
-    where: { userId: user.userId },
-    data: { refreshToken: hashedRefreshToken },
-  });
-
-  return {
-    message: 'Đăng nhập Google thành công',
-    ...tokens,
-  };
-}
-
-  // ================= FORGOT PASSWORD (GỬI OTP) =================
+  // ================= FORGOT PASSWORD =================
   async forgotPassword(dto: ForgotPasswordDto) {
     const user = await this.prismaService.user.findUnique({
       where: { email: dto.email },
@@ -402,13 +335,8 @@ export class AuthService {
       throw new NotFoundException('Không tìm thấy tài khoản với email này');
     }
 
-    // Tạo mã OTP 6 chữ số
     const otp = Math.floor(100000 + Math.random() * 900000).toString();
-
-    // Hash OTP trước khi lưu vào DB
     const hashedOtp = await hashPassword(otp);
-
-    // Thời hạn 15 phút
     const expiresAt = new Date(Date.now() + 15 * 60 * 1000);
 
     await this.prismaService.user.update({
@@ -419,10 +347,11 @@ export class AuthService {
       },
     });
 
-    // Gửi email chứa OTP gốc (chưa hash)
     await this.mailerService.sendOtpEmail(dto.email, otp);
 
-    return { message: 'Mã OTP đã được gửi đến email của bạn. Vui lòng kiểm tra hộp thư.' };
+    return {
+      message: 'Mã OTP đã được gửi đến email của bạn. Vui lòng kiểm tra hộp thư.',
+    };
   }
 
   // ================= VERIFY OTP =================
@@ -440,11 +369,15 @@ export class AuthService {
     }
 
     const isValid = await verifyPassword(dto.otp, user.resetPasswordCode);
+
     if (!isValid) {
       throw new BadRequestException('Mã OTP không chính xác');
     }
 
-    return { valid: true, message: 'Xác minh OTP thành công' };
+    return {
+      valid: true,
+      message: 'Xác minh OTP thành công',
+    };
   }
 
   // ================= RESET PASSWORD =================
@@ -458,15 +391,17 @@ export class AuthService {
     }
 
     if (new Date() > user.resetPasswordExpires) {
-      throw new BadRequestException('Mã OTP đã hết hạn. Vui lòng bắt đầu lại từ đầu');
+      throw new BadRequestException(
+        'Mã OTP đã hết hạn. Vui lòng bắt đầu lại từ đầu',
+      );
     }
 
     const isValid = await verifyPassword(dto.otp, user.resetPasswordCode);
+
     if (!isValid) {
       throw new BadRequestException('Mã OTP không chính xác');
     }
 
-    // Hash mật khẩu mới và xóa OTP
     const hashedPassword = await hashPassword(dto.newPassword);
 
     await this.prismaService.user.update({
@@ -478,6 +413,8 @@ export class AuthService {
       },
     });
 
-    return { message: 'Đặt lại mật khẩu thành công. Bạn có thể đăng nhập ngay bây giờ.' };
+    return {
+      message: 'Đặt lại mật khẩu thành công. Bạn có thể đăng nhập ngay bây giờ.',
+    };
   }
 }

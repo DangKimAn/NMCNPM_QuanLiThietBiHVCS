@@ -5,6 +5,7 @@ const API_BASE_URL = 'http://localhost:3000/api';
 // =======================
 function getAuthHeaders(): Record<string, string> {
   const token = localStorage.getItem('accessToken');
+
   return {
     'Content-Type': 'application/json',
     ...(token ? { Authorization: `Bearer ${token}` } : {}),
@@ -44,11 +45,12 @@ async function request<T>(url: string, options?: RequestInit): Promise<T> {
 export interface BackendUser {
   userId: number;
   username: string;
+  fullName: string | null;
   email: string;
   phoneNumber: string | null;
   roleId: number;
-  role: string;        // tên vai trò (roleName)
-  status: string;      // ACTIVE | LOCKED | ...
+  role: string;
+  status: string;
 }
 
 export interface BackendRole {
@@ -82,6 +84,7 @@ export interface BackendAuditLog {
   user?: {
     userId: number;
     username: string;
+    fullName?: string | null;
   };
 }
 
@@ -95,6 +98,7 @@ export interface AuditLogResponse {
 // =======================
 // Mapping trạng thái user
 // =======================
+
 export const USER_STATUS_MAP: Record<string, string> = {
   ACTIVE: 'Hoạt động',
   LOCKED: 'Đã khóa',
@@ -110,11 +114,12 @@ export const toBackendStatus = (status: string): string => {
 // =======================
 // Frontend User type
 // =======================
+
 export interface AdminUser {
   id: string;
   username: string;
-  email: string;
   fullName: string;
+  email: string;
   role: string;
   status: string;
   phoneNumber?: string | null;
@@ -125,8 +130,8 @@ export interface AdminUser {
 export const mapBackendUser = (u: BackendUser): AdminUser => ({
   id: String(u.userId),
   username: u.username,
+  fullName: u.fullName ?? '',
   email: u.email ?? '',
-  fullName: u.username, // backend chưa có fullName riêng, dùng username tạm
   role: u.role ?? '',
   status: USER_STATUS_MAP[u.status] ?? u.status,
   phoneNumber: u.phoneNumber,
@@ -141,7 +146,7 @@ export const mapBackendUser = (u: BackendUser): AdminUser => ({
 export const adminApi = {
   // --- USERS ---
 
-  /** Lấy toàn bộ danh sách user (chỉ ADMIN) */
+  /** Lấy toàn bộ danh sách user */
   async getUsers(keyword?: string): Promise<AdminUser[]> {
     const query = keyword ? `?keyword=${encodeURIComponent(keyword)}` : '';
     const data = await request<BackendUser[]>(`/user${query}`);
@@ -150,17 +155,21 @@ export const adminApi = {
 
   /** Tìm kiếm user theo username */
   async searchUserByUsername(username: string): Promise<AdminUser> {
-    const data = await request<BackendUser>(`/user/getUserbyUsername/${encodeURIComponent(username)}`);
+    const data = await request<BackendUser>(
+      `/user/getUserbyUsername/${encodeURIComponent(username)}`,
+    );
+
     return mapBackendUser(data);
   },
 
-  /** Tạo user mới (chỉ ADMIN) */
+  /** Tạo user mới */
   createUser(payload: {
     email: string;
     username: string;
+    fullName?: string;
     password: string;
     phoneNumber?: string;
-    roleId?: number;
+    roleName?: string;
   }) {
     return request<BackendUser>('/user', {
       method: 'POST',
@@ -172,9 +181,10 @@ export const adminApi = {
   updateUser(
     userId: number,
     payload: {
+      fullName?: string;
       password?: string;
       phoneNumber?: string;
-      status?: string;   // 'ACTIVE' | 'LOCKED'
+      status?: string;
       roleId?: number;
     },
   ) {
@@ -184,7 +194,7 @@ export const adminApi = {
     });
   },
 
-  /** Thay đổi role của user (chỉ ADMIN) */
+  /** Thay đổi role của user */
   changeUserRole(userId: number, roleName: string) {
     return request<BackendUser>(`/user/${userId}/role`, {
       method: 'PATCH',
@@ -192,7 +202,7 @@ export const adminApi = {
     });
   },
 
-  /** Xóa user (chỉ ADMIN) */
+  /** Xóa user vĩnh viễn */
   deleteUser(userId: number) {
     return request<{ message: string }>(`/user/${userId}`, {
       method: 'DELETE',
@@ -215,7 +225,10 @@ export const adminApi = {
   },
 
   /** Cập nhật role */
-  updateRole(roleId: number, payload: { roleName?: string; description?: string }) {
+  updateRole(
+    roleId: number,
+    payload: { roleName?: string; description?: string },
+  ) {
     return request<BackendRole>(`/role/${roleId}`, {
       method: 'PATCH',
       body: JSON.stringify(payload),
@@ -253,7 +266,10 @@ export const adminApi = {
   },
 
   /** Cập nhật quyền */
-  updatePermission(permissionId: number, payload: { permissionName?: string; description?: string }) {
+  updatePermission(
+    permissionId: number,
+    payload: { permissionName?: string; description?: string },
+  ) {
     return request<BackendPermission>(`/permission/${permissionId}`, {
       method: 'PATCH',
       body: JSON.stringify(payload),
@@ -269,7 +285,7 @@ export const adminApi = {
 
   // --- AUDIT LOGS ---
 
-  /** Lấy nhật ký hệ thống (chỉ ADMIN) */
+  /** Lấy nhật ký hệ thống */
   getAuditLogs(params?: {
     limit?: number;
     page?: number;
@@ -278,13 +294,17 @@ export const adminApi = {
     to?: string;
   }): Promise<AuditLogResponse> {
     const query = new URLSearchParams();
+
     if (params?.limit) query.set('limit', String(params.limit));
     if (params?.page) query.set('page', String(params.page));
     if (params?.username) query.set('username', params.username);
     if (params?.from) query.set('from', params.from);
     if (params?.to) query.set('to', params.to);
 
-    const url = query.toString() ? `/audit-log?${query.toString()}` : '/audit-log';
+    const url = query.toString()
+      ? `/audit-log?${query.toString()}`
+      : '/audit-log';
+
     return request<AuditLogResponse>(url);
   },
 
