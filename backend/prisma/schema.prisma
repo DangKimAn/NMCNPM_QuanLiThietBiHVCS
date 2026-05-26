@@ -82,16 +82,18 @@ model RolePermission {
 }
 
 model User {
-  userId              Int                  @id @default(autoincrement()) 
-  username            String               @unique  @db.VarChar(255)
-  hashedPassword      String                @db.VarChar(255)
-  email               String               @unique @db.VarChar(255)
-  phoneNumber         String?               @db.VarChar(255)
-  status              UserStatus           @default(ACTIVE) 
-  roleId              Int                  
-  refreshToken        String?              
-  createdAt           DateTime             @default(now()) 
-  updatedAt           DateTime             @updatedAt 
+  userId                Int                  @id @default(autoincrement()) 
+  username              String               @unique  @db.VarChar(255)
+  hashedPassword        String               @db.VarChar(255)
+  email                 String               @unique @db.VarChar(255)
+  phoneNumber           String?              @db.VarChar(255)
+  status                UserStatus           @default(ACTIVE) 
+  roleId                Int                  
+  refreshToken          String?              
+  resetPasswordCode     String?              
+  resetPasswordExpires  DateTime?            
+  createdAt             DateTime             @default(now()) 
+  updatedAt             DateTime             @updatedAt 
 
   role                Role                 @relation(fields: [roleId], references: [roleId], onDelete: Restrict)
   activityLogs        ActivityLog[]
@@ -103,15 +105,19 @@ model User {
 }
 
 model ActivityLog {
-  logId       Int      @id @default(autoincrement()) 
-  userId      Int      
-  action      String    @db.VarChar(255)
-  target      String    @db.VarChar(255)
-  targetId    Int      
-  content     String?   @db.Text
-  createdAt   DateTime @default(now()) 
+  logId           Int      @id @default(autoincrement()) 
+  userId          Int      
+  action          String   @db.VarChar(255)
+  target          String   @db.VarChar(255)
+  targetId        Int      
+  method          String?  @db.VarChar(10)
+  route           String?  @db.VarChar(500)
+  statusCode      Int?
+  responseMessage String?  @db.Text
+  content         String?  @db.Text
+  createdAt       DateTime @default(now()) 
   
-  user        User     @relation(fields: [userId], references: [userId], onDelete: Restrict)
+  user            User     @relation(fields: [userId], references: [userId], onDelete: Restrict)
 
   @@map("activity_logs")
 }

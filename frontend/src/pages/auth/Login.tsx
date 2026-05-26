@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { FiLock, FiMail, FiAlertCircle } from 'react-icons/fi';
-import { useNavigate, useSearchParams } from 'react-router-dom'; 
+import { useNavigate, useSearchParams, Link } from 'react-router-dom'; 
 import axios from 'axios'; 
 import { AuthLayout } from '../../components/layout/AuthLayout';
 import { InputGroup } from '../../components/ui/InputGroup';
@@ -148,7 +148,7 @@ export const Login = () => {
           placeholder="••••••••"
           required
           disabled={loading}
-          extraLabelAction={<a href="#" className="text-xs font-medium text-blue-600 hover:text-blue-700">Quên mật khẩu?</a>}
+          extraLabelAction={<Link to="/forgot-password" className="text-xs font-medium text-blue-600 hover:text-blue-700">Quên mật khẩu?</Link>}
         />
         <button 
           type="submit" 
