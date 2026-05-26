@@ -1,104 +1,184 @@
 import { useState, useEffect } from 'react';
 import { FiLock, FiMail, FiAlertCircle } from 'react-icons/fi';
-import { useNavigate, useSearchParams, Link } from 'react-router-dom'; 
-import axios from 'axios'; 
+import { useNavigate, useSearchParams, Link } from 'react-router-dom';
+import axios from 'axios';
 import { AuthLayout } from '../../components/layout/AuthLayout';
 import { InputGroup } from '../../components/ui/InputGroup';
+
+const API_BASE_URL = 'http://localhost:3000/api';
 
 export const Login = () => {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
-  const [error, setError] = useState(''); 
+  const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
-  
-  const navigate = useNavigate(); 
+
+  const navigate = useNavigate();
   const [searchParams] = useSearchParams();
 
+  const redirectByRole = (role: string) => {
+    if (role === 'ADMIN') {
+      navigate('/admin/users');
+    } else if (role === 'MANAGER' || role === 'LEADER') {
+      navigate('/manager/overview');
+    } else {
+      navigate('/student/overview');
+    }
+  };
+
+  // Giải mã JWT đúng UTF-8 để không lỗi tiếng Việt
+  const decodeToken = (token: string) => {
+    const base64Url = token.split('.')[1];
+    const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+
+    const binaryString = window.atob(base64);
+    const bytes = Uint8Array.from(binaryString, (char) =>
+      char.charCodeAt(0),
+    );
+    const jsonString = new TextDecoder('utf-8').decode(bytes);
+
+    return JSON.parse(jsonString);
+  };
+
+  // Lấy thông tin user đầy đủ từ backend để có fullName thật
+  const getFullUserByUsername = async (token: string, username: string) => {
+    try {
+      const response = await axios.get(
+        `${API_BASE_URL}/user/getUserbyUsername/${encodeURIComponent(
+          username,
+        )}`,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        },
+      );
+
+      return response.data;
+    } catch (err) {
+      console.error('Không lấy được thông tin user đầy đủ:', err);
+      return null;
+    }
+  };
+
+  // Lưu thông tin đăng nhập vào localStorage
+  const saveUserToLocalStorage = async (
+    accessToken: string,
+    refreshToken: string,
+    userFromApi?: any,
+  ) => {
+    localStorage.setItem('accessToken', accessToken);
+    localStorage.setItem('refreshToken', refreshToken);
+
+    const payload = decodeToken(accessToken);
+
+    const usernameValue =
+      userFromApi?.username ||
+      payload.username ||
+      payload.userName ||
+      '';
+
+    const fullUser = usernameValue
+      ? await getFullUserByUsername(accessToken, usernameValue)
+      : null;
+
+    const loggedUser = {
+      userId:
+        fullUser?.userId ||
+        userFromApi?.userId ||
+        payload.sub ||
+        payload.userId,
+
+      username:
+        fullUser?.username ||
+        userFromApi?.username ||
+        payload.username ||
+        usernameValue,
+
+      fullName:
+        fullUser?.fullName ||
+        userFromApi?.fullName ||
+        userFromApi?.hoTen ||
+        userFromApi?.name ||
+        userFromApi?.displayName ||
+        payload.fullName ||
+        usernameValue ||
+        'Người dùng',
+
+      email:
+        fullUser?.email ||
+        userFromApi?.email ||
+        payload.email ||
+        '',
+
+      phoneNumber:
+        fullUser?.phoneNumber ||
+        userFromApi?.phoneNumber ||
+        '',
+
+      role:
+        fullUser?.role ||
+        userFromApi?.role ||
+        payload.role ||
+        'USER',
+
+      roleId:
+        fullUser?.roleId ||
+        userFromApi?.roleId,
+
+      status:
+        fullUser?.status ||
+        userFromApi?.status,
+    };
+
+    localStorage.setItem('user', JSON.stringify(loggedUser));
+    localStorage.setItem('currentUser', JSON.stringify(loggedUser));
+
+    redirectByRole(loggedUser.role);
+  };
+
+  // Xử lý đăng nhập bằng Email Học viện / Google redirect
   useEffect(() => {
-    // Xử lý query params khi Google Redirect về
     const accessToken = searchParams.get('accessToken');
     const refreshToken = searchParams.get('refreshToken');
     const urlError = searchParams.get('error');
 
     if (urlError) {
       setError(decodeURIComponent(urlError));
-    } else if (accessToken && refreshToken) {
-      try {
-        localStorage.setItem('accessToken', accessToken);
-        localStorage.setItem('refreshToken', refreshToken);
-
-        const base64Url = accessToken.split('.')[1];
-        const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
-        const payload = JSON.parse(window.atob(base64)); 
-        
-        localStorage.setItem('user', JSON.stringify({
-          userId: payload.sub,
-          username: payload.username,
-          role: payload.role || 'USER'
-        }));
-
-        const userRole = payload.role;
-        if (userRole === 'ADMIN') {
-          navigate('/admin/users');
-        } else if (userRole === 'MANAGER' || userRole === 'LEADER') {
-          navigate('/manager/overview');
-        } else {
-          navigate('/student/overview');
-        }
-      } catch (err) {
-        console.error('Lỗi phân tích token từ URL:', err);
-        setError('Có lỗi xảy ra khi xử lý thông tin đăng nhập từ Google');
-      }
+      return;
     }
-  }, [searchParams, navigate]); 
 
+    if (accessToken && refreshToken) {
+      saveUserToLocalStorage(accessToken, refreshToken).catch((err) => {
+        console.error('Lỗi xử lý đăng nhập Email Học viện:', err);
+        setError(
+          'Có lỗi xảy ra khi xử lý thông tin đăng nhập từ Email Học viện',
+        );
+      });
+    }
+  }, [searchParams]);
+
+  // Xử lý đăng nhập bằng tài khoản/mật khẩu
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
     setLoading(true);
 
     try {
-      // 1. Gọi API đăng nhập đến NestJS (Đổi lại port nếu Back-end của bạn chạy port khác)
-      const response = await axios.post('http://localhost:3000/api/auth/login', {
+      const response = await axios.post(`${API_BASE_URL}/auth/login`, {
         usernameOrEmail: username,
         password: password,
       });
 
-      // 2. Nhận tokens trả về từ Back-end
-      const { accessToken, refreshToken } = response.data;
+      const { accessToken, refreshToken, user } = response.data;
 
-      // 3. Lưu tokens vào bộ nhớ trình duyệt
-      localStorage.setItem('accessToken', accessToken);
-      localStorage.setItem('refreshToken', refreshToken);
-
-      // 4. Giải mã payload của JWT để biết Role (Hoặc nếu API của bạn trả về object user thì dùng luôn)
-      // Ở đây tạm thời giải mã nhanh thông tin từ accessToken để lấy vai trò người dùng
-      const base64Url = accessToken.split('.')[1];
-      const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
-      const payload = JSON.parse(window.atob(base64)); 
-      
-      // Giả sử payload chứa { sub: userId, username: '...', role: 'ADMIN' | 'MANAGER' | 'USER' }
-      // Lưu thông tin user để dùng cho ProtectedRoute ở App.tsx
-      localStorage.setItem('user', JSON.stringify({
-        userId: payload.sub,
-        username: payload.username,
-        role: payload.role || 'USER' // Nếu back-end chưa trả về role, mặc định là USER
-      }));
-
-      // 5. Điều hướng thông minh dựa trên Role
-      const userRole = payload.role;
-      if (userRole === 'ADMIN') {
-        navigate('/admin/users');
-      } else if (userRole === 'MANAGER' || userRole === 'LEADER') {
-        navigate('/manager/overview');
-      } else {
-        navigate('/student/overview');
-      }
-
+      await saveUserToLocalStorage(accessToken, refreshToken, user);
     } catch (err: any) {
       console.error('Lỗi đăng nhập:', err);
-      // Hiển thị thông báo lỗi từ NestJS trả về hoặc lỗi hệ thống
-      setError(err.response?.data?.message || 'Tài khoản hoặc mật khẩu không chính xác!');
+      setError(
+        err.response?.data?.message ||
+          'Tài khoản hoặc mật khẩu không chính xác!',
+      );
     } finally {
       setLoading(false);
     }
@@ -115,11 +195,12 @@ export const Login = () => {
       title={titleNode}
       subtitle="Hệ thống Quản lý Thiết bị Phòng học"
       ssoText="Đăng nhập bằng Email Học viện"
-      onSsoClick={() => window.location.href = 'http://localhost:3000/api/auth/google'}
+      onSsoClick={() =>
+        (window.location.href = 'http://localhost:3000/api/auth/google')
+      }
       footerText="Tài khoản do Quản trị viên cấp. Nếu chưa có tài khoản, vui lòng liên hệ Admin."
     >
       <form onSubmit={handleLogin} className="space-y-5">
-        {/* Hiển thị thông báo lỗi nếu đăng nhập thất bại */}
         {error && (
           <div className="flex items-center gap-3 p-3.5 text-sm text-red-700 bg-red-50 border border-red-200 rounded-xl shadow-sm">
             <FiAlertCircle className="w-5 h-5 text-red-500 flex-shrink-0" />
@@ -127,29 +208,38 @@ export const Login = () => {
           </div>
         )}
 
-        <InputGroup 
-          label="Tên đăng nhập hoặc Email" 
-          icon={<FiMail/>}
-          type="text" 
+        <InputGroup
+          label="Tên đăng nhập hoặc Email"
+          icon={<FiMail />}
+          type="text"
           value={username}
           onChange={(e) => setUsername(e.target.value)}
           placeholder="Nhập tên đăng nhập..."
           required
           disabled={loading}
         />
-        <InputGroup 
-          label="Mật khẩu" 
+
+        <InputGroup
+          label="Mật khẩu"
           icon={<FiLock />}
-          type="password" 
+          type="password"
           value={password}
           onChange={(e) => setPassword(e.target.value)}
           placeholder="••••••••"
           required
           disabled={loading}
-          extraLabelAction={<Link to="/forgot-password" className="text-xs font-medium text-blue-600 hover:text-blue-700">Quên mật khẩu?</Link>}
+          extraLabelAction={
+            <Link
+              to="/forgot-password"
+              className="text-xs font-medium text-blue-600 hover:text-blue-700"
+            >
+              Quên mật khẩu?
+            </Link>
+          }
         />
-        <button 
-          type="submit" 
+
+        <button
+          type="submit"
           disabled={loading}
           className="w-full py-2.5 px-4 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white text-sm font-semibold rounded-lg shadow-sm transition-colors"
         >

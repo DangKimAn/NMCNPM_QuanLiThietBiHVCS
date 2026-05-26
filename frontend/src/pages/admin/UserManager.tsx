@@ -11,6 +11,12 @@ import type { AdminUser } from '../../services/adminApi';
 
 const userFields: FormField[] = [
   {
+    name: 'fullName',
+    label: 'Họ và tên',
+    type: 'text',
+    required: true,
+  },
+  {
     name: 'username',
     label: 'Tên đăng nhập',
     type: 'text',
@@ -38,7 +44,7 @@ const userFields: FormField[] = [
     name: 'role',
     label: 'Vai trò',
     type: 'select',
-    options: ['ADMIN', 'MANAGER', 'LECTURER', 'STUDENT'],
+    options: ['ADMIN', 'MANAGER', 'TEACHER', 'STUDENT'],
     defaultValue: 'STUDENT',
     readOnlyOnEdit: true,
   },
@@ -60,6 +66,15 @@ const userColumns: TableColumn[] = [
     ),
   },
   {
+    header: 'Họ và tên',
+    key: 'fullName',
+    render: (item) => (
+      <span className="font-medium text-slate-900">
+        {item.fullName || 'Chưa cập nhật'}
+      </span>
+    ),
+  },
+  {
     header: 'Tên đăng nhập',
     key: 'username',
     render: (item) => (
@@ -69,9 +84,7 @@ const userColumns: TableColumn[] = [
   {
     header: 'Email',
     key: 'email',
-    render: (item) => (
-      <span className="text-slate-700">{item.email}</span>
-    ),
+    render: (item) => <span className="text-slate-700">{item.email}</span>,
   },
   {
     header: 'Vai trò',
@@ -137,29 +150,52 @@ export const UserManager = () => {
   const handleSave = async (formData: Record<string, any>) => {
     try {
       if (editingUser) {
-        // Cập nhật user
         const payload: Record<string, any> = {};
-        if (formData.password) payload.password = formData.password;
-        if (formData.phoneNumber !== undefined) payload.phoneNumber = formData.phoneNumber;
-        if (formData.status) payload.status = toBackendStatus(formData.status as string);
+
+        if (formData.fullName !== undefined) {
+          payload.fullName = String(formData.fullName).trim();
+        }
+
+        if (formData.password) {
+          payload.password = formData.password;
+        }
+
+        if (formData.phoneNumber !== undefined) {
+          payload.phoneNumber = formData.phoneNumber;
+        }
+
+        if (formData.status) {
+          payload.status = toBackendStatus(formData.status as string);
+        }
 
         await adminApi.updateUser(editingUser.userId, payload);
 
-        // Đổi role nếu thay đổi
         if (formData.role && formData.role !== editingUser.role) {
-          await adminApi.changeUserRole(editingUser.userId, formData.role as string);
+          await adminApi.changeUserRole(
+            editingUser.userId,
+            formData.role as string,
+          );
         }
       } else {
-        // Tạo user mới
-        if (!formData.email || !formData.username || !formData.password) {
-          alert('Vui lòng điền đầy đủ email, tên đăng nhập và mật khẩu.');
+        if (
+          !formData.fullName ||
+          !formData.email ||
+          !formData.username ||
+          !formData.password
+        ) {
+          alert(
+            'Vui lòng điền đầy đủ họ tên, email, tên đăng nhập và mật khẩu.',
+          );
           return;
         }
+
         await adminApi.createUser({
+          fullName: String(formData.fullName).trim(),
           email: formData.email as string,
           username: formData.username as string,
           password: formData.password as string,
           phoneNumber: formData.phoneNumber as string | undefined,
+          roleName: formData.role as string,
         });
       }
 
@@ -171,7 +207,10 @@ export const UserManager = () => {
   };
 
   const handleDelete = async (userId: string) => {
-    const isConfirm = window.confirm('Bạn có chắc chắn muốn xóa tài khoản này?');
+    const isConfirm = window.confirm(
+      'Bạn có chắc chắn muốn xóa vĩnh viễn tài khoản này không? Dữ liệu liên quan của tài khoản cũng sẽ bị xóa.',
+    );
+
     if (!isConfirm) return;
 
     const user = users.find((u) => u.id === userId);
@@ -180,6 +219,7 @@ export const UserManager = () => {
     try {
       await adminApi.deleteUser(user.userId);
       setUsers((prev) => prev.filter((u) => u.id !== userId));
+      alert('Xóa tài khoản thành công!');
     } catch (err: any) {
       alert(`Lỗi: ${err.message || 'Không thể xóa tài khoản'}`);
     }
@@ -203,7 +243,9 @@ export const UserManager = () => {
       />
 
       {loading && (
-        <div className="text-center py-10 text-slate-500">Đang tải dữ liệu...</div>
+        <div className="text-center py-10 text-slate-500">
+          Đang tải dữ liệu...
+        </div>
       )}
 
       {error && (
@@ -236,7 +278,11 @@ export const UserManager = () => {
         initialData={editingUser}
         fields={userFields}
         titleAdd="Thêm tài khoản mới"
-        titleEdit={editingUser ? `Cập nhật tài khoản - ${editingUser.username}` : ''}
+        titleEdit={
+          editingUser
+            ? `Cập nhật tài khoản - ${editingUser.username}`
+            : ''
+        }
       />
     </AdminLayout>
   );

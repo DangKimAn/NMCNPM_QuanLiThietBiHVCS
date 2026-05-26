@@ -84,6 +84,7 @@ model RolePermission {
 model User {
   userId                Int                  @id @default(autoincrement()) 
   username              String               @unique  @db.VarChar(255)
+  fullName              String?              @db.VarChar(255)
   hashedPassword        String               @db.VarChar(255)
   email                 String               @unique @db.VarChar(255)
   phoneNumber           String?              @db.VarChar(255)
