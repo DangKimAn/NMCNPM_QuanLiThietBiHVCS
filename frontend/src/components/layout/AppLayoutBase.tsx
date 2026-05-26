@@ -10,6 +10,7 @@ import {
   FiUser,
   FiUserCheck,
 } from 'react-icons/fi';
+import { UserProfileModal } from './UserProfileModal';
 
 export interface LayoutMenuItem {
   label: string;
@@ -39,6 +40,7 @@ export const AppLayoutBase = ({
 
   // State đóng/mở menu avatar
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
+  const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
 
   // Ref dùng để đóng dropdown khi click ra ngoài
   const userMenuRef = useRef<HTMLDivElement | null>(null);
@@ -284,7 +286,7 @@ export const AppLayoutBase = ({
                       type="button"
                       onClick={() => {
                         setIsUserMenuOpen(false);
-                        alert('Chức năng thông tin cá nhân đang được phát triển.');
+                        setIsProfileModalOpen(true);
                       }}
                       className="w-full flex items-center gap-3 text-left text-slate-600 hover:text-blue-600 transition"
                     >
@@ -298,7 +300,7 @@ export const AppLayoutBase = ({
                       type="button"
                       onClick={() => {
                         setIsUserMenuOpen(false);
-                        alert('Chức năng đổi mật khẩu đang được phát triển.');
+                        setIsProfileModalOpen(true);
                       }}
                       className="w-full flex items-center gap-3 text-left text-slate-600 hover:text-blue-600 transition"
                     >
@@ -326,6 +328,12 @@ export const AppLayoutBase = ({
         {/* Nội dung từng trang */}
         <main className="p-8">{children}</main>
       </div>
+
+      <UserProfileModal 
+        isOpen={isProfileModalOpen} 
+        onClose={() => setIsProfileModalOpen(false)} 
+        userId={currentUser.userId} 
+      />
     </div>
   );
 };

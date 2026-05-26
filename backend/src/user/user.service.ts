@@ -3,7 +3,7 @@ import { UserDto } from './dto/user.dto';
 import { PrismaErrorCode } from 'src/common/constant';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { CreateUserDto } from './dto/create-user.dto';
-import { hashPassword } from 'src/common/bcrypt';
+import { hashPassword, verifyPassword } from 'src/common/bcrypt';
 import { UpdateUserDto } from './dto/updateUser.dto';
 import { plainToInstance } from 'class-transformer';
 
@@ -218,5 +218,28 @@ export class UserService {
             console.error("Lỗi tại changeUserRole:", error);
             throw new InternalServerErrorException('Lỗi hệ thống trong quá trình cập nhật quyền hạn người dùng.');
         }
+    }
+
+    async changePassword(userId: number, oldPassword: string, newPassword: string): Promise<{ message: string }> {
+        const user = await this.prismaService.user.findUnique({
+            where: { userId }
+        });
+
+        if (!user) {
+            throw new NotFoundException('Không tìm thấy người dùng!');
+        }
+
+        const isMatch = await verifyPassword(oldPassword, user.hashedPassword);
+        if (!isMatch) {
+            throw new ConflictException('Mật khẩu cũ không chính xác!');
+        }
+
+        const hashedPassword = await hashPassword(newPassword);
+        await this.prismaService.user.update({
+            where: { userId },
+            data: { hashedPassword }
+        });
+
+        return { message: 'Đổi mật khẩu thành công!' };
     }
 }
