@@ -99,4 +99,16 @@ export class UserController {
   ) {
     return await this.userService.changeUserRole(userId, roleName);
   }
+
+  @Patch(':userId/password')
+  async changePassword(
+    @Param('userId', ParseIntPipe) userId: number,
+    @Body() body: any,
+    @GetUser() currentUser: { userId: number; role: string }
+  ) {
+    if (currentUser.userId !== userId) {
+      throw new ForbiddenException('Chỉ được phép đổi mật khẩu của chính mình!');
+    }
+    return await this.userService.changePassword(userId, body.oldPassword, body.newPassword);
+  }
 }

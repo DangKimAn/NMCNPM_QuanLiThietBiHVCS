@@ -290,12 +290,72 @@ export class AuthService {
   }
 
   // Logic đăng nhập bằng Google
-async googleLogin(req: any) {
-  if (!req.user) {
-    throw new BadRequestException('Không nhận được thông tin từ Google');
-  }
+  async googleLogin(req: any) {
+    if (!req.user) {
+      throw new BadRequestException('Không nhận được thông tin từ Google');
+    }
 
-  const { email } = req.user;
+    const { email, firstName, lastName, googleId } = req.user;
+    
+    // Tạo Tên hiển thị từ Google (họ + tên) và xóa bỏ phần mã lớp nếu có (VD: "D23CQCN01-N")
+    let rawFullName = [lastName, firstName].filter(Boolean).join(' ').trim();
+    rawFullName = rawFullName.replace(/\b[A-Za-z0-9-]*\d+[A-Za-z0-9-]*\b/g, '').replace(/\s+/g, ' ').trim();
+    const googleFullName = rawFullName || email.split('@')[0];
+
+    // Kiểm tra xem user đã tồn tại chưa
+    let user = await this.prismaService.user.findUnique({
+      where: { email },
+      include: { role: true },
+    });
+
+    if (!user) {
+      const role = await this.getRoleByEmailDomain(email);
+
+      // Tạo mật khẩu ngẫu nhiên cho user Google
+      const randomPassword = Math.random().toString(36).slice(-8) + Math.random().toString(36).slice(-8);
+      const hashedPassword = await hashPassword(randomPassword);
+
+      // Đảm bảo username là duy nhất
+      let username = googleFullName;
+      let existingUser = await this.prismaService.user.findUnique({ where: { username } });
+      let counter = 1;
+      while (existingUser) {
+        username = `${googleFullName}_${counter}`;
+        existingUser = await this.prismaService.user.findUnique({ where: { username } });
+        counter++;
+      }
+
+      user = await this.prismaService.user.create({
+        data: {
+          username,
+          email,
+          hashedPassword,
+          roleId: role.roleId,
+        },
+        include: { role: true },
+      });
+    } else {
+      if (user.status !== 'ACTIVE') throw new UnauthorizedException('Tài khoản đã bị khóa');
+      
+      // Cập nhật lại username bằng tên từ Google nếu người dùng đã tồn tại
+      // (Phòng trường hợp tài khoản cũ bị lưu sai tên hiển thị)
+      if (user.username !== googleFullName) {
+        let newUsername = googleFullName;
+        let existingUser = await this.prismaService.user.findUnique({ where: { username: newUsername } });
+        let counter = 1;
+        while (existingUser && existingUser.userId !== user.userId) {
+          newUsername = `${googleFullName}_${counter}`;
+          existingUser = await this.prismaService.user.findUnique({ where: { username: newUsername } });
+          counter++;
+        }
+        
+        user = await this.prismaService.user.update({
+          where: { userId: user.userId },
+          data: { username: newUsername },
+          include: { role: true }
+        });
+      }
+    }
 
   // Chỉ cho phép đăng nhập Google nếu tài khoản đã được Admin tạo trước
   const user = await this.prismaService.user.findUnique({
