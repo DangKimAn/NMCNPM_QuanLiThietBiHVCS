@@ -1,14 +1,18 @@
-import { BadRequestException, Injectable, UnauthorizedException, InternalServerErrorException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException, UnauthorizedException, InternalServerErrorException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { JwtService } from '@nestjs/jwt';
 
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
+import { ForgotPasswordDto } from './dto/forgot-password.dto';
+import { VerifyOtpDto } from './dto/verify-otp.dto';
+import { ResetPasswordDto } from './dto/reset-password.dto';
 import { UserDto } from '../user/dto/user.dto';
 import { plainToInstance } from 'class-transformer';
 
 import { hashPassword, verifyPassword } from 'src/common/bcrypt';
+import { MailerService } from 'src/common/mailer.service';
 
 @Injectable()
 export class AuthService {
@@ -16,6 +20,7 @@ export class AuthService {
     private prismaService: PrismaService,
     private jwtService: JwtService,
     private configService: ConfigService,
+    private mailerService: MailerService,
   ) { }
 
   // ================= GENERATE TOKENS =================
@@ -355,5 +360,94 @@ export class AuthService {
     }
 
     return role;
+  }
+
+  // ================= FORGOT PASSWORD (GỬI OTP) =================
+  async forgotPassword(dto: ForgotPasswordDto) {
+    const user = await this.prismaService.user.findUnique({
+      where: { email: dto.email },
+    });
+
+    if (!user) {
+      throw new NotFoundException('Không tìm thấy tài khoản với email này');
+    }
+
+    // Tạo mã OTP 6 chữ số
+    const otp = Math.floor(100000 + Math.random() * 900000).toString();
+
+    // Hash OTP trước khi lưu vào DB
+    const hashedOtp = await hashPassword(otp);
+
+    // Thời hạn 15 phút
+    const expiresAt = new Date(Date.now() + 15 * 60 * 1000);
+
+    await this.prismaService.user.update({
+      where: { email: dto.email },
+      data: {
+        resetPasswordCode: hashedOtp,
+        resetPasswordExpires: expiresAt,
+      },
+    });
+
+    // Gửi email chứa OTP gốc (chưa hash)
+    await this.mailerService.sendOtpEmail(dto.email, otp);
+
+    return { message: 'Mã OTP đã được gửi đến email của bạn. Vui lòng kiểm tra hộp thư.' };
+  }
+
+  // ================= VERIFY OTP =================
+  async verifyOtp(dto: VerifyOtpDto) {
+    const user = await this.prismaService.user.findUnique({
+      where: { email: dto.email },
+    });
+
+    if (!user || !user.resetPasswordCode || !user.resetPasswordExpires) {
+      throw new BadRequestException('Mã OTP không hợp lệ hoặc chưa được tạo');
+    }
+
+    if (new Date() > user.resetPasswordExpires) {
+      throw new BadRequestException('Mã OTP đã hết hạn. Vui lòng yêu cầu mã mới');
+    }
+
+    const isValid = await verifyPassword(dto.otp, user.resetPasswordCode);
+    if (!isValid) {
+      throw new BadRequestException('Mã OTP không chính xác');
+    }
+
+    return { valid: true, message: 'Xác minh OTP thành công' };
+  }
+
+  // ================= RESET PASSWORD =================
+  async resetPassword(dto: ResetPasswordDto) {
+    const user = await this.prismaService.user.findUnique({
+      where: { email: dto.email },
+    });
+
+    if (!user || !user.resetPasswordCode || !user.resetPasswordExpires) {
+      throw new BadRequestException('Yêu cầu đặt lại mật khẩu không hợp lệ');
+    }
+
+    if (new Date() > user.resetPasswordExpires) {
+      throw new BadRequestException('Mã OTP đã hết hạn. Vui lòng bắt đầu lại từ đầu');
+    }
+
+    const isValid = await verifyPassword(dto.otp, user.resetPasswordCode);
+    if (!isValid) {
+      throw new BadRequestException('Mã OTP không chính xác');
+    }
+
+    // Hash mật khẩu mới và xóa OTP
+    const hashedPassword = await hashPassword(dto.newPassword);
+
+    await this.prismaService.user.update({
+      where: { email: dto.email },
+      data: {
+        hashedPassword,
+        resetPasswordCode: null,
+        resetPasswordExpires: null,
+      },
+    });
+
+    return { message: 'Đặt lại mật khẩu thành công. Bạn có thể đăng nhập ngay bây giờ.' };
   }
 }

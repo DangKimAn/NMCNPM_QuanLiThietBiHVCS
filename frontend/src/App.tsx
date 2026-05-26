@@ -2,6 +2,7 @@ import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-d
 
 import { Login } from './pages/auth/Login';
 import { Register } from './pages/auth/Register';
+import { ForgotPassword } from './pages/auth/ForgotPassword';
 
 import { DeviceManager } from './pages/devices/DeviceManager';
 import { ManagerOverview } from './pages/manager/ManagerOverview';
@@ -27,6 +28,7 @@ function App() {
         {/* Auth */}
         <Route path="/login" element={<Login />} />
         <Route path="/register" element={<Register />} />
+        <Route path="/forgot-password" element={<ForgotPassword />} />
 
         {/* Cán bộ quản lý thiết bị */}
         <Route element={<ProtectedRoute allowedRoles={['MANAGER', 'ADMIN', 'LEADER']} />}>

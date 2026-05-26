@@ -1,8 +1,10 @@
-import { Module } from '@nestjs/common';
+import { MiddlewareConsumer, Module, NestModule, RequestMethod } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
+import { AuditLogModule } from './audit-log/audit-log.module';
+import { AuditLogMiddleware } from './audit-log/audit-log.middleware';
 
 import { PrismaModule } from './prisma/prisma.module';
 
@@ -32,9 +34,21 @@ import { AuthModule } from './auth/auth.module';
     EquipmentModule,
     ReportModule,
     AuthModule,
+    AuditLogModule,
   ],
 
   controllers: [AppController],
   providers: [AppService],
 })
-export class AppModule {}
+export class AppModule implements NestModule {
+  configure(consumer: MiddlewareConsumer) {
+    consumer
+      .apply(AuditLogMiddleware)
+      .forRoutes(
+        { path: '*', method: RequestMethod.POST },
+        { path: '*', method: RequestMethod.PUT },
+        { path: '*', method: RequestMethod.PATCH },
+        { path: '*', method: RequestMethod.DELETE },
+      );
+  }
+}
