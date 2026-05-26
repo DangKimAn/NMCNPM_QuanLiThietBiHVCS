@@ -41,16 +41,30 @@ enum ReportStatus {
   REJECTED
 }
 
+// Enum dùng cho chức năng thông báo
+// ALL: gửi cho tất cả role
+// ADMIN: gửi cho quản trị viên
+// MANAGER: gửi cho cán bộ quản lý thiết bị
+// TEACHER: gửi cho giảng viên
+// STUDENT: gửi cho sinh viên
+enum NotificationTargetRole {
+  ALL
+  ADMIN
+  MANAGER
+  TEACHER
+  STUDENT
+}
+
 // ==========================================
 // MODELS
 // ==========================================
 
 model Role {
-  roleId      Int              @id @default(autoincrement()) 
-  roleName    String            @db.VarChar(255) @unique()
-  description String?           @db.VarChar(255)
+  roleId      Int              @id @default(autoincrement())
+  roleName    String           @unique() @db.VarChar(255)
+  description String?          @db.VarChar(255)
   createdAt   DateTime         @default(now())
-  updatedAt   DateTime         @updatedAt 
+  updatedAt   DateTime         @updatedAt
   users       User[]
   permissions RolePermission[]
 
@@ -58,59 +72,65 @@ model Role {
 }
 
 model Permission {
-  permissionId Int              @id @default(autoincrement()) 
-  permissionName         String           @unique()
-  description  String?           @db.VarChar(255)
-  
-  createdAt    DateTime         @default(now()) 
-  updatedAt    DateTime         @updatedAt 
+  permissionId   Int     @id @default(autoincrement())
+  permissionName String  @unique()
+  description    String? @db.VarChar(255)
 
-  roles        RolePermission[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  roles RolePermission[]
 
   @@map("permissions")
 }
 
 model RolePermission {
-  roleId       Int        
-  permissionId Int        
-  
-  role         Role       @relation(fields: [roleId], references: [roleId], onDelete: Restrict)
-  permission   Permission @relation(fields: [permissionId], references: [permissionId], onDelete: Restrict)
+  roleId       Int
+  permissionId Int
+
+  role       Role       @relation(fields: [roleId], references: [roleId], onDelete: Restrict)
+  permission Permission @relation(fields: [permissionId], references: [permissionId], onDelete: Restrict)
 
   @@id([roleId, permissionId])
   @@map("role_permissions")
 }
 
 model User {
-  userId                Int                  @id @default(autoincrement()) 
-  username              String               @unique  @db.VarChar(255)
-  fullName              String?              @db.VarChar(255)
-  hashedPassword        String               @db.VarChar(255)
-  email                 String               @unique @db.VarChar(255)
-  phoneNumber           String?              @db.VarChar(255)
-  status                UserStatus           @default(ACTIVE) 
-  roleId                Int                  
-  refreshToken          String?              
-  resetPasswordCode     String?              
-  resetPasswordExpires  DateTime?            
-  createdAt             DateTime             @default(now()) 
-  updatedAt             DateTime             @updatedAt 
+  userId               Int        @id @default(autoincrement())
+  username             String     @unique @db.VarChar(255)
+  fullName             String?    @db.VarChar(255)
+  hashedPassword       String     @db.VarChar(255)
+  email                String     @unique @db.VarChar(255)
+  phoneNumber          String?    @db.VarChar(255)
+  status               UserStatus @default(ACTIVE)
+  roleId               Int
+  refreshToken         String?
+  resetPasswordCode    String?
+  resetPasswordExpires DateTime?
+  createdAt            DateTime   @default(now())
+  updatedAt            DateTime   @updatedAt
 
-  role                Role                 @relation(fields: [roleId], references: [roleId], onDelete: Restrict)
-  activityLogs        ActivityLog[]
-  executedTransfers   EquipmentTransfer[]  @relation("ExecutedTransfers")
-  reports             Report[]             @relation("ReportedIncidents")
-  handledResolutions  Report[]             @relation("HandledResolutions")
+  role               Role                @relation(fields: [roleId], references: [roleId], onDelete: Restrict)
+  activityLogs       ActivityLog[]
+  executedTransfers  EquipmentTransfer[] @relation("ExecutedTransfers")
+  reports            Report[]            @relation("ReportedIncidents")
+  handledResolutions Report[]            @relation("HandledResolutions")
+
+  // Quan hệ thông báo
+  // sentNotifications: các thông báo do user này tạo
+  // notificationReads: trạng thái đã đọc thông báo của user này
+  sentNotifications Notification[]     @relation("SentNotifications")
+  notificationReads NotificationRead[]
 
   @@map("users")
 }
 
 model ActivityLog {
-  logId           Int      @id @default(autoincrement()) 
-  userId          Int      
+  logId           Int      @id @default(autoincrement())
+  userId          Int
   action          String   @db.VarChar(255)
   target          String   @db.VarChar(255)
-  targetId        Int      
+  targetId        Int
   method          String?  @db.VarChar(10)
   route           String?  @db.VarChar(500)
   statusCode      Int?
@@ -119,126 +139,165 @@ model ActivityLog {
   ipAddress       String?  @db.VarChar(45)
   userAgent       String?  @db.Text
   isMarked        Boolean  @default(false)
-  createdAt       DateTime @default(now()) 
-  
-  user            User     @relation(fields: [userId], references: [userId], onDelete: Restrict)
+  createdAt       DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [userId], onDelete: Restrict)
 
   @@map("activity_logs")
 }
 
 model Room {
-  roomId             Int                   @id @default(autoincrement()) 
-  code               String                @unique  @db.VarChar(255)
-  name               String                 @db.VarChar(255)
-  building           String?                @db.VarChar(255)
-  floor              Int?                  
-  capacity           Int?                  
-  status             RoomStatus            @default(AVAILABLE) 
-  
-  createdAt          DateTime              @default(now()) 
-  updatedAt          DateTime              @updatedAt 
+  roomId   Int        @id @default(autoincrement())
+  code     String     @unique @db.VarChar(255)
+  name     String     @db.VarChar(255)
+  building String?    @db.VarChar(255)
+  floor    Int?
+  capacity Int?
+  status   RoomStatus @default(AVAILABLE)
 
-  allocations        EquipmentAllocation[]
-  transfersFrom      EquipmentTransfer[]   @relation("FromRoom")
-  transfersTo        EquipmentTransfer[]   @relation("ToRoom")
-  reports            Report[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  allocations   EquipmentAllocation[]
+  transfersFrom EquipmentTransfer[]   @relation("FromRoom")
+  transfersTo   EquipmentTransfer[]   @relation("ToRoom")
+  reports       Report[]
 
   @@map("rooms")
 }
 
 model EquipmentCategory {
-  categoryId  Int         @id @default(autoincrement()) 
-  name        String       @db.VarChar(255)
-  description String?      @db.VarChar(255)
-  
-  createdAt   DateTime    @default(now()) 
-  updatedAt   DateTime    @updatedAt 
+  categoryId  Int     @id @default(autoincrement())
+  name        String  @db.VarChar(255)
+  description String? @db.VarChar(255)
 
-  equipments  Equipment[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  equipments Equipment[]
 
   @@map("equipment_categories")
 }
 
 model Equipment {
-  equipmentId      Int                   @id @default(autoincrement())
-  name             String                @db.VarChar(255)
-  categoryId       Int                  
-  unit             String?               @db.VarChar(255)
-  quantity         Int                   @default(0)
-  status           EquipmentStatus       @default(GOOD)
-  description      String?               @db.VarChar(255)
-  
-  createdAt        DateTime              @default(now())
-  updatedAt        DateTime              @updatedAt
+  equipmentId Int             @id @default(autoincrement())
+  name        String          @db.VarChar(255)
+  categoryId  Int
+  unit        String?         @db.VarChar(255)
+  quantity    Int             @default(0)
+  status      EquipmentStatus @default(GOOD)
+  description String?         @db.VarChar(255)
 
-  category         EquipmentCategory     @relation(fields: [categoryId], references: [categoryId], onDelete: Restrict)
-  allocations      EquipmentAllocation[]
-  transfers        EquipmentTransfer[]
-  reports          Report[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  category    EquipmentCategory     @relation(fields: [categoryId], references: [categoryId], onDelete: Restrict)
+  allocations EquipmentAllocation[]
+  transfers   EquipmentTransfer[]
+  reports     Report[]
 
   @@map("equipments")
 }
 
 model EquipmentAllocation {
-  allocationId   Int       @id @default(autoincrement()) 
-  equipmentId    Int       
-  roomId         Int       
-  quantity       Int       @default(0) 
-  allocatedAt    DateTime?  @db.Date
-  note           String?    @db.VarChar(255)
-  
-  createdAt      DateTime  @default(now()) 
-  updatedAt      DateTime  @updatedAt 
+  allocationId Int       @id @default(autoincrement())
+  equipmentId  Int
+  roomId       Int
+  quantity     Int       @default(0)
+  allocatedAt  DateTime? @db.Date
+  note         String?   @db.VarChar(255)
 
-  equipment      Equipment @relation(fields: [equipmentId], references: [equipmentId], onDelete: Restrict)
-  room           Room      @relation(fields: [roomId], references: [roomId], onDelete: Restrict)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  equipment Equipment @relation(fields: [equipmentId], references: [equipmentId], onDelete: Restrict)
+  room      Room      @relation(fields: [roomId], references: [roomId], onDelete: Restrict)
 
   @@map("equipment_allocations")
 }
 
 model EquipmentTransfer {
-  transferId     Int       @id @default(autoincrement()) 
-  equipmentId    Int       
-  fromRoomId     Int       
-  toRoomId       Int       
-  quantity       Int       @default(0) 
-  transferredAt  DateTime   @db.Date
-  executorId     Int       
-  note           String?    @db.VarChar(255)
-  
-  createdAt      DateTime  @default(now()) 
-  updatedAt      DateTime  @updatedAt 
+  transferId    Int      @id @default(autoincrement())
+  equipmentId   Int
+  fromRoomId    Int
+  toRoomId      Int
+  quantity      Int      @default(0)
+  transferredAt DateTime @db.Date
+  executorId    Int
+  note          String?  @db.VarChar(255)
 
-  equipment      Equipment @relation(fields: [equipmentId], references: [equipmentId], onDelete: Restrict)
-  fromRoom       Room      @relation("FromRoom", fields: [fromRoomId], references: [roomId], onDelete: Restrict)
-  toRoom         Room      @relation("ToRoom", fields: [toRoomId], references: [roomId], onDelete: Restrict)
-  executor       User      @relation("ExecutedTransfers", fields: [executorId], references: [userId], onDelete: Restrict)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  equipment Equipment @relation(fields: [equipmentId], references: [equipmentId], onDelete: Restrict)
+  fromRoom  Room      @relation("FromRoom", fields: [fromRoomId], references: [roomId], onDelete: Restrict)
+  toRoom    Room      @relation("ToRoom", fields: [toRoomId], references: [roomId], onDelete: Restrict)
+  executor  User      @relation("ExecutedTransfers", fields: [executorId], references: [userId], onDelete: Restrict)
 
   @@map("equipment_transfers")
 }
 
 model Report {
-  reportId          Int           @id @default(autoincrement()) 
-  reporterId        Int           
-  roomId            Int           
-  equipmentId       Int?          
-  reportContent     String         @db.Text
-  status            ReportStatus  @default(PENDING) 
-  reportedAt        DateTime      @default(now()) 
-  
-  // Phần gộp Resolution
-  handlerId         Int?          
-  resolutionContent String?        @db.Text
-  resolvedAt        DateTime?     
-  result            String?        @db.VarChar(255)
-  
-  createdAt         DateTime      @default(now()) 
-  updatedAt         DateTime      @updatedAt 
+  reportId      Int          @id @default(autoincrement())
+  reporterId    Int
+  roomId        Int
+  equipmentId   Int?
+  reportContent String       @db.Text
+  status        ReportStatus @default(PENDING)
+  reportedAt    DateTime     @default(now())
 
-  reporter          User          @relation("ReportedIncidents", fields: [reporterId], references: [userId], onDelete: Restrict)
-  handler           User?         @relation("HandledResolutions", fields: [handlerId], references: [userId], onDelete: Restrict)
-  room              Room          @relation(fields: [roomId], references: [roomId], onDelete: Restrict)
-  equipment         Equipment?    @relation(fields: [equipmentId], references: [equipmentId], onDelete: Restrict)
+  // Phần gộp Resolution
+  handlerId         Int?
+  resolutionContent String?   @db.Text
+  resolvedAt        DateTime?
+  result            String?   @db.VarChar(255)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  reporter  User       @relation("ReportedIncidents", fields: [reporterId], references: [userId], onDelete: Restrict)
+  handler   User?      @relation("HandledResolutions", fields: [handlerId], references: [userId], onDelete: Restrict)
+  room      Room       @relation(fields: [roomId], references: [roomId], onDelete: Restrict)
+  equipment Equipment? @relation(fields: [equipmentId], references: [equipmentId], onDelete: Restrict)
 
   @@map("reports")
+}
+
+// ==========================================
+// NOTIFICATIONS - Chức năng thông báo
+// ==========================================
+
+model Notification {
+  notificationId Int    @id @default(autoincrement())
+  title          String @db.VarChar(255)
+  content        String @db.Text
+
+  // Vai trò nhận thông báo
+  // ALL: tất cả người dùng đều xem được
+  // ADMIN, MANAGER, TEACHER, STUDENT: chỉ role tương ứng xem được
+  targetRole NotificationTargetRole @default(ALL)
+
+  // Người tạo thông báo
+  // Theo yêu cầu hiện tại: chỉ MANAGER được viết thông báo
+  senderId Int
+  sender   User @relation("SentNotifications", fields: [senderId], references: [userId], onDelete: Restrict)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  reads NotificationRead[]
+
+  @@map("notifications")
+}
+
+model NotificationRead {
+  notificationId Int
+  userId         Int
+  readAt         DateTime @default(now())
+
+  notification Notification @relation(fields: [notificationId], references: [notificationId], onDelete: Cascade)
+  user         User         @relation(fields: [userId], references: [userId], onDelete: Cascade)
+
+  @@id([notificationId, userId])
+  @@map("notification_reads")
 }

@@ -15,6 +15,8 @@ import { StudentReport } from './pages/student/StudentReport';
 import { StudentOverview } from './pages/student/StudentOverview';
 import { StudentMyReports } from './pages/student/StudentMyReports';
 
+import NotificationPage from './pages/notifications/NotificationPage';
+
 import { ProtectedRoute } from './components/auth/ProtectedRoute';
 
 function App() {
@@ -29,9 +31,27 @@ function App() {
         <Route path="/register" element={<Navigate to="/login" replace />} />
         <Route path="/forgot-password" element={<ForgotPassword />} />
 
+        {/* Trang thông báo dùng chung cho tất cả role */}
+        <Route
+          element={
+            <ProtectedRoute
+              allowedRoles={['ADMIN', 'MANAGER', 'TEACHER', 'STUDENT']}
+            />
+          }
+        >
+          <Route path="/notifications" element={<NotificationPage />} />
+        </Route>
+
         {/* Cán bộ quản lý thiết bị */}
-        <Route element={<ProtectedRoute allowedRoles={['MANAGER', 'ADMIN', 'LEADER']} />}>
-          <Route path="/manager" element={<Navigate to="/manager/overview" replace />} />
+        <Route
+          element={
+            <ProtectedRoute allowedRoles={['MANAGER', 'ADMIN']} />
+          }
+        >
+          <Route
+            path="/manager"
+            element={<Navigate to="/manager/overview" replace />}
+          />
           <Route path="/manager/overview" element={<ManagerOverview />} />
           <Route path="/manager/devices" element={<DeviceManager />} />
           <Route path="/manager/incidents" element={<IncidentManager />} />
@@ -46,9 +66,17 @@ function App() {
         </Route>
 
         {/* Giảng viên / Sinh viên */}
-        <Route element={<ProtectedRoute allowedRoles={['TEACHER', 'STUDENT', 'MANAGER', 'ADMIN']} />}>
-
-          <Route path="/student" element={<Navigate to="/student/overview" replace />} />
+        <Route
+          element={
+            <ProtectedRoute
+              allowedRoles={['TEACHER', 'STUDENT', 'MANAGER', 'ADMIN']}
+            />
+          }
+        >
+          <Route
+            path="/student"
+            element={<Navigate to="/student/overview" replace />}
+          />
           <Route path="/student/overview" element={<StudentOverview />} />
           <Route path="/student/reports" element={<StudentReport />} />
           <Route path="/student/my-reports" element={<StudentMyReports />} />
