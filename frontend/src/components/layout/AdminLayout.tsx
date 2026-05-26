@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react';
 import {
+  FiBell,
   FiFileText,
   FiShield,
   FiUsers,
@@ -28,6 +29,11 @@ const adminMenuItems: LayoutMenuItem[] = [
     label: 'Nhật ký hệ thống',
     icon: <FiFileText />,
     path: '/admin/logs',
+  },
+  {
+    label: 'Thông báo',
+    icon: <FiBell />,
+    path: '/notifications',
   },
 ];
 

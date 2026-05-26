@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react';
 import {
+  FiBell,
   FiEdit3,
   FiFileText,
   FiHome,
@@ -29,16 +30,25 @@ const studentTeacherMenuItems: LayoutMenuItem[] = [
     icon: <FiFileText />,
     path: '/student/my-reports',
   },
+  {
+    label: 'Thông báo',
+    icon: <FiBell />,
+    path: '/notifications',
+  },
 ];
 
-export const StudentTeacherLayout = ({ children }: StudentTeacherLayoutProps) => {
+export const StudentTeacherLayout = ({
+  children,
+}: StudentTeacherLayoutProps) => {
   return (
     <AppLayoutBase
       menuTitle="Menu người dùng"
       menuItems={studentTeacherMenuItems}
       homePath="/student/reports"
       searchPlaceholder="Tìm kiếm phản ánh của tôi..."
-      onSearch={(keyword) => `/student/my-reports?keyword=${encodeURIComponent(keyword)}`}
+      onSearch={(keyword) =>
+        `/student/my-reports?keyword=${encodeURIComponent(keyword)}`
+      }
     >
       {children}
     </AppLayoutBase>

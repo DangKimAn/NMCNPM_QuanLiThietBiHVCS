@@ -24,6 +24,9 @@ import { EquipmentModule } from './equipment/equipment.module';
 import { ReportModule } from './report/report.module';
 import { AuthModule } from './auth/auth.module';
 
+// Thêm module thông báo
+import { NotificationModule } from './notification/notification.module';
+
 import { winstonConfig } from './common/logger/logger.config';
 import { HttpLoggerMiddleware } from './common/logger/http-logger.middleware';
 import { GlobalExceptionFilter } from './common/filters/global-exception.filter';
@@ -49,6 +52,11 @@ import { GlobalExceptionFilter } from './common/filters/global-exception.filter'
     ReportModule,
     AuthModule,
     AuditLogModule,
+
+    // Đăng ký chức năng thông báo
+    // Tất cả role xem được thông báo
+    // Chỉ MANAGER được viết thông báo
+    NotificationModule,
   ],
 
   // AuditLogController đăng ký ở AppModule để dùng JwtAuthGuard/RolesGuard từ AuthModule

@@ -10,7 +10,14 @@ import {
   FiUser,
   FiUserCheck,
 } from 'react-icons/fi';
+
 import { UserProfileModal } from './UserProfileModal';
+import {
+  getMyNotifications,
+  getUnreadNotificationCount,
+  markNotificationAsRead,
+  type NotificationItem,
+} from '../../services/notificationApi';
 
 export interface LayoutMenuItem {
   label: string;
@@ -37,7 +44,6 @@ interface CurrentUser {
 
 const API_BASE_URL = 'http://localhost:3000/api';
 
-// Layout nền dùng chung cho Admin, Cán bộ quản lý, Sinh viên/Giảng viên
 export const AppLayoutBase = ({
   children,
   menuTitle,
@@ -51,6 +57,13 @@ export const AppLayoutBase = ({
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
 
+  const [isNotificationOpen, setIsNotificationOpen] = useState(false);
+  const [notificationFilter, setNotificationFilter] = useState<'ALL' | 'UNREAD'>(
+    'ALL',
+  );
+  const [notifications, setNotifications] = useState<NotificationItem[]>([]);
+  const [unreadNotificationCount, setUnreadNotificationCount] = useState(0);
+
   const [currentUser, setCurrentUser] = useState<CurrentUser>({
     userId: 0,
     username: 'user',
@@ -60,8 +73,19 @@ export const AppLayoutBase = ({
   });
 
   const userMenuRef = useRef<HTMLDivElement | null>(null);
+  const notificationRef = useRef<HTMLDivElement | null>(null);
 
-  // Lấy user từ localStorage
+  const getRoleName = (user: any): string => {
+    const role =
+      user?.roleName ||
+      user?.role ||
+      user?.role?.roleName ||
+      user?.role?.role_name ||
+      'USER';
+
+    return typeof role === 'string' ? role : 'USER';
+  };
+
   const getUserFromLocalStorage = (): CurrentUser => {
     const rawUser =
       localStorage.getItem('currentUser') ||
@@ -102,7 +126,7 @@ export const AppLayoutBase = ({
         username,
         fullName,
         email: user.email || '',
-        role: user.role || user.roleName || 'USER',
+        role: getRoleName(user),
       };
     } catch {
       return {
@@ -115,17 +139,69 @@ export const AppLayoutBase = ({
     }
   };
 
-  // Lấy lại thông tin user đầy đủ từ backend để đảm bảo fullName đúng
+  const fetchUnreadNotificationCount = async () => {
+    try {
+      const data = await getUnreadNotificationCount();
+      setUnreadNotificationCount(data.unreadCount || 0);
+    } catch (error) {
+      console.error('Không lấy được số thông báo chưa đọc:', error);
+      setUnreadNotificationCount(0);
+    }
+  };
+
+  const fetchNotificationList = async () => {
+    try {
+      const data = await getMyNotifications();
+
+      setNotifications(data);
+      setUnreadNotificationCount(data.filter((item) => !item.isRead).length);
+    } catch (error) {
+      console.error('Không lấy được danh sách thông báo:', error);
+    }
+  };
+
+  const handleToggleNotification = async () => {
+    const nextOpen = !isNotificationOpen;
+
+    setIsNotificationOpen(nextOpen);
+    setIsUserMenuOpen(false);
+
+    if (nextOpen) {
+      await fetchNotificationList();
+    }
+  };
+
+  const handleClickNotificationItem = async (notificationId: number) => {
+    try {
+      await markNotificationAsRead(notificationId);
+    } catch (error) {
+      console.error('Không thể đánh dấu thông báo đã đọc:', error);
+    }
+
+    setIsNotificationOpen(false);
+    await fetchUnreadNotificationCount();
+
+    navigate(`/notifications?notificationId=${notificationId}`);
+  };
+
+  const formatNotificationDate = (value: string) => {
+    return new Date(value).toLocaleDateString('vi-VN');
+  };
+
+  const displayedNotifications =
+    notificationFilter === 'UNREAD'
+      ? notifications.filter((item) => !item.isRead)
+      : notifications;
+
   const fetchFullUserInfo = async (username: string) => {
-    const token = localStorage.getItem('accessToken');
+    const token =
+      localStorage.getItem('accessToken') || localStorage.getItem('token');
 
     if (!token || !username || username === 'user') return;
 
     try {
       const response = await fetch(
-        `${API_BASE_URL}/user/getUserbyUsername/${encodeURIComponent(
-          username,
-        )}`,
+        `${API_BASE_URL}/user/getUserbyUsername/${encodeURIComponent(username)}`,
         {
           headers: {
             Authorization: `Bearer ${token}`,
@@ -142,7 +218,7 @@ export const AppLayoutBase = ({
         username: fullUser.username || username,
         fullName: fullUser.fullName || fullUser.username || username,
         email: fullUser.email || '',
-        role: fullUser.role || 'USER',
+        role: getRoleName(fullUser),
       };
 
       setCurrentUser(updatedUser);
@@ -156,13 +232,12 @@ export const AppLayoutBase = ({
 
   useEffect(() => {
     const localUser = getUserFromLocalStorage();
-    setCurrentUser(localUser);
 
-    // Nếu đăng nhập bằng Email Học viện, lấy lại fullName thật từ backend
+    setCurrentUser(localUser);
     fetchFullUserInfo(localUser.username);
+    fetchUnreadNotificationCount();
   }, []);
 
-  // Lấy chữ viết tắt cho avatar
   const getAvatarText = (fullName: string) => {
     const safeName = fullName?.trim() || currentUser.username || 'U';
     const words = safeName.split(/\s+/);
@@ -174,14 +249,19 @@ export const AppLayoutBase = ({
     return safeName.slice(0, 2).toUpperCase();
   };
 
-  // Click ra ngoài dropdown thì tự đóng
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
-      if (
-        userMenuRef.current &&
-        !userMenuRef.current.contains(event.target as Node)
-      ) {
+      const target = event.target as Node;
+
+      if (userMenuRef.current && !userMenuRef.current.contains(target)) {
         setIsUserMenuOpen(false);
+      }
+
+      if (
+        notificationRef.current &&
+        !notificationRef.current.contains(target)
+      ) {
+        setIsNotificationOpen(false);
       }
     };
 
@@ -192,7 +272,6 @@ export const AppLayoutBase = ({
     };
   }, []);
 
-  // Xử lý tìm kiếm trên thanh header
   const handleSearch = (keyword: string) => {
     const value = keyword.trim();
 
@@ -206,7 +285,6 @@ export const AppLayoutBase = ({
     navigate(homePath);
   };
 
-  // Đăng xuất
   const handleLogout = () => {
     localStorage.removeItem('currentUser');
     localStorage.removeItem('user');
@@ -221,9 +299,7 @@ export const AppLayoutBase = ({
 
   return (
     <div className="min-h-screen bg-slate-50 flex">
-      {/* Sidebar */}
       <aside className="w-64 bg-white border-r border-slate-200 fixed left-0 top-0 bottom-0 z-30">
-        {/* Logo */}
         <Link
           to={homePath}
           className="h-20 flex items-center px-8 border-b border-slate-100"
@@ -234,7 +310,6 @@ export const AppLayoutBase = ({
           </h1>
         </Link>
 
-        {/* Menu */}
         <nav className="px-4 py-6">
           <p className="px-3 mb-3 text-xs font-bold text-slate-400 uppercase tracking-wider">
             {menuTitle}
@@ -261,11 +336,8 @@ export const AppLayoutBase = ({
         </nav>
       </aside>
 
-      {/* Nội dung bên phải */}
       <div className="flex-1 ml-64 min-w-0">
-        {/* Header */}
         <header className="h-20 bg-white border-b border-slate-200 sticky top-0 z-20 flex items-center justify-between px-8">
-          {/* Tìm kiếm */}
           <div className="relative w-full max-w-md">
             <FiSearch className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" />
 
@@ -282,23 +354,132 @@ export const AppLayoutBase = ({
           </div>
 
           <div className="flex items-center gap-5">
-            {/* Chuông thông báo */}
-            <button
-              type="button"
-              onClick={() => navigate(homePath)}
-              className="text-slate-400 hover:text-slate-700 text-xl"
-              title="Thông báo"
-            >
-              <FiBell />
-            </button>
+            <div className="relative" ref={notificationRef}>
+              <button
+                type="button"
+                onClick={handleToggleNotification}
+                className="relative text-slate-400 hover:text-slate-700 text-xl"
+                title="Thông báo"
+              >
+                <FiBell />
+
+                {unreadNotificationCount > 0 && (
+                  <span className="absolute -right-2 -top-2 min-w-[18px] h-[18px] rounded-full bg-red-500 px-1 text-[10px] font-bold leading-[18px] text-white">
+                    {unreadNotificationCount > 99
+                      ? '99+'
+                      : unreadNotificationCount}
+                  </span>
+                )}
+              </button>
+
+              {isNotificationOpen && (
+                <div className="absolute right-0 mt-4 w-[630px] max-h-[620px] rounded-2xl border border-slate-200 bg-white shadow-2xl z-50 overflow-hidden">
+                  <div className="flex items-center gap-2 border-b border-blue-200 px-5 py-4">
+                    <FiBell className="text-blue-500" />
+                    <h3 className="text-base font-bold uppercase text-slate-800">
+                      Thông báo
+                    </h3>
+                  </div>
+
+                  <div className="flex items-center gap-4 px-5 py-4">
+                    <button
+                      type="button"
+                      onClick={() => setNotificationFilter('ALL')}
+                      className={`rounded-full px-7 py-2 text-sm font-semibold transition ${
+                        notificationFilter === 'ALL'
+                          ? 'bg-blue-500 text-white'
+                          : 'border border-blue-300 bg-white text-blue-500 hover:bg-blue-50'
+                      }`}
+                    >
+                      Tất cả
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setNotificationFilter('UNREAD')}
+                      className={`rounded-full px-7 py-2 text-sm font-semibold transition ${
+                        notificationFilter === 'UNREAD'
+                          ? 'bg-blue-500 text-white'
+                          : 'border border-blue-300 bg-white text-blue-500 hover:bg-blue-50'
+                      }`}
+                    >
+                      Chưa đọc
+                    </button>
+                  </div>
+
+                  <div className="max-h-[460px] overflow-y-auto px-5 pb-4">
+                    {displayedNotifications.length === 0 ? (
+                      <div className="py-10 text-center text-sm text-slate-500">
+                        Không có thông báo nào
+                      </div>
+                    ) : (
+                      <div className="divide-y divide-slate-200">
+                        {displayedNotifications.map((item) => (
+                          <button
+                            key={item.notificationId}
+                            type="button"
+                            onClick={() =>
+                              handleClickNotificationItem(item.notificationId)
+                            }
+                            className="group flex w-full items-start gap-4 py-4 text-left hover:bg-slate-50"
+                          >
+                            <div className="min-w-0 flex-1">
+                              <p
+                                className="text-[15px] leading-6 text-slate-700 group-hover:text-blue-600"
+                                style={{
+                                  display: '-webkit-box',
+                                  WebkitLineClamp: 3,
+                                  WebkitBoxOrient: 'vertical',
+                                  overflow: 'hidden',
+                                }}
+                              >
+                                <span className="font-semibold">
+                                  {item.sender?.fullName ||
+                                    item.sender?.username ||
+                                    'Hệ thống'}
+                                </span>{' '}
+                                thông báo: {item.title}
+                              </p>
+
+                              <p className="mt-2 text-sm italic text-slate-400">
+                                {formatNotificationDate(item.createdAt)}
+                              </p>
+                            </div>
+
+                            {!item.isRead && (
+                              <span className="mt-7 h-3 w-3 rounded-full bg-blue-200" />
+                            )}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="flex items-center justify-end border-t border-slate-100 px-5 py-3">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsNotificationOpen(false);
+                        navigate('/notifications');
+                      }}
+                      className="text-sm font-semibold text-blue-600 hover:text-blue-700"
+                    >
+                      Xem tất cả thông báo
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
 
             <div className="h-8 w-px bg-slate-200" />
 
-            {/* Avatar + dropdown */}
             <div className="relative" ref={userMenuRef}>
               <button
                 type="button"
-                onClick={() => setIsUserMenuOpen((prev) => !prev)}
+                onClick={() => {
+                  setIsUserMenuOpen((prev) => !prev);
+                  setIsNotificationOpen(false);
+                }}
                 className="flex items-center gap-3 hover:bg-slate-50 rounded-xl px-2 py-1 transition"
               >
                 <div className="text-right">
@@ -394,7 +575,6 @@ export const AppLayoutBase = ({
           </div>
         </header>
 
-        {/* Nội dung từng trang */}
         <main className="p-8">{children}</main>
       </div>
 

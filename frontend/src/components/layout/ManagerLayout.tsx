@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react';
 import {
+  FiBell,
   FiBox,
   FiHome,
   FiTool,
@@ -28,6 +29,11 @@ const managerMenuItems: LayoutMenuItem[] = [
     label: 'Phản ánh sự cố',
     icon: <FiTool />,
     path: '/manager/incidents',
+  },
+  {
+    label: 'Thông báo',
+    icon: <FiBell />,
+    path: '/notifications',
   },
 ];
 
