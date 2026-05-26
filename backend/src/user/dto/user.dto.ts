@@ -38,4 +38,7 @@ export class UserDto {
     @Expose()
     @IsString()
     status: string
+
+    @Expose()
+    createdAt: Date;
 }

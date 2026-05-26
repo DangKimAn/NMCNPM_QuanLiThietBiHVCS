@@ -1,12 +1,14 @@
 import { PrismaClient, RoomStatus, EquipmentStatus } from '@prisma/client';
 import { hashPassword } from '../common/bcrypt';
-import 'dotenv/config'; 
-import { SystemPermission, 
-  FacilityPermission, 
-  BorrowRequestPermission, 
-  IncidentReportPermission, 
-  DashboardPermission, 
-  AllPermissions } from '../common/permissionsName.dto';
+import 'dotenv/config';
+import {
+  SystemPermission,
+  FacilityPermission,
+  BorrowRequestPermission,
+  IncidentReportPermission,
+  DashboardPermission,
+  AllPermissions
+} from '../common/permissionsName.dto';
 import { PassThrough } from 'stream';
 import { PrismaService } from './prisma.service';
 import { ConfigService } from '@nestjs/config';
@@ -17,20 +19,20 @@ import { ConfigService } from '@nestjs/config';
 //     },
 //   },
 // });
-const prisma = new PrismaService( new ConfigService()); 
+const prisma = new PrismaService(new ConfigService());
 const roleConfigs = [
   {
     roleName: 'ADMIN',
     description: 'Quản trị viên hệ thống - Toàn quyền',
-    permissions: Object.values(AllPermissions), 
+    permissions: Object.values(AllPermissions),
   },
   {
     roleName: 'MANAGER',
     description: 'Quản lý Cơ sở vật chất',
     permissions: [
       SystemPermission.VIEW_USER,
-      ...Object.values(FacilityPermission), 
-      ...Object.values(BorrowRequestPermission), 
+      ...Object.values(FacilityPermission),
+      ...Object.values(BorrowRequestPermission),
       ...Object.values(IncidentReportPermission),
       DashboardPermission.VIEW_DASHBOARD,
       DashboardPermission.EXPORT_REPORT,
@@ -76,15 +78,15 @@ const roleConfigs = [
   },
 ];
 
-function prettier(_string : string , width: number){
-    const mid = (width - _string.length)/2
-    var rs = ''
-    for ( var i = 0 ; i< mid ; i++)
-        rs+=' '
-    rs += _string
-    while(rs.length < width)
-        rs+=' '
-    return rs  
+function prettier(_string: string, width: number) {
+  const mid = (width - _string.length) / 2
+  var rs = ''
+  for (var i = 0; i < mid; i++)
+    rs += ' '
+  rs += _string
+  while (rs.length < width)
+    rs += ' '
+  return rs
 }
 
 async function main() {
@@ -97,7 +99,7 @@ async function main() {
   for (const pName of permissionValues) {
     await prisma.permission.upsert({
       where: { permissionName: pName },
-      update: {}, 
+      update: {},
       create: {
         permissionName: pName,
         description: `Quyền: ${pName}`,
@@ -108,7 +110,7 @@ async function main() {
 
   // Lấy danh sách Permission từ DB để map ID
   const allDbPermissions = await prisma.permission.findMany();
-  
+
   const roleIds: Record<string, number> = {};
 
   // --------------------------------------------------------
@@ -123,7 +125,7 @@ async function main() {
         description: config.description,
       },
     });
-    
+
     roleIds[config.roleName] = role.roleId;
 
     const permsToAssign = allDbPermissions.filter((p) =>
@@ -153,47 +155,47 @@ async function main() {
   // --------------------------------------------------------
   console.log('Đang khởi tạo các User mặc định...');
 
-  
+
 
   const defaultUsers = [
     {
       username: 'manager_01',
       email: 'manager@system.com',
       roleName: 'MANAGER',
-      password :'passwordmanagerdefault'
+      password: 'passwordmanagerdefault'
     },
     {
       username: 'leader_01',
       email: 'leader@system.com',
       roleName: 'LEADER',
-      password :'passwordleaderdefault'
+      password: 'passwordleaderdefault'
     },
     {
       username: 'admin_super',
       email: 'admin@system.com',
       roleName: 'ADMIN',
-      password :'passwordadmindefault'
+      password: 'passwordadmindefault'
     },
     {
       username: 'teacher_01',
       email: 'teacher@system.com',
       roleName: 'TEACHER',
-      password :'passwordteacherdefault'
+      password: 'passwordteacherdefault'
     },
     {
       username: 'student_01',
       email: 'student@system.com',
       roleName: 'STUDENT',
-      password :'passwordstudentdefault'
+      password: 'passwordstudentdefault'
     }
   ];
 
   for (const user of defaultUsers) {
-    const roleId = roleIds[user.roleName]; 
+    const roleId = roleIds[user.roleName];
 
     await prisma.user.upsert({
       where: { username: user.username },
-      update: {}, 
+      update: {},
       create: {
         username: user.username,
         email: user.email,
@@ -295,12 +297,12 @@ async function main() {
 
   console.log("==========================USER TEST==========================")
   console.log('+------------------------------+------------------------------+------------------------------+')
-  console.log(`|${prettier('role', 30)}|${prettier('username' , 30 )}|${prettier('password', 30)}|`)
+  console.log(`|${prettier('role', 30)}|${prettier('username', 30)}|${prettier('password', 30)}|`)
   console.log('+------------------------------+------------------------------+------------------------------+')
 
 
-  for(var user  of  defaultUsers)
-    console.log(`|${prettier(user.roleName,30)}|${prettier(user.username,30)}|${prettier(user.password,30)}|`)
+  for (var user of defaultUsers)
+    console.log(`|${prettier(user.roleName, 30)}|${prettier(user.username, 30)}|${prettier(user.password, 30)}|`)
   console.log('+------------------------------+------------------------------+------------------------------+')
 
 }
