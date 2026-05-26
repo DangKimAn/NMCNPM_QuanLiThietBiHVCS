@@ -1,8 +1,10 @@
-import { Injectable, NestMiddleware, Logger } from '@nestjs/common';
+import { Injectable, NestMiddleware, Inject } from '@nestjs/common';
 import { Request, Response, NextFunction } from 'express';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import { PrismaService } from 'src/prisma/prisma.service';
+import { WINSTON_MODULE_PROVIDER } from 'nest-winston';
+import { Logger } from 'winston';
 
 // HTTP method → tên hành động tiếng Việt
 const METHOD_ACTION_MAP: Record<string, string> = {
@@ -79,14 +81,25 @@ function extractMessage(body: unknown): string | null {
   return null;
 }
 
+/**
+ * Lấy IP thực của client (xử lý proxy/reverse-proxy).
+ */
+function getClientIp(req: Request): string {
+  const forwarded = req.headers['x-forwarded-for'];
+  if (forwarded) {
+    const ip = Array.isArray(forwarded) ? forwarded[0] : forwarded.split(',')[0];
+    return ip.trim();
+  }
+  return req.ip ?? req.socket?.remoteAddress ?? 'unknown';
+}
+
 @Injectable()
 export class AuditLogMiddleware implements NestMiddleware {
-  private readonly logger = new Logger(AuditLogMiddleware.name);
-
   constructor(
     private readonly prisma: PrismaService,
     private readonly jwtService: JwtService,
     private readonly configService: ConfigService,
+    @Inject(WINSTON_MODULE_PROVIDER) private readonly logger: Logger,
   ) {}
 
   use(req: Request, res: Response, next: NextFunction) {
@@ -125,9 +138,10 @@ export class AuditLogMiddleware implements NestMiddleware {
 
     const action = METHOD_ACTION_MAP[method];
     const { target, targetId } = parseTarget(req.originalUrl);
-    // Route đầy đủ (bao gồm cả query string)
     const route = req.originalUrl;
     const content = `[${method}] ${route}`;
+    const ipAddress = getClientIp(req);
+    const userAgent = req.get('user-agent') ?? '-';
 
     // ─── Chặn response body để lấy message ───────────────────────
     let capturedBody: unknown = null;
@@ -155,15 +169,38 @@ export class AuditLogMiddleware implements NestMiddleware {
             statusCode,
             responseMessage,
             content,
+            ipAddress,
+            userAgent,
           },
         })
         .then(() => {
-          this.logger.log(
+          const auditEntry = {
+            label: 'AUDIT',
+            userId,
+            action,
+            target,
+            targetId: targetId || undefined,
+            method,
+            route,
+            statusCode,
+            responseMessage,
+            ipAddress,
+            userAgent,
+          };
+
+          this.logger.info(
             `[AuditLog] userId=${userId} | ${method} ${route} | ${action} ${target}${targetId ? `#${targetId}` : ''} | ${statusCode} | "${responseMessage ?? '-'}"`,
+            auditEntry,
           );
         })
         .catch((err: unknown) => {
-          this.logger.error('[AuditLog] Lỗi ghi log:', err);
+          this.logger.error('[AuditLog] Lỗi ghi log vào DB:', {
+            label: 'AUDIT',
+            error: err instanceof Error ? err.message : String(err),
+            userId,
+            method,
+            route,
+          });
         });
     });
 

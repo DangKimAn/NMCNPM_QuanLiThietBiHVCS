@@ -1,11 +1,19 @@
 import { NestFactory } from '@nestjs/core';
 import { ValidationPipe } from '@nestjs/common';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
+import { WINSTON_MODULE_NEST_PROVIDER } from 'nest-winston';
 
 import { AppModule } from './app.module';
+import { GlobalExceptionFilter } from './common/filters/global-exception.filter';
 
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule);
+  const app = await NestFactory.create(AppModule, {
+    // Tắt logger mặc định của NestJS để dùng Winston
+    bufferLogs: true,
+  });
+
+  // Dùng Winston làm logger chính của NestJS
+  app.useLogger(app.get(WINSTON_MODULE_NEST_PROVIDER));
 
   // Đặt prefix /api cho tất cả các route
   app.setGlobalPrefix('api');
@@ -28,6 +36,9 @@ async function bootstrap() {
     }),
   );
 
+  // Global Exception Filter — chuẩn hóa response lỗi và log nhất quán
+  app.useGlobalFilters(app.get(GlobalExceptionFilter));
+
   // Cấu hình Swagger để xem API tại /api
   const config = new DocumentBuilder()
     .setTitle('API Quản Lý Thiết Bị HVCS')
@@ -43,8 +54,9 @@ async function bootstrap() {
 
   await app.listen(port);
 
-  console.log(`Backend đang chạy tại: http://localhost:${port}`);
-  console.log(`Swagger API: http://localhost:${port}/api`);
+  const logger = app.get(WINSTON_MODULE_NEST_PROVIDER);
+  logger.log(`Backend đang chạy tại: http://localhost:${port}`, 'Bootstrap');
+  logger.log(`Swagger API: http://localhost:${port}/api`, 'Bootstrap');
 }
 
 bootstrap();

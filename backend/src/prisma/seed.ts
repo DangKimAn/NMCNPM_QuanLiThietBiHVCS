@@ -1,4 +1,4 @@
-import { PrismaClient } from '@prisma/client';
+import { PrismaClient, RoomStatus, EquipmentStatus } from '@prisma/client';
 import { hashPassword } from '../common/bcrypt';
 import 'dotenv/config'; 
 import { SystemPermission, 
@@ -173,6 +173,18 @@ async function main() {
       email: 'admin@system.com',
       roleName: 'ADMIN',
       password :'passwordadmindefault'
+    },
+    {
+      username: 'teacher_01',
+      email: 'teacher@system.com',
+      roleName: 'TEACHER',
+      password :'passwordteacherdefault'
+    },
+    {
+      username: 'student_01',
+      email: 'student@system.com',
+      roleName: 'STUDENT',
+      password :'passwordstudentdefault'
     }
   ];
 
@@ -191,6 +203,95 @@ async function main() {
       },
     });
   }
+
+  // --------------------------------------------------------
+  // 4. TẠO CÁC DANH MỤC THIẾT BỊ VÀ PHÒNG HỌC
+  // --------------------------------------------------------
+  console.log('Bắt đầu seed dữ liệu phòng học và thiết bị...');
+  const categories = [
+    { name: 'Máy chiếu', description: 'Máy chiếu phục vụ giảng dạy' },
+    { name: 'Máy lạnh', description: 'Máy điều hòa nhiệt độ' },
+    { name: 'Âm thanh', description: 'Loa, amply, micro' },
+    { name: 'Bảng từ', description: 'Bảng viết phấn/bút lông' },
+    { name: 'Bàn ghế', description: 'Bàn ghế giáo viên và sinh viên' },
+  ];
+
+  const createdCategories: Record<string, number> = {};
+  for (const cat of categories) {
+    const existingCat = await prisma.equipmentCategory.findFirst({
+      where: { name: cat.name }
+    });
+    if (existingCat) {
+      createdCategories[cat.name] = existingCat.categoryId;
+    } else {
+      const newCat = await prisma.equipmentCategory.create({
+        data: { name: cat.name, description: cat.description }
+      });
+      createdCategories[cat.name] = newCat.categoryId;
+    }
+  }
+
+  const roomsToCreate: any[] = [];
+  for (let i = 1; i <= 8; i++) { roomsToCreate.push({ code: `2A0${i}`, name: `Phòng 2A0${i}`, building: 'A', floor: 1, capacity: 50, status: RoomStatus.AVAILABLE }); }
+  for (let floor = 2; floor <= 4; floor++) { for (let i = 1; i <= 6; i++) { roomsToCreate.push({ code: `2A${floor - 1}${i}`, name: `Phòng 2A${floor - 1}${i}`, building: 'A', floor: floor, capacity: 50, status: RoomStatus.AVAILABLE }); } }
+  for (let floor = 1; floor <= 4; floor++) { for (let i = 1; i <= 6; i++) { roomsToCreate.push({ code: `2B${floor - 1}${i}`, name: `Phòng 2B${floor - 1}${i}`, building: 'B', floor: floor, capacity: 50, status: RoomStatus.AVAILABLE }); } }
+  for (let floor = 1; floor <= 4; floor++) { for (let i = 1; i <= 6; i++) { roomsToCreate.push({ code: `2E${floor - 1}${i}`, name: `Phòng 2E${floor - 1}${i}`, building: 'E', floor: floor, capacity: 50, status: RoomStatus.AVAILABLE }); } }
+  for (let i = 1; i <= 6; i++) { roomsToCreate.push({ code: `2D0${i}`, name: `Phòng 2D0${i}`, building: 'D', floor: 1, capacity: 50, status: RoomStatus.AVAILABLE }); }
+  for (let i = 1; i <= 3; i++) { roomsToCreate.push({ code: `Kho 0${i}`, name: `Kho Lưu Trữ 0${i}`, building: 'Kho', floor: 1, capacity: 100, status: RoomStatus.AVAILABLE }); }
+
+  const allRooms: Record<string, number> = {};
+  for (const room of roomsToCreate) {
+    const created = await prisma.room.upsert({ where: { code: room.code }, update: {}, create: room });
+    allRooms[room.code] = created.roomId;
+  }
+  console.log(`Đã tạo ${roomsToCreate.length} phòng học/kho.`);
+
+  // --------------------------------------------------------
+  // 5. TẠO VÀ PHÂN BỔ THIẾT BỊ
+  // --------------------------------------------------------
+  const equipmentTypes = [
+    { name: 'Máy chiếu Panasonic', cat: 'Máy chiếu', unit: 'Cái', qtyPerRoom: 1 },
+    { name: 'Máy lạnh Daikin 2HP', cat: 'Máy lạnh', unit: 'Cái', qtyPerRoom: 2 },
+    { name: 'Bộ Loa & Amply', cat: 'Âm thanh', unit: 'Bộ', qtyPerRoom: 1 },
+    { name: 'Micro không dây', cat: 'Âm thanh', unit: 'Cái', qtyPerRoom: 1 },
+    { name: 'Bảng từ chống lóa', cat: 'Bảng từ', unit: 'Cái', qtyPerRoom: 1 },
+    { name: 'Bàn ghế giảng viên', cat: 'Bàn ghế', unit: 'Bộ', qtyPerRoom: 1 },
+    { name: 'Bàn ghế sinh viên', cat: 'Bàn ghế', unit: 'Bộ', qtyPerRoom: 25 },
+  ];
+
+  const classroomCodes = Object.keys(allRooms).filter(c => !c.startsWith('Kho'));
+  for (const eqType of equipmentTypes) {
+    const existingEquipment = await prisma.equipment.findFirst({ where: { name: eqType.name } });
+    if (!existingEquipment) {
+      const newEquipment = await prisma.equipment.create({
+        data: {
+          name: eqType.name,
+          categoryId: createdCategories[eqType.cat],
+          quantity: eqType.qtyPerRoom * classroomCodes.length + 50,
+          unit: eqType.unit,
+          status: EquipmentStatus.GOOD,
+          description: `Trang bị tiêu chuẩn`,
+        },
+      });
+
+      const allocationsData: any[] = classroomCodes.map(code => ({
+        equipmentId: newEquipment.equipmentId,
+        roomId: allRooms[code],
+        quantity: eqType.qtyPerRoom,
+        allocatedAt: new Date(),
+        note: 'Cấp phát ban đầu',
+      }));
+      allocationsData.push({
+        equipmentId: newEquipment.equipmentId,
+        roomId: allRooms['Kho 01'],
+        quantity: 50,
+        allocatedAt: new Date(),
+        note: 'Nhập kho dự phòng',
+      });
+      await prisma.equipmentAllocation.createMany({ data: allocationsData });
+    }
+  }
+  console.log(`Đã tạo và phân bổ thiết bị thành công!`);
 
   console.log("==========================USER TEST==========================")
   console.log('+------------------------------+------------------------------+------------------------------+')

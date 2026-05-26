@@ -19,14 +19,32 @@ export class RoleService {
     }
 
 
-    async getAllRole(): Promise<RoleDto[]> {
+
+    async getAllRole() {
         try {
-            const roles: RoleDto[] = await this.prismaService.role.findMany();
-            return roles;
+            const roles = await this.prismaService.role.findMany({
+                include: {
+                    permissions: {
+                        include: {
+                            permission: true,
+                        },
+                    },
+                },
+            });
+            // Flatten: trả về permissions là array Permission trực tiếp
+            return roles.map((role) => ({
+                roleId: role.roleId,
+                roleName: role.roleName,
+                description: role.description,
+                createdAt: role.createdAt,
+                updatedAt: role.updatedAt,
+                permissions: role.permissions.map((rp) => rp.permission),
+            }));
         } catch (error) {
             throw new InternalServerErrorException()
         }
     }
+
 
 
     async createRole(createRoleDto: createRoleDto): Promise<Role> {

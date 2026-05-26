@@ -1,27 +1,33 @@
 import { Body, Controller, Delete, Get, Param, Patch, Post, Query, UseGuards } from '@nestjs/common';
-import { ApiTags } from '@nestjs/swagger';
+import { ApiTags, ApiQuery } from '@nestjs/swagger';
 import { EquipmentStatus } from '@prisma/client';
 
 import { EquipmentService } from './equipment.service';
 import { CreateEquipmentDto } from './dto/create-equipment.dto';
 import { UpdateEquipmentDto } from './dto/update-equipment.dto';
 import { UpdateEquipmentStatusDto } from './dto/update-equipment-status.dto';
-import { Role } from 'src/auth/decorators/role.enum'; 
+import { Role } from 'src/auth/decorators/role.enum';
 
 // Import các bộ bảo vệ quyền truy cập của bạn
-import { JwtAuthGuard } from 'src/auth/guards/jwt-auth.guard'; 
+import { JwtAuthGuard } from 'src/auth/guards/jwt-auth.guard';
 import { RolesGuard } from 'src/auth/guards/roles.guard';
 import { Roles } from 'src/auth/decorators/roles.decorator';
+
+import { Public } from 'src/auth/decorators/public.decorator';
 
 @ApiTags('Equipments - Thiết bị')
 @Controller('equipments')
 @UseGuards(JwtAuthGuard, RolesGuard) // Bọc toàn bộ file: Phải đăng nhập mới được sờ vào các API này
 export class EquipmentController {
-  constructor(private readonly equipmentService: EquipmentService) {}
+  constructor(private readonly equipmentService: EquipmentService) { }
 
-  //AI CŨNG XEM ĐƯỢC: Giáo viên/Học sinh có thể xem danh sách thiết bị để báo hỏng
+  // AI CŨNG XEM ĐƯỢC: Bất kỳ ai đăng nhập đều có thể xem danh sách thiết bị
+  @Public()
   @Get()
-  @Roles(Role.MANAGER, Role.ADMIN, Role.TEACHER, Role.STUDENT) 
+  @ApiQuery({ name: 'search', required: false })
+  @ApiQuery({ name: 'status', required: false, enum: EquipmentStatus })
+  @ApiQuery({ name: 'roomId', required: false, type: String })
+  @ApiQuery({ name: 'categoryId', required: false, type: String })
   findAll(
     @Query('search') search?: string,
     @Query('status') status?: EquipmentStatus | 'need-handle',
@@ -36,9 +42,9 @@ export class EquipmentController {
     });
   }
 
-  //AI CŨNG XEM ĐƯỢC: Xem chi tiết một thiết bị
+  // AI CŨNG XEM ĐƯỢC: Bất kỳ ai đăng nhập đều có thể xem chi tiết thiết bị
+  @Public()
   @Get(':equipmentId')
-  @Roles(Role.MANAGER, Role.ADMIN, Role.TEACHER, Role.STUDENT)
   findOne(@Param('equipmentId') equipmentId: string) {
     return this.equipmentService.findOne(Number(equipmentId));
   }
@@ -50,9 +56,9 @@ export class EquipmentController {
     return this.equipmentService.create(dto);
   }
 
- // CHỈ MANAGER: Mới có quyền cập nhật thông tin thiết bị (ADMIN không có quyền)
+  // CHỈ MANAGER: Mới có quyền cập nhật thông tin thiết bị (ADMIN không có quyền)
   @Patch(':equipmentId')
-  @Roles(Role.MANAGER) 
+  @Roles(Role.MANAGER)
   update(
     @Param('equipmentId') equipmentId: string,
     @Body() dto: UpdateEquipmentDto,
@@ -62,7 +68,7 @@ export class EquipmentController {
 
   // CHỈ MANAGER: Mới có quyền duyệt/đổi trạng thái thiết bị (ADMIN không có quyền)
   @Patch(':equipmentId/status')
-  @Roles(Role.MANAGER) 
+  @Roles(Role.MANAGER)
   updateStatus(
     @Param('equipmentId') equipmentId: string,
     @Body() dto: UpdateEquipmentStatusDto,

@@ -1,20 +1,15 @@
+import { useEffect, useState } from 'react';
 import { AdminLayout } from '../../components/layout/AdminLayout';
 import { FiUserPlus } from 'react-icons/fi';
 import { DynamicFormModal } from '../../components/ui/DynamicFormModal';
 import { PageHeader } from '../../components/ui/PageHeader';
 import type { FormField } from '../../components/ui/DynamicFormModal';
-import { useCrud } from '../../hooks/useCrud';
 import type { TableColumn } from '../../components/ui/Table';
 import { Table } from '../../components/ui/Table';
+import { adminApi, toBackendStatus } from '../../services/adminApi';
+import type { AdminUser } from '../../services/adminApi';
 
 const userFields: FormField[] = [
-  {
-    name: 'id',
-    label: 'Mã người dùng',
-    type: 'text',
-    required: true,
-    readOnlyOnEdit: true,
-  },
   {
     name: 'username',
     label: 'Tên đăng nhập',
@@ -23,18 +18,29 @@ const userFields: FormField[] = [
     readOnlyOnEdit: true,
   },
   {
-    name: 'fullName',
-    label: 'Họ và tên',
+    name: 'email',
+    label: 'Email',
     type: 'text',
     required: true,
-    fullWidth: true,
+    readOnlyOnEdit: true,
+  },
+  {
+    name: 'password',
+    label: 'Mật khẩu',
+    type: 'text',
+  },
+  {
+    name: 'phoneNumber',
+    label: 'Số điện thoại',
+    type: 'text',
   },
   {
     name: 'role',
     label: 'Vai trò',
     type: 'select',
-    options: ['Quản trị viên', 'Cán bộ QLTB', 'Giảng viên', 'Sinh viên'],
-    defaultValue: 'Sinh viên',
+    options: ['ADMIN', 'MANAGER', 'LECTURER', 'STUDENT'],
+    defaultValue: 'STUDENT',
+    readOnlyOnEdit: true,
   },
   {
     name: 'status',
@@ -42,37 +48,6 @@ const userFields: FormField[] = [
     type: 'select',
     options: ['Hoạt động', 'Đã khóa'],
     defaultValue: 'Hoạt động',
-  },
-];
-
-const initialUsers = [
-  {
-    id: 'NV001',
-    username: 'admin_hethong',
-    fullName: 'Nguyễn Văn A',
-    role: 'Quản trị viên',
-    status: 'Hoạt động',
-  },
-  {
-    id: 'NV002',
-    username: 'cb_thietbi1',
-    fullName: 'Trần Thị B',
-    role: 'Cán bộ QLTB',
-    status: 'Hoạt động',
-  },
-  {
-    id: 'GV001',
-    username: 'gv_toancc',
-    fullName: 'Lê Văn C',
-    role: 'Giảng viên',
-    status: 'Hoạt động',
-  },
-  {
-    id: 'SV001',
-    username: 'sv_cntt01',
-    fullName: 'Phạm Văn D',
-    role: 'Sinh viên',
-    status: 'Đã khóa',
   },
 ];
 
@@ -92,10 +67,10 @@ const userColumns: TableColumn[] = [
     ),
   },
   {
-    header: 'Họ và tên',
-    key: 'fullName',
+    header: 'Email',
+    key: 'email',
     render: (item) => (
-      <span className="text-slate-700">{item.fullName}</span>
+      <span className="text-slate-700">{item.email}</span>
     ),
   },
   {
@@ -125,19 +100,89 @@ const userColumns: TableColumn[] = [
 ];
 
 export const UserManager = () => {
-  const {
-    data: users,
-    isModalOpen,
-    editingItem: editingUser,
-    handleOpenAdd,
-    handleOpenEdit,
-    setIsModalOpen,
-    handleSave: handleSaveUser,
-    handleDelete,
-  } = useCrud(initialUsers, 'id');
+  const [users, setUsers] = useState<AdminUser[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [editingUser, setEditingUser] = useState<AdminUser | null>(null);
 
-  const onDeleteUser = (userId: string) => {
-    handleDelete(userId, 'Bạn có chắc chắn muốn xóa tài khoản này?');
+  const loadUsers = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      const data = await adminApi.getUsers();
+      setUsers(data);
+    } catch (err) {
+      setError('Không thể tải danh sách tài khoản. Vui lòng thử lại.');
+      console.error(err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadUsers();
+  }, []);
+
+  const handleOpenAdd = () => {
+    setEditingUser(null);
+    setIsModalOpen(true);
+  };
+
+  const handleOpenEdit = (user: AdminUser) => {
+    setEditingUser(user);
+    setIsModalOpen(true);
+  };
+
+  const handleSave = async (formData: Record<string, any>) => {
+    try {
+      if (editingUser) {
+        // Cập nhật user
+        const payload: Record<string, any> = {};
+        if (formData.password) payload.password = formData.password;
+        if (formData.phoneNumber !== undefined) payload.phoneNumber = formData.phoneNumber;
+        if (formData.status) payload.status = toBackendStatus(formData.status as string);
+
+        await adminApi.updateUser(editingUser.userId, payload);
+
+        // Đổi role nếu thay đổi
+        if (formData.role && formData.role !== editingUser.role) {
+          await adminApi.changeUserRole(editingUser.userId, formData.role as string);
+        }
+      } else {
+        // Tạo user mới
+        if (!formData.email || !formData.username || !formData.password) {
+          alert('Vui lòng điền đầy đủ email, tên đăng nhập và mật khẩu.');
+          return;
+        }
+        await adminApi.createUser({
+          email: formData.email as string,
+          username: formData.username as string,
+          password: formData.password as string,
+          phoneNumber: formData.phoneNumber as string | undefined,
+        });
+      }
+
+      setIsModalOpen(false);
+      await loadUsers();
+    } catch (err: any) {
+      alert(`Lỗi: ${err.message || 'Không thể lưu tài khoản'}`);
+    }
+  };
+
+  const handleDelete = async (userId: string) => {
+    const isConfirm = window.confirm('Bạn có chắc chắn muốn xóa tài khoản này?');
+    if (!isConfirm) return;
+
+    const user = users.find((u) => u.id === userId);
+    if (!user) return;
+
+    try {
+      await adminApi.deleteUser(user.userId);
+      setUsers((prev) => prev.filter((u) => u.id !== userId));
+    } catch (err: any) {
+      alert(`Lỗi: ${err.message || 'Không thể xóa tài khoản'}`);
+    }
   };
 
   return (
@@ -157,18 +202,37 @@ export const UserManager = () => {
         }
       />
 
-      <Table
-        data={users}
-        columns={userColumns}
-        onEdit={handleOpenEdit}
-        onDelete={onDeleteUser}
-        emptyMessage="Không có tài khoản nào trong hệ thống."
-      />
+      {loading && (
+        <div className="text-center py-10 text-slate-500">Đang tải dữ liệu...</div>
+      )}
+
+      {error && (
+        <div className="bg-red-50 border border-red-200 text-red-600 rounded-lg p-4 mb-4">
+          {error}
+          <button
+            type="button"
+            onClick={loadUsers}
+            className="ml-3 text-sm underline"
+          >
+            Thử lại
+          </button>
+        </div>
+      )}
+
+      {!loading && !error && (
+        <Table
+          data={users}
+          columns={userColumns}
+          onEdit={handleOpenEdit}
+          onDelete={handleDelete}
+          emptyMessage="Không có tài khoản nào trong hệ thống."
+        />
+      )}
 
       <DynamicFormModal
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
-        onSave={handleSaveUser}
+        onSave={handleSave}
         initialData={editingUser}
         fields={userFields}
         titleAdd="Thêm tài khoản mới"

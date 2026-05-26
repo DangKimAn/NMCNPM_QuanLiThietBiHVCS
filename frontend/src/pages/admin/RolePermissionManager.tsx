@@ -15,19 +15,22 @@ import {
   SummaryCard,
   TableHead,
 } from '../../components/manager/common/ManagerCommon';
+import { adminApi } from '../../services/adminApi';
+import type { BackendRole, BackendPermission } from '../../services/adminApi';
+
+// Frontend type dùng trong UI
+interface AdminRole {
+  id: number;
+  name: string;
+  description?: string;
+  permissions: AdminPermission[];
+}
 
 interface AdminPermission {
   id: number;
   name: string;
   code?: string;
   description?: string;
-}
-
-interface AdminRole {
-  id: number;
-  name: string;
-  description?: string;
-  permissions: AdminPermission[];
 }
 
 interface RoleForm {
@@ -37,110 +40,71 @@ interface RoleForm {
   permissionIds: number[];
 }
 
-const initialPermissions: AdminPermission[] = [
-  {
-    id: 1,
-    name: 'Quản lý tài khoản',
-    code: 'MANAGE_USERS',
-    description: 'Thêm, sửa, khóa và xóa tài khoản người dùng',
-  },
-  {
-    id: 2,
-    name: 'Phân quyền',
-    code: 'MANAGE_ROLES',
-    description: 'Quản lý vai trò và quyền truy cập',
-  },
-  {
-    id: 3,
-    name: 'Xem nhật ký hệ thống',
-    code: 'VIEW_LOGS',
-    description: 'Theo dõi lịch sử thao tác trong hệ thống',
-  },
-  {
-    id: 4,
-    name: 'Quản lý thiết bị',
-    code: 'MANAGE_EQUIPMENT',
-    description: 'Quản lý danh mục, trạng thái và điều chuyển thiết bị',
-  },
-  {
-    id: 5,
-    name: 'Xử lý phản ánh',
-    code: 'HANDLE_REPORTS',
-    description: 'Tiếp nhận và cập nhật trạng thái phản ánh sự cố',
-  },
-  {
-    id: 6,
-    name: 'Gửi phản ánh',
-    code: 'CREATE_REPORT',
-    description: 'Gửi phản ánh báo hỏng thiết bị phòng học',
-  },
-];
-
-const initialRoles: AdminRole[] = [
-  {
-    id: 1,
-    name: 'Quản trị viên',
-    description: 'Có toàn quyền quản lý hệ thống',
-    permissions: initialPermissions,
-  },
-  {
-    id: 2,
-    name: 'Cán bộ QLTB',
-    description: 'Quản lý thiết bị, điều chuyển thiết bị và xử lý phản ánh',
-    permissions: initialPermissions.filter((permission) =>
-      ['MANAGE_EQUIPMENT', 'HANDLE_REPORTS'].includes(permission.code || ''),
-    ),
-  },
-  {
-    id: 3,
-    name: 'Giảng viên',
-    description: 'Gửi phản ánh và theo dõi phản ánh đã gửi',
-    permissions: initialPermissions.filter((permission) =>
-      ['CREATE_REPORT'].includes(permission.code || ''),
-    ),
-  },
-  {
-    id: 4,
-    name: 'Sinh viên',
-    description: 'Gửi phản ánh và theo dõi phản ánh đã gửi',
-    permissions: initialPermissions.filter((permission) =>
-      ['CREATE_REPORT'].includes(permission.code || ''),
-    ),
-  },
-];
-
 const emptyForm: RoleForm = {
   name: '',
   description: '',
   permissionIds: [],
 };
 
+// Map backend → frontend
+const mapBackendRole = (r: BackendRole): AdminRole => ({
+  id: r.roleId,
+  name: r.roleName,
+  description: r.description ?? '',
+  permissions: (r.permissions ?? []).map((p) => ({
+    id: p.permissionId,
+    name: p.permissionName,
+    description: p.description ?? '',
+  })),
+});
+
+const mapBackendPermission = (p: BackendPermission): AdminPermission => ({
+  id: p.permissionId,
+  name: p.permissionName,
+  description: p.description ?? '',
+});
+
 export const RolePermissionManager = () => {
-  const [roles, setRoles] = useState<AdminRole[]>(initialRoles);
-  const [permissions] = useState<AdminPermission[]>(initialPermissions);
+  const [roles, setRoles] = useState<AdminRole[]>([]);
+  const [permissions, setPermissions] = useState<AdminPermission[]>([]);
 
   const [keyword, setKeyword] = useState('');
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [roleForm, setRoleForm] = useState<RoleForm>(emptyForm);
 
+  const loadData = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      const [rolesData, permsData] = await Promise.all([
+        adminApi.getRoles(),
+        adminApi.getPermissions(),
+      ]);
+      setRoles(rolesData.map(mapBackendRole));
+      setPermissions(permsData.map(mapBackendPermission));
+    } catch (err: any) {
+      setError('Không thể tải dữ liệu phân quyền. Vui lòng thử lại.');
+      console.error(err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   useEffect(() => {
-    setLoading(false);
+    loadData();
   }, []);
 
   const filteredRoles = useMemo(() => {
     const value = keyword.trim().toLowerCase();
-
     return roles.filter((role) => {
       if (!value) return true;
-
       return (
         role.name.toLowerCase().includes(value) ||
         role.description?.toLowerCase().includes(value) ||
-        role.permissions.some((permission) =>
-          permission.name.toLowerCase().includes(value),
-        )
+        role.permissions.some((p) => p.name.toLowerCase().includes(value))
       );
     });
   }, [roles, keyword]);
@@ -155,15 +119,13 @@ export const RolePermissionManager = () => {
       id: role.id,
       name: role.name,
       description: role.description || '',
-      permissionIds: role.permissions.map((permission) => permission.id),
+      permissionIds: role.permissions.map((p) => p.id),
     });
-
     setIsModalOpen(true);
   };
 
   const togglePermission = (permissionId: number) => {
     const exists = roleForm.permissionIds.includes(permissionId);
-
     setRoleForm({
       ...roleForm,
       permissionIds: exists
@@ -172,53 +134,66 @@ export const RolePermissionManager = () => {
     });
   };
 
-  const saveRole = (e: FormEvent<HTMLFormElement>) => {
+  const saveRole = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-
     if (!roleForm.name.trim()) {
       alert('Vui lòng nhập tên vai trò.');
       return;
     }
 
-    const selectedPermissions = permissions.filter((permission) =>
-      roleForm.permissionIds.includes(permission.id),
-    );
-
-    if (roleForm.id) {
-      setRoles((prevRoles) =>
-        prevRoles.map((role) =>
-          role.id === roleForm.id
-            ? {
-                ...role,
-                name: roleForm.name,
-                description: roleForm.description,
-                permissions: selectedPermissions,
-              }
-            : role,
-        ),
-      );
-    } else {
-      const newRole: AdminRole = {
-        id: roles.length > 0 ? Math.max(...roles.map((role) => role.id)) + 1 : 1,
-        name: roleForm.name,
-        description: roleForm.description,
-        permissions: selectedPermissions,
-      };
-
-      setRoles((prevRoles) => [...prevRoles, newRole]);
+    try {
+      if (roleForm.id) {
+        // Cập nhật role
+        await adminApi.updateRole(roleForm.id, {
+          roleName: roleForm.name,
+          description: roleForm.description,
+        });
+        // Cập nhật local state (permissions chưa có API remove riêng nên chỉ cập nhật tên/mô tả)
+        const selectedPermissions = permissions.filter((p) =>
+          roleForm.permissionIds.includes(p.id),
+        );
+        setRoles((prev) =>
+          prev.map((role) =>
+            role.id === roleForm.id
+              ? {
+                  ...role,
+                  name: roleForm.name,
+                  description: roleForm.description,
+                  permissions: selectedPermissions,
+                }
+              : role,
+          ),
+        );
+      } else {
+        // Tạo role mới
+        const newRole = await adminApi.createRole({
+          roleName: roleForm.name,
+          description: roleForm.description,
+        });
+        // Thêm permissions cho role mới
+        for (const permissionId of roleForm.permissionIds) {
+          await adminApi.addPermissionToRole(newRole.roleId, permissionId);
+        }
+        await loadData(); // Reload để lấy dữ liệu mới nhất
+      }
+      setIsModalOpen(false);
+    } catch (err: any) {
+      alert(`Lỗi: ${err.message || 'Không thể lưu vai trò'}`);
     }
-
-    setIsModalOpen(false);
   };
 
-  const deleteRole = (role: AdminRole) => {
+  const deleteRole = async (role: AdminRole) => {
     const confirmDelete = window.confirm(
       `Bạn có chắc chắn muốn xóa vai trò "${role.name}"?`,
     );
-
     if (!confirmDelete) return;
 
-    setRoles((prevRoles) => prevRoles.filter((item) => item.id !== role.id));
+    try {
+      await adminApi.deleteRole(role.id);
+      setRoles((prev) => prev.filter((item) => item.id !== role.id));
+    } catch (err: any) {
+      alert(`Lỗi: ${err.message || 'Không thể xóa vai trò'}`);
+    }
   };
 
   return (
@@ -228,7 +203,6 @@ export const RolePermissionManager = () => {
           <h1 className="text-2xl font-black text-slate-800">
             Phân quyền hệ thống
           </h1>
-
           <p className="text-sm text-slate-500 mt-1">
             Quản lý vai trò và các quyền được gán cho từng vai trò trong hệ thống.
           </p>
@@ -246,24 +220,17 @@ export const RolePermissionManager = () => {
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
         <SummaryCard icon={<FiUsers />} label="Tổng vai trò" value={roles.length} />
-
-        <SummaryCard
-          icon={<FiShield />}
-          label="Tổng quyền"
-          value={permissions.length}
-        />
-
+        <SummaryCard icon={<FiShield />} label="Tổng quyền" value={permissions.length} />
         <SummaryCard
           icon={<FiShield />}
           label="Vai trò có quyền"
-          value={roles.filter((role) => role.permissions.length > 0).length}
+          value={roles.filter((r) => r.permissions.length > 0).length}
         />
       </div>
 
       <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4 mb-4">
         <div className="relative max-w-md">
           <FiSearch className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-
           <input
             value={keyword}
             onChange={(e) => setKeyword(e.target.value)}
@@ -279,7 +246,16 @@ export const RolePermissionManager = () => {
         </div>
       )}
 
-      {!loading && (
+      {error && (
+        <div className="bg-red-50 border border-red-200 text-red-600 rounded-lg p-4 mb-4">
+          {error}
+          <button type="button" onClick={loadData} className="ml-3 text-sm underline">
+            Thử lại
+          </button>
+        </div>
+      )}
+
+      {!loading && !error && (
         <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full text-left border-collapse">
@@ -311,13 +287,12 @@ export const RolePermissionManager = () => {
                             Chưa gán quyền
                           </span>
                         )}
-
-                        {role.permissions.map((permission) => (
+                        {role.permissions.map((perm) => (
                           <span
-                            key={permission.id}
+                            key={perm.id}
                             className="px-2.5 py-1 rounded-full text-xs font-semibold bg-blue-50 text-blue-600 border border-blue-100"
                           >
-                            {permission.name}
+                            {perm.name}
                           </span>
                         ))}
                       </div>
@@ -333,7 +308,6 @@ export const RolePermissionManager = () => {
                         >
                           <FiEdit2 />
                         </button>
-
                         <button
                           type="button"
                           onClick={() => deleteRole(role)}
@@ -349,10 +323,7 @@ export const RolePermissionManager = () => {
 
                 {filteredRoles.length === 0 && (
                   <tr>
-                    <td
-                      colSpan={4}
-                      className="px-6 py-12 text-center text-sm text-slate-500"
-                    >
+                    <td colSpan={4} className="px-6 py-12 text-center text-sm text-slate-500">
                       Không tìm thấy vai trò phù hợp.
                     </td>
                   </tr>
@@ -374,16 +345,10 @@ export const RolePermissionManager = () => {
             <label className="block text-sm font-semibold text-slate-700 mb-1">
               Tên vai trò
             </label>
-
             <input
               value={roleForm.name}
-              onChange={(e) =>
-                setRoleForm({
-                  ...roleForm,
-                  name: e.target.value,
-                })
-              }
-              placeholder="Ví dụ: Quản trị viên, Cán bộ QLTB..."
+              onChange={(e) => setRoleForm({ ...roleForm, name: e.target.value })}
+              placeholder="Ví dụ: ADMIN, MANAGER..."
               className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:border-blue-500"
             />
           </div>
@@ -392,15 +357,9 @@ export const RolePermissionManager = () => {
             <label className="block text-sm font-semibold text-slate-700 mb-1">
               Mô tả
             </label>
-
             <textarea
               value={roleForm.description}
-              onChange={(e) =>
-                setRoleForm({
-                  ...roleForm,
-                  description: e.target.value,
-                })
-              }
+              onChange={(e) => setRoleForm({ ...roleForm, description: e.target.value })}
               rows={3}
               placeholder="Nhập mô tả vai trò..."
               className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:border-blue-500"
@@ -411,33 +370,35 @@ export const RolePermissionManager = () => {
             <label className="block text-sm font-semibold text-slate-700 mb-2">
               Danh sách quyền
             </label>
-
             <div className="grid grid-cols-1 md:grid-cols-2 gap-2 max-h-64 overflow-y-auto pr-1">
-              {permissions.map((permission) => (
+              {permissions.map((perm) => (
                 <label
-                  key={permission.id}
+                  key={perm.id}
                   className="flex items-start gap-2 p-3 rounded-lg border border-slate-200 hover:bg-slate-50 cursor-pointer"
                 >
                   <input
                     type="checkbox"
-                    checked={roleForm.permissionIds.includes(permission.id)}
-                    onChange={() => togglePermission(permission.id)}
+                    checked={roleForm.permissionIds.includes(perm.id)}
+                    onChange={() => togglePermission(perm.id)}
                     className="mt-1"
                   />
-
                   <span>
                     <span className="block text-sm font-semibold text-slate-700">
-                      {permission.name}
+                      {perm.name}
                     </span>
-
-                    {permission.description && (
+                    {perm.description && (
                       <span className="block text-xs text-slate-400 mt-0.5">
-                        {permission.description}
+                        {perm.description}
                       </span>
                     )}
                   </span>
                 </label>
               ))}
+              {permissions.length === 0 && (
+                <p className="text-sm text-slate-400 col-span-2">
+                  Không có quyền nào trong hệ thống.
+                </p>
+              )}
             </div>
           </div>
         </Modal>

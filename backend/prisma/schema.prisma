@@ -115,6 +115,9 @@ model ActivityLog {
   statusCode      Int?
   responseMessage String?  @db.Text
   content         String?  @db.Text
+  ipAddress       String?  @db.VarChar(45)
+  userAgent       String?  @db.Text
+  isMarked        Boolean  @default(false)
   createdAt       DateTime @default(now()) 
   
   user            User     @relation(fields: [userId], references: [userId], onDelete: Restrict)
