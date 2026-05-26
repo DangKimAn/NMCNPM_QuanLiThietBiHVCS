@@ -116,9 +116,7 @@ export const Login = () => {
       subtitle="Hệ thống Quản lý Thiết bị Phòng học"
       ssoText="Đăng nhập bằng Email Học viện"
       onSsoClick={() => window.location.href = 'http://localhost:3000/api/auth/google'}
-      footerText="Chưa có tài khoản?"
-      footerLinkText="Đăng ký ngay"
-      footerLinkTo="/register"
+      footerText="Tài khoản do Quản trị viên cấp. Nếu chưa có tài khoản, vui lòng liên hệ Admin."
     >
       <form onSubmit={handleLogin} className="space-y-5">
         {/* Hiển thị thông báo lỗi nếu đăng nhập thất bại */}

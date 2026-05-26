@@ -357,36 +357,40 @@ export class AuthService {
       }
     }
 
-    const tokens = await this.generateTokens(user.userId, user.username, user.role.roleName);
+  // Chỉ cho phép đăng nhập Google nếu tài khoản đã được Admin tạo trước
+  const user = await this.prismaService.user.findUnique({
+    where: { email },
+    include: { role: true },
+  });
 
-    const hashedRefreshToken = await hashPassword(tokens.refreshToken);
-    await this.prismaService.user.update({
-      where: { userId: user.userId },
-      data: { refreshToken: hashedRefreshToken },
-    });
-
-    return { message: 'Đăng nhập Google thành công', ...tokens };
+  if (!user) {
+    throw new UnauthorizedException(
+      'Tài khoản này chưa được Quản trị viên cấp. Vui lòng liên hệ Admin để được tạo tài khoản.',
+    );
   }
 
-  private async getRoleByEmailDomain(email: string) {
-    let roleName = '';
-    if (email.endsWith('@student.ptithcm.edu.vn')) {
-      roleName = 'STUDENT';
-    } else if (email.endsWith('@ptithcm.edu.vn')) {
-      roleName = 'TEACHER';
-    } else if (email.endsWith('@system.com')) {
-      roleName = 'MANAGER';
-    } else {
-      throw new BadRequestException('Email không hợp lệ. Vui lòng sử dụng email đuôi @student.ptithcm.edu.vn, @ptithcm.edu.vn hoặc @system.com.');
-    }
-
-    const role = await this.prismaService.role.findUnique({ where: { roleName } });
-    if (!role) {
-      throw new InternalServerErrorException(`Hệ thống chưa thiết lập phân quyền (${roleName})! Vui lòng chạy seed database hoặc liên hệ Admin.`);
-    }
-
-    return role;
+  if (user.status !== 'ACTIVE') {
+    throw new UnauthorizedException('Tài khoản đã bị khóa');
   }
+
+  const tokens = await this.generateTokens(
+    user.userId,
+    user.username,
+    user.role.roleName,
+  );
+
+  const hashedRefreshToken = await hashPassword(tokens.refreshToken);
+
+  await this.prismaService.user.update({
+    where: { userId: user.userId },
+    data: { refreshToken: hashedRefreshToken },
+  });
+
+  return {
+    message: 'Đăng nhập Google thành công',
+    ...tokens,
+  };
+}
 
   // ================= FORGOT PASSWORD (GỬI OTP) =================
   async forgotPassword(dto: ForgotPasswordDto) {

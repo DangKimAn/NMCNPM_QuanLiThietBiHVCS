@@ -1,8 +1,7 @@
-import { Controller, Post, Get, Body, UseGuards, Req, Res } from '@nestjs/common';
+import { Controller, Post, Get, Body, UseGuards, Req, Res, ForbiddenException } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
 import { AuthService } from './auth.service';
-import { RegisterDto } from './dto/register.dto'; 
 import { LoginDto } from './dto/login.dto';
 import { ForgotPasswordDto } from './dto/forgot-password.dto';
 import { VerifyOtpDto } from './dto/verify-otp.dto';
@@ -15,10 +14,12 @@ export class AuthController {
   constructor(private authService: AuthService) {}
 
   // 1. Route Đăng ký
-  @Post('register')
-  async register(@Body() dto: RegisterDto) {
-    return this.authService.register(dto);
-  }
+@Post('register')
+async register() {
+  throw new ForbiddenException(
+    'Chức năng đăng ký đã bị vô hiệu hóa. Vui lòng liên hệ Quản trị viên để được cấp tài khoản.',
+  );
+}
 
   // 2. Route Đăng nhập
   @Post('login')
