@@ -12,6 +12,7 @@ import { CreateUserDto } from './dto/create-user.dto';
 import { hashPassword, verifyPassword } from 'src/common/bcrypt';
 import { UpdateUserDto } from './dto/updateUser.dto';
 import { plainToInstance } from 'class-transformer';
+import * as xlsx from 'xlsx';
 
 @Injectable()
 export class UserService {
@@ -386,5 +387,83 @@ export class UserService {
     return {
       message: 'Đổi mật khẩu thành công',
     };
+  }
+
+  async importUsersFromExcel(file: any) {
+    let successCount = 0;
+    let failedCount = 0;
+    const errors: { row: number; reason: string }[] = [];
+
+    try {
+      const workbook = xlsx.read(file.buffer, { type: 'buffer' });
+      const sheetName = workbook.SheetNames[0];
+      const sheet = workbook.Sheets[sheetName];
+      const data: any[] = xlsx.utils.sheet_to_json(sheet);
+
+      let rowNum = 1; 
+
+      for (const row of data) {
+        rowNum++;
+        try {
+          const username = row['Username'] || row['username'];
+          const email = row['Email'] || row['email'];
+          const fullName = row['Họ tên'] || row['fullName'];
+          const phoneNumber = row['Số điện thoại'] || row['phoneNumber'];
+          const password = row['Mật khẩu tạm thời'] || row['password'] || '123456aA@';
+          const roleName = row['Vai trò'] || row['roleName'] || 'STUDENT';
+
+          if (!username || !email) {
+            failedCount++;
+            errors.push({ row: rowNum, reason: 'Thiếu Username hoặc Email' });
+            continue;
+          }
+
+          const existingUser = await this.prismaService.user.findFirst({
+            where: {
+              OR: [{ username: String(username) }, { email: String(email) }]
+            }
+          });
+
+          if (existingUser) {
+            failedCount++;
+            errors.push({ row: rowNum, reason: 'Username hoặc Email đã tồn tại' });
+            continue;
+          }
+
+          const targetRole = await this.prismaService.role.findUnique({
+            where: { roleName: String(roleName) },
+          });
+
+          if (!targetRole) {
+            failedCount++;
+            errors.push({ row: rowNum, reason: `Vai trò [${roleName}] không tồn tại` });
+            continue;
+          }
+
+          const hashedPassword = await hashPassword(String(password));
+
+          await this.prismaService.user.create({
+            data: {
+              username: String(username),
+              email: String(email),
+              fullName: fullName ? String(fullName) : null,
+              phoneNumber: phoneNumber ? String(phoneNumber) : null,
+              hashedPassword,
+              roleId: targetRole.roleId,
+              status: 'ACTIVE',
+            },
+          });
+
+          successCount++;
+        } catch (e: any) {
+          failedCount++;
+          errors.push({ row: rowNum, reason: e.message || 'Lỗi hệ thống' });
+        }
+      }
+
+      return { successCount, failedCount, errors };
+    } catch (error) {
+      throw new BadRequestException('Lỗi đọc file Excel. Vui lòng kiểm tra lại định dạng file.');
+    }
   }
 }

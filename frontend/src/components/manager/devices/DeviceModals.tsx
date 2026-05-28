@@ -28,6 +28,7 @@ export const DeviceFormModal = ({
   onClose,
   onSubmit,
 }: DeviceFormModalProps) => {
+
   return (
     <Modal
       title={editingDevice ? `Cập nhật thiết bị - ${editingDevice.id}` : 'Thêm thiết bị mới'}
@@ -167,14 +168,18 @@ export const DeviceStatusModal = ({
 };
 
 interface TransferForm {
+  fromRoom?: string;
+  equipmentId?: string;
   toRoom: string;
+  quantity: number;
   date: string;
   handler: string;
   reason: string;
 }
 
 interface DeviceTransferModalProps {
-  device: Device;
+  device: Device | null;
+  devices?: Device[];
   transferForm: TransferForm;
   setTransferForm: (form: TransferForm) => void;
   roomOptions: string[];
@@ -184,6 +189,7 @@ interface DeviceTransferModalProps {
 
 export const DeviceTransferModal = ({
   device,
+  devices,
   transferForm,
   setTransferForm,
   roomOptions,
@@ -192,25 +198,62 @@ export const DeviceTransferModal = ({
 }: DeviceTransferModalProps) => {
   return (
     <Modal
-      title={`Điều chuyển thiết bị - ${device.id}`}
+      title={device ? `Điều chuyển thiết bị - ${device.id}` : 'Điều chuyển thiết bị'}
       onClose={onClose}
       onSubmit={onSubmit}
       submitText="Xác nhận điều chuyển"
     >
-      <div className="bg-slate-50 border border-slate-200 rounded-lg p-4">
-        <p className="text-sm text-slate-500">Thiết bị</p>
+      {device ? (
+        <div className="bg-slate-50 border border-slate-200 rounded-lg p-4">
+          <p className="text-sm text-slate-500">Thiết bị</p>
 
-        <p className="font-bold text-slate-800">{device.name}</p>
+          <p className="font-bold text-slate-800">{device.name}</p>
 
-        <p className="text-xs text-slate-500 mt-1">Phòng hiện tại: {device.room}</p>
-      </div>
+          <p className="text-xs text-slate-500 mt-1">Phòng hiện tại: {device.room}</p>
+          <p className="text-xs text-slate-500 mt-1">Sẵn sàng điều chuyển: {device.quantity}</p>
+        </div>
+      ) : (
+        <>
+          <FieldSelect
+            label="Phòng hiện tại (Từ phòng)"
+            value={transferForm.fromRoom || ''}
+            options={roomOptions}
+            onChange={(value) => setTransferForm({ ...transferForm, fromRoom: value, equipmentId: '', quantity: 1 })}
+          />
+          
+          <div className="mt-4 mb-4">
+            <label className="block text-sm font-medium text-slate-700 mb-1.5">Thiết bị cần chuyển</label>
+            <select
+              value={transferForm.equipmentId || ''}
+              onChange={(e) => setTransferForm({ ...transferForm, equipmentId: e.target.value, quantity: 1 })}
+              className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:border-blue-500 bg-white"
+            >
+              <option value="">-- Chọn thiết bị --</option>
+              {devices
+                ?.filter(d => d.room === transferForm.fromRoom)
+                .map(d => (
+                  <option key={d.id} value={d.id}>{d.name} (Có sẵn: {d.quantity})</option>
+                ))}
+            </select>
+          </div>
+        </>
+      )}
 
       <FieldSelect
-        label="Phòng mới"
+        label="Phòng mới (Đến phòng)"
         value={transferForm.toRoom}
         options={roomOptions}
         onChange={(value) => setTransferForm({ ...transferForm, toRoom: value })}
       />
+
+      <div className="mt-4 mb-4">
+        <FieldInput
+          label="Số lượng"
+          type="number"
+          value={transferForm.quantity}
+          onChange={(value) => setTransferForm({ ...transferForm, quantity: Math.max(1, Number(value)) })}
+        />
+      </div>
 
       <FieldInput
         label="Ngày điều chuyển"

@@ -71,12 +71,18 @@ function getAuthHeaders(): Record<string, string> {
 }
 
 async function request<T>(url: string, options?: RequestInit): Promise<T> {
+  const headers: Record<string, string> = {
+    ...getAuthHeaders(),
+    ...(options?.headers as Record<string, string> || {}),
+  };
+
+  if (options?.body instanceof FormData) {
+    delete headers['Content-Type'];
+  }
+
   const response = await fetch(`${API_BASE_URL}${url}`, {
-    headers: {
-      ...getAuthHeaders(),
-      ...(options?.headers || {}),
-    },
     ...options,
+    headers,
   });
 
   if (response.status === 401) {
@@ -368,6 +374,16 @@ export const managerApi = {
   deleteEquipment(equipmentId: string) {
     return request<BackendEquipment>(`/equipments/${equipmentId}`, {
       method: 'DELETE',
+    });
+  },
+
+  importEquipments(file: File) {
+    const formData = new FormData();
+    formData.append('file', file);
+    
+    return request<{ successCount: number; failedCount: number; errors: { row: number; reason: string }[] }>('/equipments/import', {
+      method: 'POST',
+      body: formData,
     });
   },
 

@@ -157,10 +157,11 @@ interface ModalProps {
   onClose: () => void;
   onSubmit: (e: FormEvent<HTMLFormElement>) => void;
   submitText: string;
+  extraActions?: ReactNode;
 }
 
 // Modal dùng chung cho form thêm, sửa, cập nhật và xử lý
-export const Modal = ({ title, children, onClose, onSubmit, submitText }: ModalProps) => (
+export const Modal = ({ title, children, onClose, onSubmit, submitText, extraActions }: ModalProps) => (
   <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm">
     <div className="bg-white rounded-2xl shadow-xl w-full max-w-2xl overflow-hidden">
       <div className="px-6 py-4 border-b border-slate-200 flex justify-between items-center bg-slate-50">
@@ -178,8 +179,12 @@ export const Modal = ({ title, children, onClose, onSubmit, submitText }: ModalP
       <form onSubmit={onSubmit} className="p-6">
         <div className="space-y-4">{children}</div>
 
-        <div className="pt-4 flex justify-end gap-3 border-t border-slate-100 mt-6">
-          <button
+        <div className="pt-4 flex items-center justify-between border-t border-slate-100 mt-6">
+          <div className="flex items-center gap-3">
+            {extraActions}
+          </div>
+          <div className="flex items-center gap-3">
+            <button
             type="button"
             onClick={onClose}
             className="px-4 py-2 bg-white border border-slate-300 text-slate-700 text-sm font-medium rounded-lg hover:bg-slate-50"
@@ -194,6 +199,7 @@ export const Modal = ({ title, children, onClose, onSubmit, submitText }: ModalP
             <FiSave className="mr-2" />
             {submitText}
           </button>
+        </div>
         </div>
       </form>
     </div>
