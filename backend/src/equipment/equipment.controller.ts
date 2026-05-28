@@ -1,5 +1,6 @@
-import { Body, Controller, Delete, Get, Param, Patch, Post, Query, UseGuards } from '@nestjs/common';
-import { ApiTags, ApiQuery } from '@nestjs/swagger';
+import { Body, Controller, Delete, Get, Param, Patch, Post, Query, UseGuards, UseInterceptors, UploadedFile, BadRequestException } from '@nestjs/common';
+import { ApiTags, ApiQuery, ApiConsumes, ApiBody } from '@nestjs/swagger';
+import { FileInterceptor } from '@nestjs/platform-express';
 import { EquipmentStatus } from '@prisma/client';
 
 import { EquipmentService } from './equipment.service';
@@ -54,6 +55,23 @@ export class EquipmentController {
   @Roles(Role.MANAGER, Role.ADMIN)
   create(@Body() dto: CreateEquipmentDto) {
     return this.equipmentService.create(dto);
+  }
+
+  @Post('import')
+  @Roles(Role.MANAGER, Role.ADMIN)
+  @UseInterceptors(FileInterceptor('file'))
+  @ApiConsumes('multipart/form-data')
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        file: { type: 'string', format: 'binary' },
+      },
+    },
+  })
+  async importEquipmentsFromExcel(@UploadedFile() file: any) {
+    if (!file) throw new BadRequestException('Vui lòng chọn file');
+    return await this.equipmentService.importEquipmentsFromExcel(file);
   }
 
   // CHỈ MANAGER: Mới có quyền cập nhật thông tin thiết bị (ADMIN không có quyền)

@@ -1,10 +1,12 @@
-import { Body, Controller, Delete, Get, Param, ParseIntPipe, Patch, Post, UseGuards, ForbiddenException} from '@nestjs/common';
-import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
+import { Body, Controller, Delete, Get, Param, ParseIntPipe, Patch, Post, UseGuards, ForbiddenException, UseInterceptors, UploadedFile, BadRequestException } from '@nestjs/common';
+import { ApiBearerAuth, ApiTags, ApiConsumes, ApiBody } from '@nestjs/swagger';
 import { UserService } from './user.service';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UserDto } from './dto/user.dto';
 import { Role } from 'src/auth/decorators/role.enum';
 import { UpdateUserDto } from './dto/updateUser.dto';
+import { FileInterceptor } from '@nestjs/platform-express';
+import * as xlsx from 'xlsx';
 
 import { JwtAuthGuard } from 'src/auth/guards/jwt-auth.guard'; 
 import { RolesGuard } from 'src/auth/guards/roles.guard';
@@ -23,6 +25,23 @@ export class UserController {
   @Roles(Role.ADMIN)
   async create(@Body() createUserDto: CreateUserDto): Promise<UserDto> {
     return await this.userService.createUser(createUserDto);
+  }
+
+  @Post('import')
+  @Roles(Role.ADMIN)
+  @UseInterceptors(FileInterceptor('file'))
+  @ApiConsumes('multipart/form-data')
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        file: { type: 'string', format: 'binary' },
+      },
+    },
+  })
+  async importUsersFromExcel(@UploadedFile() file: any) {
+    if (!file) throw new BadRequestException('Vui lòng chọn file');
+    return await this.userService.importUsersFromExcel(file);
   }
 
   //CHỈ ADMIN: Xem toàn bộ danh sách User

@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
 import { AdminLayout } from '../../components/layout/AdminLayout';
-import { FiUserPlus } from 'react-icons/fi';
+import { FiUserPlus, FiUpload } from 'react-icons/fi';
 import { DynamicFormModal } from '../../components/ui/DynamicFormModal';
+import { UserImportExcelModal } from './UserImportExcelModal';
 import { PageHeader } from '../../components/ui/PageHeader';
 import type { FormField } from '../../components/ui/DynamicFormModal';
 import type { TableColumn } from '../../components/ui/Table';
@@ -117,6 +118,7 @@ export const UserManager = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isImportModalOpen, setIsImportModalOpen] = useState(false);
   const [editingUser, setEditingUser] = useState<AdminUser | null>(null);
 
   const loadUsers = async () => {
@@ -231,14 +233,24 @@ export const UserManager = () => {
         title="Quản lý tài khoản"
         description="Phân quyền và quản lý người dùng trong hệ thống HVCS"
         action={
-          <button
-            type="button"
-            onClick={handleOpenAdd}
-            className="flex items-center px-4 py-2 bg-indigo-600 text-white text-sm font-medium rounded-lg hover:bg-indigo-700 transition-all shadow-sm"
-          >
-            <FiUserPlus className="mr-2 text-lg" />
-            Thêm tài khoản
-          </button>
+          <div className="flex items-center gap-3">
+            <button
+              type="button"
+              onClick={() => setIsImportModalOpen(true)}
+              className="flex items-center px-4 py-2 bg-emerald-600 text-white text-sm font-medium rounded-lg hover:bg-emerald-700 transition-all shadow-sm"
+            >
+              <FiUpload className="mr-2 text-lg" />
+              Import Excel
+            </button>
+            <button
+              type="button"
+              onClick={handleOpenAdd}
+              className="flex items-center px-4 py-2 bg-indigo-600 text-white text-sm font-medium rounded-lg hover:bg-indigo-700 transition-all shadow-sm"
+            >
+              <FiUserPlus className="mr-2 text-lg" />
+              Thêm tài khoản
+            </button>
+          </div>
         }
       />
 
@@ -283,6 +295,12 @@ export const UserManager = () => {
             ? `Cập nhật tài khoản - ${editingUser.username}`
             : ''
         }
+      />
+
+      <UserImportExcelModal
+        isOpen={isImportModalOpen}
+        onClose={() => setIsImportModalOpen(false)}
+        onSuccess={loadUsers}
       />
     </AdminLayout>
   );

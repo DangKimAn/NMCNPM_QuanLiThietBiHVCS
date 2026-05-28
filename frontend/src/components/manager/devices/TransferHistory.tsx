@@ -1,22 +1,35 @@
 // Component hiển thị lịch sử điều chuyển thiết bị.
 // Mỗi dòng là một lần chuyển thiết bị từ phòng cũ sang phòng mới.
 
+import { FiRefreshCw } from 'react-icons/fi';
 import type { TransferLog } from '../../../types/manager';
 import { TableHead } from '../common/ManagerCommon';
 
 interface TransferHistoryProps {
   transfers: TransferLog[]; // Danh sách lịch sử điều chuyển
+  onOpenTransfer: () => void;
 }
 
-export const TransferHistory = ({ transfers }: TransferHistoryProps) => {
+export const TransferHistory = ({ transfers, onOpenTransfer }: TransferHistoryProps) => {
   return (
     <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
-      <div className="px-6 py-4 border-b border-slate-200 bg-slate-50">
-        <h3 className="font-bold text-slate-800">Lịch sử điều chuyển thiết bị</h3>
+      <div className="px-6 py-4 border-b border-slate-200 bg-slate-50 flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div>
+          <h3 className="font-bold text-slate-800">Lịch sử điều chuyển thiết bị</h3>
 
-        <p className="text-sm text-slate-500 mt-1">
-          Theo dõi thiết bị được chuyển từ phòng này sang phòng khác.
-        </p>
+          <p className="text-sm text-slate-500 mt-1">
+            Theo dõi thiết bị được chuyển từ phòng này sang phòng khác.
+          </p>
+        </div>
+        
+        <button
+          type="button"
+          onClick={onOpenTransfer}
+          className="flex items-center justify-center px-4 py-2 bg-amber-500 text-white text-sm font-medium rounded-lg hover:bg-amber-600 transition shadow-sm whitespace-nowrap"
+        >
+          <FiRefreshCw className="mr-2 text-lg" />
+          Điều chuyển thiết bị
+        </button>
       </div>
 
       {/* Bảng lịch sử điều chuyển thiết bị */}
