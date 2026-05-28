@@ -143,7 +143,14 @@ export const AppLayoutBase = ({
     try {
       const data = await getUnreadNotificationCount();
       setUnreadNotificationCount(data.unreadCount || 0);
-    } catch (error) {
+    } catch (error: any) {
+      // Nếu token hết hạn hoặc không có quyền thì chỉ ẩn số thông báo,
+      // không làm lỗi layout chính.
+      if (error?.response?.status === 401 || error?.response?.status === 403) {
+        setUnreadNotificationCount(0);
+        return;
+      }
+
       console.error('Không lấy được số thông báo chưa đọc:', error);
       setUnreadNotificationCount(0);
     }
@@ -208,6 +215,12 @@ export const AppLayoutBase = ({
           },
         },
       );
+
+      // Token hết hạn hoặc không có quyền thì bỏ qua,
+      // không làm lỗi layout và không ảnh hưởng đăng nhập.
+      if (response.status === 401 || response.status === 403) {
+        return;
+      }
 
       if (!response.ok) return;
 

@@ -10,6 +10,10 @@ import {
   FiX,
 } from 'react-icons/fi';
 
+import AdminLayout from '../../components/layout/AdminLayout';
+import ManagerLayout from '../../components/layout/ManagerLayout';
+import StudentTeacherLayout from '../../components/layout/StudentTeacherLayout';
+
 import {
   createNotification,
   deleteNotification,
@@ -57,7 +61,7 @@ const getCurrentUserRole = (): string => {
         return String(role).toUpperCase();
       }
     } catch {
-      // Bỏ qua nếu dữ liệu không phải JSON
+      // Bỏ qua nếu localStorage không phải JSON
     }
   }
 
@@ -76,9 +80,11 @@ const formatDateTime = (value: string) => {
   });
 };
 
-const NotificationPage = () => {
+const NotificationContent = () => {
   const [searchParams] = useSearchParams();
+
   const selectedNotificationId = Number(searchParams.get('notificationId'));
+  const hasSelectedNotificationId = selectedNotificationId > 0;
 
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -101,14 +107,14 @@ const NotificationPage = () => {
   }, [notifications]);
 
   const selectedNotification = useMemo(() => {
-    if (!selectedNotificationId) return null;
+    if (!hasSelectedNotificationId) return null;
 
     return (
       notifications.find(
         (item) => item.notificationId === selectedNotificationId,
       ) ?? null
     );
-  }, [notifications, selectedNotificationId]);
+  }, [notifications, selectedNotificationId, hasSelectedNotificationId]);
 
   const fetchNotifications = async () => {
     try {
@@ -130,7 +136,7 @@ const NotificationPage = () => {
   }, []);
 
   useEffect(() => {
-    if (!selectedNotificationId) return;
+    if (!hasSelectedNotificationId) return;
 
     const readSelectedNotification = async () => {
       try {
@@ -153,7 +159,7 @@ const NotificationPage = () => {
     };
 
     readSelectedNotification();
-  }, [selectedNotificationId]);
+  }, [selectedNotificationId, hasSelectedNotificationId]);
 
   const handleChangeForm = (
     field: keyof CreateNotificationPayload,
@@ -263,20 +269,18 @@ const NotificationPage = () => {
     <div className="space-y-6">
       <div className="rounded-2xl bg-white p-6 shadow-sm border border-slate-200">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-          <div>
-            <div className="flex items-center gap-3">
-              <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-blue-50 text-blue-600">
-                <FiBell size={22} />
-              </div>
+          <div className="flex items-center gap-3">
+            <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-blue-50 text-blue-600">
+              <FiBell size={22} />
+            </div>
 
-              <div>
-                <h1 className="text-2xl font-bold text-slate-800">
-                  Thông báo
-                </h1>
-                <p className="text-sm text-slate-500">
-                  Xem các thông báo mới nhất từ hệ thống
-                </p>
-              </div>
+            <div>
+              <h1 className="text-2xl font-bold text-slate-800">
+                Thông báo
+              </h1>
+              <p className="text-sm text-slate-500">
+                Xem các thông báo mới nhất từ hệ thống
+              </p>
             </div>
           </div>
 
@@ -378,7 +382,7 @@ const NotificationPage = () => {
         </div>
       )}
 
-      {selectedNotificationId && !selectedNotification && !isLoading && (
+      {hasSelectedNotificationId && !selectedNotification && !isLoading && (
         <div className="rounded-xl border border-yellow-200 bg-yellow-50 px-4 py-3 text-sm text-yellow-700">
           Không tìm thấy thông báo cần xem chi tiết.
         </div>
@@ -564,6 +568,32 @@ const NotificationPage = () => {
         )}
       </div>
     </div>
+  );
+};
+
+const NotificationPage = () => {
+  const currentRole = getCurrentUserRole();
+
+  if (currentRole === 'ADMIN') {
+    return (
+      <AdminLayout>
+        <NotificationContent />
+      </AdminLayout>
+    );
+  }
+
+  if (currentRole === 'MANAGER') {
+    return (
+      <ManagerLayout>
+        <NotificationContent />
+      </ManagerLayout>
+    );
+  }
+
+  return (
+    <StudentTeacherLayout>
+      <NotificationContent />
+    </StudentTeacherLayout>
   );
 };
 
