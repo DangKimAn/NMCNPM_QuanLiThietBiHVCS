@@ -10,6 +10,8 @@ import {
   FiSearch,
   FiTool,
   FiXCircle,
+  FiUpload,
+  FiRefreshCw,
 } from 'react-icons/fi';
 
 import { ManagerLayout } from '../../components/layout/ManagerLayout';
@@ -24,6 +26,7 @@ import {
   DeviceStatusModal,
   DeviceTransferModal,
 } from '../../components/manager/devices/DeviceModals';
+import { DeviceImportExcelModal } from '../../components/manager/devices/DeviceImportExcelModal';
 import { DeviceRoomCards } from '../../components/manager/devices/DeviceRoomCards';
 import { DeviceTable } from '../../components/manager/devices/DeviceTable';
 import { TransferHistory } from '../../components/manager/devices/TransferHistory';
@@ -48,7 +51,10 @@ interface StatusForm {
 }
 
 interface TransferForm {
+  fromRoom?: string;
+  equipmentId?: string;
   toRoom: string;
+  quantity: number;
   date: string;
   handler: string;
   reason: string;
@@ -72,6 +78,12 @@ export const DeviceManager = () => {
   const [filterRoom, setFilterRoom] = useState(searchParams.get('room') || 'All');
   const [filterType, setFilterType] = useState(searchParams.get('type') || 'All');
   const [filterStatus, setFilterStatus] = useState(searchParams.get('status') || 'All');
+  
+  const [roomSearchTerm, setRoomSearchTerm] = useState('');
+
+  const [isImportModalOpen, setIsImportModalOpen] = useState(false);
+
+  const [isGeneralTransferOpen, setIsGeneralTransferOpen] = useState(false);
 
   const [isDeviceModalOpen, setIsDeviceModalOpen] = useState(false);
   const [editingDevice, setEditingDevice] = useState<Device | null>(null);
@@ -85,7 +97,10 @@ export const DeviceManager = () => {
 
   const [transferDevice, setTransferDevice] = useState<Device | null>(null);
   const [transferForm, setTransferForm] = useState<TransferForm>({
+    fromRoom: '',
+    equipmentId: '',
     toRoom: '',
+    quantity: 1,
     date: getToday(),
     handler: 'Cán bộ QLTB',
     reason: '',
@@ -334,7 +349,10 @@ export const DeviceManager = () => {
     const suggestedRoom = roomOptions.find((room) => room !== device.room) || roomOptions[0] || '';
 
     setTransferForm({
+      fromRoom: device.room,
+      equipmentId: device.id,
       toRoom: suggestedRoom,
+      quantity: device.quantity,
       date: getToday(),
       handler: 'Cán bộ QLTB',
       reason: '',
@@ -344,9 +362,15 @@ export const DeviceManager = () => {
   const saveTransfer = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
 
-    if (!transferDevice) return;
+    const fromRoomCode = transferDevice ? transferDevice.room : transferForm.fromRoom;
+    const eqId = transferDevice ? transferDevice.id : transferForm.equipmentId;
 
-    const fromRoomId = getRoomIdByCode(transferDevice.room);
+    if (!fromRoomCode || !eqId) {
+      alert('Vui lòng chọn thiết bị và phòng hiện tại.');
+      return;
+    }
+
+    const fromRoomId = getRoomIdByCode(fromRoomCode);
     const toRoomId = getRoomIdByCode(transferForm.toRoom);
 
     if (!fromRoomId || !toRoomId) {
@@ -361,16 +385,17 @@ export const DeviceManager = () => {
 
     try {
       await managerApi.createTransfer({
-        equipmentId: Number(transferDevice.id),
+        equipmentId: Number(eqId),
         fromRoomId,
         toRoomId,
-        quantity: Math.max(1, transferDevice.quantity || 1),
+        quantity: transferForm.quantity || 1,
         transferredAt: transferForm.date,
         executorId: getExecutorId(),
         note: transferForm.reason || 'Điều chuyển theo nhu cầu sử dụng phòng học.',
       });
 
       setTransferDevice(null);
+      setIsGeneralTransferOpen(false);
       setActiveTab('transfer');
       await fetchAllData();
     } catch (error) {
@@ -390,14 +415,25 @@ export const DeviceManager = () => {
           </p>
         </div>
 
-        <button
-          type="button"
-          onClick={openAddModal}
-          className="flex items-center justify-center px-4 py-2 bg-indigo-600 text-white text-sm font-medium rounded-lg hover:bg-indigo-700 transition shadow-sm"
-        >
-          <FiPlus className="mr-2 text-lg" />
-          Thêm thiết bị mới
-        </button>
+        <div className="flex gap-2">
+          <button
+            type="button"
+            onClick={() => setIsImportModalOpen(true)}
+            className="flex items-center justify-center px-4 py-2 bg-gradient-to-r from-cyan-400 via-blue-500 to-purple-500 text-white text-sm font-medium rounded-lg hover:opacity-90 transition shadow-sm"
+          >
+            <FiUpload className="mr-2 text-lg" />
+            Import Excel
+          </button>
+
+          <button
+            type="button"
+            onClick={openAddModal}
+            className="flex items-center justify-center px-4 py-2 bg-indigo-600 text-white text-sm font-medium rounded-lg hover:bg-indigo-700 transition shadow-sm"
+          >
+            <FiPlus className="mr-2 text-lg" />
+            Thêm thiết bị mới
+          </button>
+        </div>
       </div>
 
       {errorMessage && (
@@ -499,15 +535,47 @@ export const DeviceManager = () => {
       )}
 
       {!loading && activeTab === 'byRoom' && (
-        <DeviceRoomCards
-          rooms={roomOptions.filter((room) => room !== 'Kho')}
-          devices={devices}
-          onStatus={openStatusModal}
-          onTransfer={openTransferModal}
-        />
+        <div className="space-y-4">
+          <div className="flex gap-2">
+            <div className="relative flex-1 max-w-md">
+              <FiSearch className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+              <input
+                type="text"
+                placeholder="Tìm kiếm tên phòng học..."
+                value={roomSearchTerm}
+                onChange={(e) => setRoomSearchTerm(e.target.value)}
+                className="w-full pl-10 pr-4 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 bg-white"
+              />
+            </div>
+          </div>
+          <DeviceRoomCards
+            rooms={roomOptions
+              .filter((room) => room !== 'Kho')
+              .filter((room) => room.toLowerCase().includes(roomSearchTerm.toLowerCase()))}
+            devices={devices}
+            onStatus={openStatusModal}
+            onTransfer={openTransferModal}
+          />
+        </div>
       )}
 
-      {!loading && activeTab === 'transfer' && <TransferHistory transfers={transfers} />}
+      {!loading && activeTab === 'transfer' && (
+        <TransferHistory
+          transfers={transfers}
+          onOpenTransfer={() => {
+            setTransferForm({
+              fromRoom: '',
+              equipmentId: '',
+              toRoom: '',
+              quantity: 1,
+              date: getToday(),
+              handler: 'Cán bộ QLTB',
+              reason: '',
+            });
+            setIsGeneralTransferOpen(true);
+          }}
+        />
+      )}
 
       {isDeviceModalOpen && (
         <DeviceFormModal
@@ -531,16 +599,26 @@ export const DeviceManager = () => {
         />
       )}
 
-      {transferDevice && (
+      {(transferDevice || isGeneralTransferOpen) && (
         <DeviceTransferModal
           device={transferDevice}
+          devices={devices}
           transferForm={transferForm}
           setTransferForm={setTransferForm}
           roomOptions={roomOptions.filter((room) => room !== 'Kho')}
-          onClose={() => setTransferDevice(null)}
+          onClose={() => {
+            setTransferDevice(null);
+            setIsGeneralTransferOpen(false);
+          }}
           onSubmit={saveTransfer}
         />
       )}
+
+      <DeviceImportExcelModal 
+        isOpen={isImportModalOpen} 
+        onClose={() => setIsImportModalOpen(false)} 
+        onSuccess={() => fetchAllData()}
+      />
     </ManagerLayout>
   );
 };
