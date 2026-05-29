@@ -180,13 +180,22 @@ model EquipmentCategory {
 }
 
 model Equipment {
-  equipmentId Int             @id @default(autoincrement())
-  name        String          @db.VarChar(255)
-  categoryId  Int
-  unit        String?         @db.VarChar(255)
-  quantity    Int             @default(0)
-  status      EquipmentStatus @default(GOOD)
-  description String?         @db.VarChar(255)
+  equipmentId   Int             @id @default(autoincrement())
+
+  // Mã riêng của từng thiết bị thật ngoài đời
+  // Ví dụ: TB000001, MC-A101-01, HDMI-A102-01
+  equipmentCode String?         @unique @db.VarChar(255)
+
+  name          String          @db.VarChar(255)
+  categoryId    Int
+  unit          String?         @db.VarChar(255)
+
+  // Tạm thời vẫn giữ quantity để không ảnh hưởng code cũ.
+  // Nhưng từ giờ mỗi dòng thiết bị là 1 thiết bị riêng, nên mặc định là 1.
+  quantity      Int             @default(1)
+
+  status        EquipmentStatus @default(GOOD)
+  description   String?         @db.VarChar(255)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

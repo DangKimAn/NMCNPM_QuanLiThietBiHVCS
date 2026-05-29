@@ -2,15 +2,29 @@
 // Mục đích: giúp TypeScript kiểm tra dữ liệu thiết bị, điều chuyển và phản ánh báo hỏng.
 
 // Các trạng thái hợp lệ của thiết bị
-export type DeviceStatus = 'Hoạt động' | 'Báo hỏng' | 'Đang sửa' | 'Bảo trì' | 'Thanh lý';
+export type DeviceStatus =
+  | 'Hoạt động'
+  | 'Báo hỏng'
+  | 'Đang sửa'
+  | 'Bảo trì'
+  | 'Thanh lý';
 
 // Kiểu dữ liệu của một thiết bị trong hệ thống
 export interface Device {
-  id: string; // Mã thiết bị, ví dụ: TB001
+  // ID thật trong database, dùng để gọi API sửa/xóa/cập nhật trạng thái
+  equipmentId: number;
+
+  // Mã thiết bị hiển thị trên giao diện, ví dụ: TB000001
+  id: string;
+
   name: string; // Tên thiết bị
   type: string; // Loại thiết bị: Trình chiếu, Âm thanh, Điện lạnh...
   room: string; // Phòng đang sử dụng thiết bị
-  quantity: number; // Số lượng thiết bị
+
+  // Tạm thời vẫn giữ quantity để tránh lỗi các component cũ.
+  // Sau bước sửa giao diện bảng/form, mình sẽ bỏ cột số lượng khỏi phần thêm thiết bị.
+  quantity: number;
+
   status: DeviceStatus; // Trạng thái hiện tại của thiết bị
   importDate: string; // Ngày nhập thiết bị
   note: string; // Ghi chú thêm
@@ -29,7 +43,11 @@ export interface TransferLog {
 }
 
 // Các trạng thái xử lý phản ánh báo hỏng
-export type ReportStatus = 'Mới tiếp nhận' | 'Đang xử lý' | 'Đã xử lý' | 'Từ chối';
+export type ReportStatus =
+  | 'Mới tiếp nhận'
+  | 'Đang xử lý'
+  | 'Đã xử lý'
+  | 'Từ chối';
 
 // Kiểu dữ liệu của một phản ánh sự cố
 export interface IncidentReport {

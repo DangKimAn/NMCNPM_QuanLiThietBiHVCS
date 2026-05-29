@@ -9,7 +9,7 @@ import type {
 const API_BASE_URL = 'http://localhost:3000/api';
 
 // =======================
-// Mapping trạng thái
+// Mapping trạng thái thiết bị
 // =======================
 
 const deviceStatusMap: Record<string, DeviceStatus> = {
@@ -64,6 +64,7 @@ export const toBackendReportStatus = (status: ReportStatus) => {
 
 function getAuthHeaders(): Record<string, string> {
   const token = localStorage.getItem('accessToken');
+
   return {
     'Content-Type': 'application/json',
     ...(token ? { Authorization: `Bearer ${token}` } : {}),
@@ -73,9 +74,11 @@ function getAuthHeaders(): Record<string, string> {
 async function request<T>(url: string, options?: RequestInit): Promise<T> {
   const headers: Record<string, string> = {
     ...getAuthHeaders(),
-    ...(options?.headers as Record<string, string> || {}),
+    ...((options?.headers as Record<string, string>) || {}),
   };
 
+  // Nếu upload file bằng FormData thì không set Content-Type
+  // Trình duyệt sẽ tự thêm boundary cho multipart/form-data
   if (options?.body instanceof FormData) {
     delete headers['Content-Type'];
   }
@@ -121,6 +124,10 @@ export interface BackendRoom {
 
 export interface BackendEquipment {
   equipmentId: number;
+
+  // Mã thiết bị riêng, ví dụ: TB000001
+  equipmentCode?: string | null;
+
   name: string;
   unit?: string | null;
   quantity: number;
@@ -212,14 +219,27 @@ export interface DashboardOverview {
 // =======================
 
 export const mapEquipmentToDevice = (equipment: BackendEquipment): Device => {
-  const firstAllocation = equipment.allocations?.find((item) => item.quantity > 0);
+  const firstAllocation = equipment.allocations?.find(
+    (item) => item.quantity > 0,
+  );
 
   return {
-    id: String(equipment.equipmentId),
+    // ID thật trong database, dùng để gọi API sửa/xóa
+    equipmentId: equipment.equipmentId,
+
+    // Mã thiết bị hiển thị trên giao diện
+    id:
+      equipment.equipmentCode ||
+      `TB${String(equipment.equipmentId).padStart(6, '0')}`,
+
     name: equipment.name,
     type: equipment.category?.name || 'Khác',
     room: firstAllocation?.room?.code || 'Kho',
-    quantity: firstAllocation?.quantity || equipment.quantity || 0,
+
+    // Tạm giữ quantity để không lỗi giao diện cũ.
+    // Sau bước sửa bảng thiết bị sẽ bỏ cột số lượng.
+    quantity: firstAllocation?.quantity || equipment.quantity || 1,
+
     status: deviceStatusMap[equipment.status] || 'Hoạt động',
     importDate: '',
     note: equipment.description || '',
@@ -245,7 +265,9 @@ export const mapReportToIncident = (report: BackendReport): IncidentReport => {
     room: report.room?.code || '',
     device: report.equipment?.name || 'Không xác định',
     issue: report.reportContent,
-    date: report.reportedAt ? report.reportedAt.replace('T', ' ').slice(0, 16) : '',
+    date: report.reportedAt
+      ? report.reportedAt.replace('T', ' ').slice(0, 16)
+      : '',
     status: reportStatusMap[report.status] || 'Mới tiếp nhận',
     handlerName,
     handlerNote: report.resolutionContent || report.result || '',
@@ -264,7 +286,9 @@ export const mapTransferToLog = (transfer: BackendTransfer): TransferLog => {
 
   return {
     id: String(transfer.transferId),
-    deviceId: String(transfer.equipment?.equipmentId || ''),
+    deviceId:
+      transfer.equipment?.equipmentCode ||
+      String(transfer.equipment?.equipmentId || ''),
     deviceName: transfer.equipment?.name || 'Thiết bị',
     fromRoom: transfer.fromRoom?.code || '',
     toRoom: transfer.toRoom?.code || '',
@@ -275,7 +299,7 @@ export const mapTransferToLog = (transfer: BackendTransfer): TransferLog => {
 };
 
 // =======================
-// API
+// API cho manager
 // =======================
 
 export const managerApi = {
@@ -304,27 +328,30 @@ export const managerApi = {
     if (params?.roomId) query.set('roomId', String(params.roomId));
     if (params?.categoryId) query.set('categoryId', String(params.categoryId));
 
-    const url = query.toString() ? `/equipments?${query.toString()}` : '/equipments';
+    const url = query.toString()
+      ? `/equipments?${query.toString()}`
+      : '/equipments';
+
     const data = await request<BackendEquipment[]>(url);
 
     return data.map(mapEquipmentToDevice);
   },
 
   createEquipment(payload: {
+    equipmentCode: string;
     name: string;
     categoryId: number;
     unit?: string;
-    quantity: number;
     status: DeviceStatus;
     description?: string;
   }) {
     return request<BackendEquipment>('/equipments', {
       method: 'POST',
       body: JSON.stringify({
+        equipmentCode: payload.equipmentCode,
         name: payload.name,
         categoryId: payload.categoryId,
         unit: payload.unit || 'cái',
-        quantity: payload.quantity,
         status: toBackendDeviceStatus(payload.status),
         description: payload.description,
       }),
@@ -332,12 +359,12 @@ export const managerApi = {
   },
 
   updateEquipment(
-    equipmentId: string,
+    equipmentId: number,
     payload: {
+      equipmentCode?: string;
       name?: string;
       categoryId?: number;
       unit?: string;
-      quantity?: number;
       status?: DeviceStatus;
       description?: string;
     },
@@ -345,18 +372,20 @@ export const managerApi = {
     return request<BackendEquipment>(`/equipments/${equipmentId}`, {
       method: 'PATCH',
       body: JSON.stringify({
+        equipmentCode: payload.equipmentCode,
         name: payload.name,
         categoryId: payload.categoryId,
         unit: payload.unit,
-        quantity: payload.quantity,
-        status: payload.status ? toBackendDeviceStatus(payload.status) : undefined,
+        status: payload.status
+          ? toBackendDeviceStatus(payload.status)
+          : undefined,
         description: payload.description,
       }),
     });
   },
 
   updateEquipmentStatus(
-    equipmentId: string,
+    equipmentId: number,
     payload: {
       status: DeviceStatus;
       description?: string;
@@ -371,7 +400,7 @@ export const managerApi = {
     });
   },
 
-  deleteEquipment(equipmentId: string) {
+  deleteEquipment(equipmentId: number) {
     return request<BackendEquipment>(`/equipments/${equipmentId}`, {
       method: 'DELETE',
     });
@@ -380,8 +409,12 @@ export const managerApi = {
   importEquipments(file: File) {
     const formData = new FormData();
     formData.append('file', file);
-    
-    return request<{ successCount: number; failedCount: number; errors: { row: number; reason: string }[] }>('/equipments/import', {
+
+    return request<{
+      successCount: number;
+      failedCount: number;
+      errors: { row: number; reason: string }[];
+    }>('/equipments/import', {
       method: 'POST',
       body: formData,
     });
@@ -430,7 +463,9 @@ export const managerApi = {
 
     if (params?.status) query.set('status', params.status);
     if (params?.roomId) query.set('roomId', String(params.roomId));
-    if (params?.equipmentId) query.set('equipmentId', String(params.equipmentId));
+    if (params?.equipmentId) {
+      query.set('equipmentId', String(params.equipmentId));
+    }
     if (params?.search) query.set('search', params.search);
 
     const url = query.toString() ? `/reports?${query.toString()}` : '/reports';
