@@ -177,6 +177,16 @@ export class ReportService {
       },
     });
 
+    // Tạo thông báo cho Manager
+    await this.prisma.notification.create({
+      data: {
+        title: `Phản ánh mới từ ${reporter.fullName || reporter.username}`,
+        content: `[ID:${result.reportId}] Phòng ${room.name}: ${dto.reportContent}`,
+        targetRole: 'MANAGER',
+        senderId: userId,
+      },
+    });
+
     return this.populateRoomForSingleReport(result);
   }
 

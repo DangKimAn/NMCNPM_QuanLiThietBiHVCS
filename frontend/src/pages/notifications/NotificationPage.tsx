@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useSearchParams, useNavigate } from 'react-router-dom';
 import {
   FiBell,
   FiCheck,
@@ -82,6 +82,7 @@ const formatDateTime = (value: string) => {
 
 const NotificationContent = () => {
   const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
 
   const selectedNotificationId = Number(searchParams.get('notificationId'));
   const hasSelectedNotificationId = selectedNotificationId > 0;
@@ -265,6 +266,18 @@ const NotificationContent = () => {
     }
   };
 
+  const handleNavigateToReport = async (item: NotificationItem) => {
+    if (!item.isRead) {
+      await handleMarkAsRead(item.notificationId);
+    }
+    
+    const match = item.content.match(/\[ID:(\d+)\]/);
+    if (match) {
+      const reportId = match[1];
+      navigate(`/manager/incidents?report=${reportId}&highlight=${reportId}`);
+    }
+  };
+
   return (
     <div className="space-y-6">
       <div className="rounded-2xl bg-white p-6 shadow-sm border border-slate-200">
@@ -368,7 +381,7 @@ const NotificationContent = () => {
           </h2>
 
           <p className="mt-4 whitespace-pre-line text-sm leading-7 text-slate-700">
-            {selectedNotification.content}
+            {selectedNotification.content.replace(/\[ID:\d+\]\s*/g, '')}
           </p>
 
           <div className="mt-5 rounded-xl bg-slate-50 p-4 text-sm text-slate-600">
@@ -503,7 +516,10 @@ const NotificationContent = () => {
                 }`}
               >
                 <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-                  <div className="min-w-0 flex-1">
+                  <div 
+                    className="min-w-0 flex-1 cursor-pointer hover:bg-slate-50/50 p-2 -m-2 rounded-xl transition-colors"
+                    onClick={() => handleNavigateToReport(item)}
+                  >
                     <div className="mb-2 flex flex-wrap items-center gap-2">
                       {!item.isRead && (
                         <span className="rounded-full bg-red-100 px-2 py-1 text-xs font-semibold text-red-600">
@@ -525,7 +541,7 @@ const NotificationContent = () => {
                     </h3>
 
                     <p className="mt-2 whitespace-pre-line text-sm leading-6 text-slate-600">
-                      {item.content}
+                      {item.content.replace(/\[ID:\d+\]\s*/g, '')}
                     </p>
 
                     <p className="mt-3 text-xs text-slate-400">

@@ -91,7 +91,7 @@ const userColumns: TableColumn[] = [
     header: 'Vai trò',
     key: 'role',
     render: (item) => (
-      <span className="bg-indigo-50 text-indigo-700 px-2.5 py-1 rounded-md text-xs font-medium border border-indigo-100">
+      <span className="bg-indigo-50 text-indigo-700 px-2.5 py-1 rounded-md text-xs font-medium border border-indigo-100 whitespace-nowrap">
         {item.role}
       </span>
     ),
@@ -101,7 +101,7 @@ const userColumns: TableColumn[] = [
     key: 'status',
     render: (item) => (
       <span
-        className={`px-2.5 py-1 rounded-full text-xs font-semibold border ${
+        className={`px-2.5 py-1 rounded-full text-xs font-semibold border whitespace-nowrap ${
           item.status === 'Hoạt động'
             ? 'bg-emerald-100 text-emerald-700 border-emerald-200'
             : 'bg-slate-100 text-slate-500 border-slate-200'
@@ -201,10 +201,17 @@ export const UserManager = () => {
         });
       }
 
-      setIsModalOpen(false);
+      if (editingUser) {
+        setIsModalOpen(false);
+        alert('Cập nhật tài khoản thành công!');
+      } else {
+        alert('Thêm tài khoản thành công! Các trường dữ liệu đã được làm mới để nhập tiếp.');
+      }
+
       await loadUsers();
     } catch (err: any) {
       alert(`Lỗi: ${err.message || 'Không thể lưu tài khoản'}`);
+      throw err; // Ném lỗi để DynamicFormModal bắt và không xóa form
     }
   };
 

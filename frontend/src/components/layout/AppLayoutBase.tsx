@@ -9,6 +9,7 @@ import {
   FiSearch,
   FiUser,
   FiUserCheck,
+  FiX,
 } from 'react-icons/fi';
 
 import { UserProfileModal } from './UserProfileModal';
@@ -63,6 +64,8 @@ export const AppLayoutBase = ({
   );
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
   const [unreadNotificationCount, setUnreadNotificationCount] = useState(0);
+  const prevUnreadCountRef = useRef(0);
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
 
   const [currentUser, setCurrentUser] = useState<CurrentUser>({
     userId: 0,
@@ -142,7 +145,15 @@ export const AppLayoutBase = ({
   const fetchUnreadNotificationCount = async () => {
     try {
       const data = await getUnreadNotificationCount();
-      setUnreadNotificationCount(data.unreadCount || 0);
+      const newCount = data.unreadCount || 0;
+      
+      if (newCount > prevUnreadCountRef.current && prevUnreadCountRef.current !== 0) {
+        setToastMessage('Bạn có thông báo phản ánh mới!');
+        setTimeout(() => setToastMessage(null), 5000);
+      }
+      
+      prevUnreadCountRef.current = newCount;
+      setUnreadNotificationCount(newCount);
     } catch (error: any) {
       // Nếu token hết hạn hoặc không có quyền thì chỉ ẩn số thông báo,
       // không làm lỗi layout chính.
@@ -178,9 +189,9 @@ export const AppLayoutBase = ({
     }
   };
 
-  const handleClickNotificationItem = async (notificationId: number) => {
+  const handleClickNotificationItem = async (notificationItem: NotificationItem) => {
     try {
-      await markNotificationAsRead(notificationId);
+      await markNotificationAsRead(notificationItem.notificationId);
     } catch (error) {
       console.error('Không thể đánh dấu thông báo đã đọc:', error);
     }
@@ -188,7 +199,13 @@ export const AppLayoutBase = ({
     setIsNotificationOpen(false);
     await fetchUnreadNotificationCount();
 
-    navigate(`/notifications?notificationId=${notificationId}`);
+    const match = notificationItem.content.match(/\[ID:(\d+)\]/);
+    if (match) {
+      const reportId = match[1];
+      navigate(`/manager/incidents?report=${reportId}&highlight=${reportId}`);
+    } else {
+      navigate(`/notifications?notificationId=${notificationItem.notificationId}`);
+    }
   };
 
   const formatNotificationDate = (value: string) => {
@@ -248,7 +265,16 @@ export const AppLayoutBase = ({
 
     setCurrentUser(localUser);
     fetchFullUserInfo(localUser.username);
+    
+    // Initial fetch
     fetchUnreadNotificationCount();
+    
+    // Polling every 10 seconds for real-time notification
+    const interval = setInterval(() => {
+      fetchUnreadNotificationCount();
+    }, 10000);
+    
+    return () => clearInterval(interval);
   }, []);
 
   const getAvatarText = (fullName: string) => {
@@ -432,7 +458,7 @@ export const AppLayoutBase = ({
                             key={item.notificationId}
                             type="button"
                             onClick={() =>
-                              handleClickNotificationItem(item.notificationId)
+                              handleClickNotificationItem(item)
                             }
                             className="group flex w-full items-start gap-4 py-4 text-left hover:bg-slate-50"
                           >
@@ -596,6 +622,22 @@ export const AppLayoutBase = ({
         onClose={() => setIsProfileModalOpen(false)}
         userId={currentUser.userId}
       />
+
+      {/* Toast Notification */}
+      {toastMessage && (
+        <div className="fixed bottom-6 right-6 z-50 animate-in slide-in-from-bottom-5 fade-in duration-300">
+          <div className="bg-emerald-600 text-white px-6 py-3 rounded-xl shadow-lg flex items-center gap-3">
+            <FiBell className="text-xl animate-bounce" />
+            <span className="font-semibold">{toastMessage}</span>
+            <button 
+              onClick={() => setToastMessage(null)}
+              className="ml-4 text-emerald-200 hover:text-white"
+            >
+              <FiX className="text-lg" />
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
