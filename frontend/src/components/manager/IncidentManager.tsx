@@ -46,6 +46,7 @@ export const IncidentManager = () => {
   // Đọc tham số từ URL
   const [searchParams, setSearchParams] = useSearchParams();
   const searchKey = searchParams.toString();
+  const highlightId = searchParams.get('highlight');
 
   // State lưu danh sách phản ánh lấy từ backend
   const [reports, setReports] = useState<IncidentReport[]>([]);
@@ -305,7 +306,14 @@ export const IncidentManager = () => {
 
               <tbody className="divide-y divide-slate-100">
                 {filteredReports.map((report) => (
-                  <tr key={report.id} className="hover:bg-slate-50">
+                  <tr 
+                    key={report.id} 
+                    className={`transition-colors ${
+                      highlightId === String(report.id)
+                        ? 'bg-amber-50 border-amber-200'
+                        : 'hover:bg-slate-50'
+                    }`}
+                  >
                     <td className="px-6 py-4 text-sm font-bold text-slate-800">
                       PA{String(report.id).padStart(3, '0')}
                     </td>

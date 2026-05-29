@@ -247,7 +247,7 @@ export const StudentReport = () => {
                 <Select
                   options={filteredEquipments.map((equipment) => ({
                     value: String(equipment.equipmentId),
-                    label: equipment.name,
+                    label: `${equipment.name} - ${equipment.equipmentCode}`,
                   }))}
                   value={
                     form.equipmentId
@@ -257,7 +257,7 @@ export const StudentReport = () => {
                             const eq = filteredEquipments.find(
                               (e) => String(e.equipmentId) === form.equipmentId,
                             );
-                            return eq ? eq.name : '';
+                            return eq ? `${eq.name} - ${eq.equipmentCode}` : '';
                           })(),
                         }
                       : null
@@ -324,7 +324,7 @@ export const StudentReport = () => {
 
               <InfoBox
                 label="Thiết bị"
-                value={selectedEquipment?.name || 'Chưa chọn'}
+                value={selectedEquipment ? `${selectedEquipment.name} - ${selectedEquipment.equipmentCode}` : 'Chưa chọn'}
               />
 
               <InfoBox

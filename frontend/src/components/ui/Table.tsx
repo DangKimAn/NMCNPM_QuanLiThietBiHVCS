@@ -39,12 +39,12 @@ export const Table = ({
           <thead>
             <tr className="bg-slate-50 border-b border-slate-200">
               {columns.map((col, idx) => (
-                <th key={idx} className="px-6 py-4 text-xs font-semibold text-slate-500 uppercase">
+                <th key={idx} className="px-6 py-4 text-xs font-semibold text-slate-500 uppercase whitespace-nowrap">
                   {col.header}
                 </th>
               ))}
               {hasActions && (
-                <th className="px-6 py-4 text-xs font-semibold text-slate-500 uppercase text-right">
+                <th className="px-6 py-4 text-xs font-semibold text-slate-500 uppercase text-right whitespace-nowrap">
                   Thao tác
                 </th>
               )}

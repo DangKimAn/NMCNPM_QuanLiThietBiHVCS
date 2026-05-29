@@ -45,6 +45,7 @@ export interface BackendRoom {
 
 export interface BackendEquipment {
   equipmentId: number;
+  equipmentCode: string;
   name: string;
   status: string;
   description?: string | null;
@@ -102,6 +103,7 @@ export interface StudentRoomOption {
 
 export interface StudentEquipmentOption {
   equipmentId: number;
+  equipmentCode: string;
   name: string;
   status: string;
   roomId: number;
@@ -145,6 +147,7 @@ export const studentApi = {
           if (alloc.room) {
             result.push({
               equipmentId: eq.equipmentId,
+              equipmentCode: eq.equipmentCode || 'N/A',
               name: eq.name,
               status: eq.status === 'GOOD' ? 'Hoạt động'
                 : eq.status === 'BROKEN' ? 'Hỏng'
@@ -159,6 +162,7 @@ export const studentApi = {
         // Thiết bị chưa phân phối phòng — vẫn liệt kê
         result.push({
           equipmentId: eq.equipmentId,
+          equipmentCode: eq.equipmentCode || 'N/A',
           name: eq.name,
           status: 'Hoạt động',
           roomId: 0,
