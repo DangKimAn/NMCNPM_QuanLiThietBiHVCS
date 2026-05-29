@@ -6,10 +6,22 @@ import {
 
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateEquipmentTransferDto } from './dto/create-equipment-transfer.dto';
+import { CreateBulkEquipmentTransferDto } from './dto/create-bulk-equipment-transfer.dto';
+import { RoomService } from '../room/room.service';
 
 @Injectable()
 export class EquipmentTransferService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly roomService: RoomService,
+  ) {}
+
+  private async populateRooms(transfer: any) {
+    if (!transfer) return null;
+    const fromRoom = await this.roomService.findOne(transfer.fromRoomId);
+    const toRoom = await this.roomService.findOne(transfer.toRoomId);
+    return { ...transfer, fromRoom, toRoom };
+  }
 
   async create(createDto: CreateEquipmentTransferDto) {
     if (createDto.fromRoomId === createDto.toRoomId) {
@@ -27,30 +39,6 @@ export class EquipmentTransferService {
     if (!equipment) {
       throw new NotFoundException(
         `Không tìm thấy thiết bị có id = ${createDto.equipmentId}`,
-      );
-    }
-
-    const fromRoom = await this.prisma.room.findUnique({
-      where: {
-        roomId: createDto.fromRoomId,
-      },
-    });
-
-    if (!fromRoom) {
-      throw new NotFoundException(
-        `Không tìm thấy phòng chuyển đi có id = ${createDto.fromRoomId}`,
-      );
-    }
-
-    const toRoom = await this.prisma.room.findUnique({
-      where: {
-        roomId: createDto.toRoomId,
-      },
-    });
-
-    if (!toRoom) {
-      throw new NotFoundException(
-        `Không tìm thấy phòng chuyển đến có id = ${createDto.toRoomId}`,
       );
     }
 
@@ -73,58 +61,31 @@ export class EquipmentTransferService {
       },
     });
 
-    if (!fromAllocation || fromAllocation.quantity < createDto.quantity) {
+    if (!fromAllocation) {
       throw new BadRequestException(
-        'Số lượng thiết bị ở phòng chuyển đi không đủ để điều chuyển.',
+        'Thiết bị này không nằm ở phòng chuyển đi.',
       );
     }
 
-    return this.prisma.$transaction(async (tx) => {
+    const result = await this.prisma.$transaction(async (tx) => {
+      // 1. Cập nhật phòng mới cho thiết bị này
       await tx.equipmentAllocation.update({
         where: {
           allocationId: fromAllocation.allocationId,
         },
         data: {
-          quantity: fromAllocation.quantity - createDto.quantity,
-        },
-      });
-
-      const toAllocation = await tx.equipmentAllocation.findFirst({
-        where: {
-          equipmentId: createDto.equipmentId,
           roomId: createDto.toRoomId,
+          allocatedAt: new Date(createDto.transferredAt),
+          note: createDto.note,
         },
       });
 
-      if (toAllocation) {
-        await tx.equipmentAllocation.update({
-          where: {
-            allocationId: toAllocation.allocationId,
-          },
-          data: {
-            quantity: toAllocation.quantity + createDto.quantity,
-            allocatedAt: new Date(createDto.transferredAt),
-            note: createDto.note,
-          },
-        });
-      } else {
-        await tx.equipmentAllocation.create({
-          data: {
-            equipmentId: createDto.equipmentId,
-            roomId: createDto.toRoomId,
-            quantity: createDto.quantity,
-            allocatedAt: new Date(createDto.transferredAt),
-            note: createDto.note,
-          },
-        });
-      }
-
-      return tx.equipmentTransfer.create({
+      // 2. Ghi nhận lịch sử chuyển
+      const transferResult = await tx.equipmentTransfer.create({
         data: {
           equipmentId: createDto.equipmentId,
           fromRoomId: createDto.fromRoomId,
           toRoomId: createDto.toRoomId,
-          quantity: createDto.quantity,
           transferredAt: new Date(createDto.transferredAt),
           executorId: createDto.executorId,
           note: createDto.note,
@@ -135,16 +96,107 @@ export class EquipmentTransferService {
               category: true,
             },
           },
-          fromRoom: true,
-          toRoom: true,
           executor: true,
         },
       });
+
+      // Đồng bộ số lượng với ROOM_API. Nếu API lỗi sẽ tự động rollback transaction
+      await this.roomService.updateEquipmentCount(createDto.fromRoomId, 'sub', 1);
+      await this.roomService.updateEquipmentCount(createDto.toRoomId, 'add', 1);
+
+      return transferResult;
     });
+
+    return this.populateRooms(result);
+  }
+
+  async createBulk(bulkDto: CreateBulkEquipmentTransferDto) {
+    if (!bulkDto.transfers || bulkDto.transfers.length === 0) {
+      throw new BadRequestException('Danh sách điều chuyển không được trống.');
+    }
+
+    const roomQuantityChangeMap = new Map<number, number>();
+
+    const results = await this.prisma.$transaction(async (tx) => {
+      const createdTransfers: any[] = [];
+
+      for (const createDto of bulkDto.transfers) {
+        if (createDto.fromRoomId === createDto.toRoomId) {
+          throw new BadRequestException('Phòng chuyển đến phải khác phòng chuyển đi.');
+        }
+
+        const equipment = await tx.equipment.findUnique({
+          where: { equipmentId: createDto.equipmentId },
+        });
+
+        if (!equipment) {
+          throw new NotFoundException(`Không tìm thấy thiết bị có id = ${createDto.equipmentId}`);
+        }
+
+        const fromAllocation = await tx.equipmentAllocation.findFirst({
+          where: {
+            equipmentId: createDto.equipmentId,
+            roomId: createDto.fromRoomId,
+          },
+        });
+
+        if (!fromAllocation) {
+          throw new BadRequestException(`Thiết bị ID ${createDto.equipmentId} không nằm ở phòng chuyển đi.`);
+        }
+
+        // 1. Cập nhật phòng mới cho thiết bị
+        await tx.equipmentAllocation.update({
+          where: { allocationId: fromAllocation.allocationId },
+          data: {
+            roomId: createDto.toRoomId,
+            allocatedAt: new Date(createDto.transferredAt),
+            note: createDto.note,
+          },
+        });
+
+        // 2. Lưu lịch sử
+        const transferResult = await tx.equipmentTransfer.create({
+          data: {
+            equipmentId: createDto.equipmentId,
+            fromRoomId: createDto.fromRoomId,
+            toRoomId: createDto.toRoomId,
+            transferredAt: new Date(createDto.transferredAt),
+            executorId: createDto.executorId,
+            note: createDto.note,
+          },
+          include: {
+            equipment: { include: { category: true } },
+            executor: true,
+          },
+        });
+
+        createdTransfers.push(transferResult);
+
+        // Gom nhóm sự thay đổi số lượng phòng
+        const currentFromQty = roomQuantityChangeMap.get(createDto.fromRoomId) || 0;
+        roomQuantityChangeMap.set(createDto.fromRoomId, currentFromQty - 1);
+
+        const currentToQty = roomQuantityChangeMap.get(createDto.toRoomId) || 0;
+        roomQuantityChangeMap.set(createDto.toRoomId, currentToQty + 1);
+      }
+
+      // Gọi ROOM_API để áp dụng thay đổi (gộp các request lại)
+      for (const [roomId, qtyChange] of roomQuantityChangeMap.entries()) {
+        if (qtyChange > 0) {
+          await this.roomService.updateEquipmentCount(roomId, 'add', qtyChange);
+        } else if (qtyChange < 0) {
+          await this.roomService.updateEquipmentCount(roomId, 'sub', Math.abs(qtyChange));
+        }
+      }
+
+      return createdTransfers;
+    });
+
+    return Promise.all(results.map(t => this.populateRooms(t)));
   }
 
   async findAll() {
-    return this.prisma.equipmentTransfer.findMany({
+    const transfers = await this.prisma.equipmentTransfer.findMany({
       orderBy: {
         transferredAt: 'desc',
       },
@@ -154,11 +206,11 @@ export class EquipmentTransferService {
             category: true,
           },
         },
-        fromRoom: true,
-        toRoom: true,
         executor: true,
       },
     });
+
+    return Promise.all(transfers.map(t => this.populateRooms(t)));
   }
 
   async findOne(id: number) {
@@ -172,8 +224,6 @@ export class EquipmentTransferService {
             category: true,
           },
         },
-        fromRoom: true,
-        toRoom: true,
         executor: true,
       },
     });
@@ -184,6 +234,6 @@ export class EquipmentTransferService {
       );
     }
 
-    return transfer;
+    return this.populateRooms(transfer);
   }
 }

@@ -2,10 +2,14 @@ import { Injectable } from '@nestjs/common';
 import { EquipmentStatus, ReportStatus } from '@prisma/client';
 
 import { PrismaService } from '../prisma/prisma.service';
+import { RoomService } from '../room/room.service';
 
 @Injectable()
 export class ManagerDashboardService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly roomService: RoomService,
+  ) {}
 
   async getOverview() {
     const [
@@ -22,8 +26,9 @@ export class ManagerDashboardService {
       rejectedReports,
 
       rooms,
-      latestReports,
-      latestTransfers,
+      allAllocations,
+      rawLatestReports,
+      rawLatestTransfers,
     ] = await Promise.all([
       this.prisma.equipment.count(),
 
@@ -77,16 +82,11 @@ export class ManagerDashboardService {
         },
       }),
 
-      this.prisma.room.findMany({
-        orderBy: {
-          roomId: 'asc',
-        },
+      this.roomService.findAll({}),
+
+      this.prisma.equipmentAllocation.findMany({
         include: {
-          allocations: {
-            include: {
-              equipment: true,
-            },
-          },
+          equipment: true,
         },
       }),
 
@@ -98,7 +98,6 @@ export class ManagerDashboardService {
         include: {
           reporter: true,
           handler: true,
-          room: true,
           equipment: true,
         },
       }),
@@ -110,26 +109,24 @@ export class ManagerDashboardService {
         },
         include: {
           equipment: true,
-          fromRoom: true,
-          toRoom: true,
           executor: true,
         },
       }),
     ]);
 
-    const roomStats = rooms.map((room) => {
-      const totalQuantity = room.allocations.reduce(
-        (sum, allocation) => sum + allocation.quantity,
-        0,
-      );
+    const roomMap = new Map(rooms.map((r: any) => [r.roomId, r]));
 
-      const activeQuantity = room.allocations
+    const roomStats = rooms.map((room: any) => {
+      const roomAllocations = allAllocations.filter(a => a.roomId === room.roomId);
+
+      const totalQuantity = roomAllocations.length;
+
+      const activeQuantity = roomAllocations
         .filter((allocation) => {
           return allocation.equipment.status === EquipmentStatus.GOOD;
-        })
-        .reduce((sum, allocation) => sum + allocation.quantity, 0);
+        }).length;
 
-      const needHandleQuantity = room.allocations
+      const needHandleQuantity = roomAllocations
         .filter((allocation) => {
           const status = allocation.equipment.status;
 
@@ -137,8 +134,7 @@ export class ManagerDashboardService {
             status === EquipmentStatus.BROKEN ||
             status === EquipmentStatus.UNDER_REPAIR
           );
-        })
-        .reduce((sum, allocation) => sum + allocation.quantity, 0);
+        }).length;
 
       return {
         roomId: room.roomId,
@@ -149,6 +145,17 @@ export class ManagerDashboardService {
         needHandleQuantity,
       };
     });
+
+    const latestReports = rawLatestReports.map(r => ({
+      ...r,
+      room: roomMap.get(r.roomId) || null
+    }));
+
+    const latestTransfers = rawLatestTransfers.map(t => ({
+      ...t,
+      fromRoom: roomMap.get(t.fromRoomId) || null,
+      toRoom: roomMap.get(t.toRoomId) || null
+    }));
 
     return {
       equipmentSummary: {

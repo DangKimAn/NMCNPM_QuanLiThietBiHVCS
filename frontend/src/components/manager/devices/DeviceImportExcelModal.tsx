@@ -61,7 +61,7 @@ export const DeviceImportExcelModal = ({
     const sampleRows = [
       SUPPORTED_COLUMNS,
       [
-        'TB000001',
+        'm-PTITHCM-TB000001',
         'Máy chiếu Panasonic',
         'Máy chiếu',
         '2A01',
@@ -69,7 +69,7 @@ export const DeviceImportExcelModal = ({
         'Thiết bị mới',
       ],
       [
-        'TB000002',
+        'p-PTITHCM-TB000002',
         'Dây HDMI',
         'Phụ kiện',
         '2A01',

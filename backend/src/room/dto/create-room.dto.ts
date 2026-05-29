@@ -1,6 +1,5 @@
-import { IsEnum, IsInt, IsOptional, IsString, Min } from 'class-validator';
+import { IsInt, IsOptional, IsString, Min } from 'class-validator';
 import { Type } from 'class-transformer';
-import { RoomStatus } from '@prisma/client';
 
 // DTO dùng khi thêm phòng học mới
 export class CreateRoomDto {
@@ -30,9 +29,4 @@ export class CreateRoomDto {
   @IsInt()
   @Min(0)
   capacity?: number;
-
-  // Trạng thái phòng: AVAILABLE, MAINTENANCE, IN_USE
-  @IsOptional()
-  @IsEnum(RoomStatus)
-  status?: RoomStatus;
 }
