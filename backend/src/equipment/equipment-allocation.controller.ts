@@ -13,6 +13,8 @@ import { ApiTags } from '@nestjs/swagger';
 import { EquipmentAllocationService } from './equipment-allocation.service';
 import { CreateEquipmentAllocationDto } from './dto/create-equipment-allocation.dto';
 import { UpdateEquipmentAllocationDto } from './dto/update-equipment-allocation.dto';
+import { CreateBulkEquipmentAllocationDto } from './dto/create-bulk-equipment-allocation.dto';
+import { BulkDeleteEquipmentAllocationDto } from './dto/bulk-delete-equipment-allocation.dto';
 
 @ApiTags('Equipment Allocations - Gắn thiết bị vào phòng')
 @Controller('equipment-allocations')
@@ -24,6 +26,16 @@ export class EquipmentAllocationController {
   @Post()
   create(@Body() createDto: CreateEquipmentAllocationDto) {
     return this.allocationService.create(createDto);
+  }
+
+  @Post('bulk')
+  createBulk(@Body() createBulkDto: CreateBulkEquipmentAllocationDto) {
+    return this.allocationService.createBulk(createBulkDto);
+  }
+
+  @Post('bulk-delete')
+  removeBulk(@Body() bulkDeleteDto: BulkDeleteEquipmentAllocationDto) {
+    return this.allocationService.removeBulk(bulkDeleteDto);
   }
 
   @Get()

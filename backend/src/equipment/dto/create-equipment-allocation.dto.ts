@@ -18,13 +18,6 @@ export class CreateEquipmentAllocationDto {
   @IsNotEmpty()
   roomId!: number;
 
-  @ApiProperty({
-    example: 2,
-    description: 'Số lượng thiết bị gắn vào phòng',
-  })
-  @IsInt()
-  @IsPositive()
-  quantity!: number;
 
   @ApiProperty({
     example: '2026-05-20',

@@ -219,9 +219,7 @@ export interface DashboardOverview {
 // =======================
 
 export const mapEquipmentToDevice = (equipment: BackendEquipment): Device => {
-  const firstAllocation = equipment.allocations?.find(
-    (item) => item.quantity > 0,
-  );
+  const firstAllocation = equipment.allocations?.[0];
 
   return {
     // ID thật trong database, dùng để gọi API sửa/xóa
@@ -238,7 +236,7 @@ export const mapEquipmentToDevice = (equipment: BackendEquipment): Device => {
 
     // Tạm giữ quantity để không lỗi giao diện cũ.
     // Sau bước sửa bảng thiết bị sẽ bỏ cột số lượng.
-    quantity: firstAllocation?.quantity || equipment.quantity || 1,
+    quantity: 1,
 
     status: deviceStatusMap[equipment.status] || 'Hoạt động',
     importDate: '',

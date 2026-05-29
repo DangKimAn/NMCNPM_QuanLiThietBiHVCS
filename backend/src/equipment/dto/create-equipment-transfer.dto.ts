@@ -26,13 +26,6 @@ export class CreateEquipmentTransferDto {
   @IsNotEmpty()
   toRoomId!: number;
 
-  @ApiProperty({
-    example: 1,
-    description: 'Số lượng thiết bị điều chuyển',
-  })
-  @IsInt()
-  @IsPositive()
-  quantity!: number;
 
   @ApiProperty({
     example: '2026-05-20',

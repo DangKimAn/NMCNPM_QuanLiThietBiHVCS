@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 
 import { PrismaModule } from '../prisma/prisma.module';
+import { RoomModule } from '../room/room.module';
 
 import { EquipmentController } from './equipment.controller';
 import { EquipmentService } from './equipment.service';
@@ -18,7 +19,7 @@ import { ManagerDashboardController } from './manager-dashboard.controller';
 import { ManagerDashboardService } from './manager-dashboard.service';
 
 @Module({
-  imports: [PrismaModule],
+  imports: [PrismaModule, RoomModule],
 
   controllers: [
     EquipmentController,

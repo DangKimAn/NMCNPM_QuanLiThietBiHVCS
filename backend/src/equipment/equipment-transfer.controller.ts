@@ -10,6 +10,7 @@ import { ApiTags } from '@nestjs/swagger';
 
 import { EquipmentTransferService } from './equipment-transfer.service';
 import { CreateEquipmentTransferDto } from './dto/create-equipment-transfer.dto';
+import { CreateBulkEquipmentTransferDto } from './dto/create-bulk-equipment-transfer.dto';
 
 @ApiTags('Equipment Transfers - Điều chuyển thiết bị')
 @Controller('equipment-transfers')
@@ -19,6 +20,11 @@ export class EquipmentTransferController {
   @Post()
   create(@Body() createDto: CreateEquipmentTransferDto) {
     return this.transferService.create(createDto);
+  }
+
+  @Post('bulk')
+  createBulk(@Body() createBulkDto: CreateBulkEquipmentTransferDto) {
+    return this.transferService.createBulk(createBulkDto);
   }
 
   @Get()

@@ -18,6 +18,7 @@ import { EquipmentStatus } from '@prisma/client';
 
 import { EquipmentService } from './equipment.service';
 import { CreateEquipmentDto } from './dto/create-equipment.dto';
+import { CreateBulkEquipmentDto } from './dto/create-bulk-equipment.dto';
 import { UpdateEquipmentDto } from './dto/update-equipment.dto';
 import { UpdateEquipmentStatusDto } from './dto/update-equipment-status.dto';
 
@@ -69,6 +70,13 @@ export class EquipmentController {
   @Roles(Role.MANAGER, Role.ADMIN)
   create(@Body() dto: CreateEquipmentDto) {
     return this.equipmentService.create(dto);
+  }
+
+  // Thêm thiết bị hàng loạt
+  @Post('bulk')
+  @Roles(Role.MANAGER, Role.ADMIN)
+  createBulk(@Body() dto: CreateBulkEquipmentDto) {
+    return this.equipmentService.createBulk(dto);
   }
 
   // Import thiết bị từ Excel

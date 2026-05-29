@@ -5,10 +5,31 @@ import { Prisma, ReportStatus } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateReportDto } from './dto/create-report.dto';
 import { HandleReportDto } from './dto/handle-report.dto';
+import { RoomService } from '../room/room.service';
 
 @Injectable()
 export class ReportService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly roomService: RoomService,
+  ) {}
+
+  private async populateRoomsForReports(reports: any[]) {
+    if (!reports.length) return reports;
+    const rooms = await this.roomService.findAll({});
+    const roomMap = new Map(rooms.map((r: any) => [r.roomId, r]));
+
+    return reports.map(report => ({
+      ...report,
+      room: roomMap.get(report.roomId) || null
+    }));
+  }
+
+  private async populateRoomForSingleReport(report: any) {
+    if (!report) return null;
+    const room = await this.roomService.findOne(report.roomId);
+    return { ...report, room };
+  }
 
   // Lấy danh sách phản ánh
   async findAll(query: {
@@ -42,11 +63,6 @@ export class ReportService {
         { resolutionContent: { contains: query.search, mode: 'insensitive' } },
         { result: { contains: query.search, mode: 'insensitive' } },
         {
-          room: {
-            code: { contains: query.search, mode: 'insensitive' },
-          },
-        },
-        {
           equipment: {
             name: { contains: query.search, mode: 'insensitive' },
           },
@@ -59,7 +75,7 @@ export class ReportService {
       ];
     }
 
-    return this.prisma.report.findMany({
+    const reports = await this.prisma.report.findMany({
       where,
       orderBy: {
         reportedAt: 'desc',
@@ -75,7 +91,6 @@ export class ReportService {
             role: true,
           },
         },
-        room: true,
         equipment: {
           include: {
             category: true,
@@ -83,6 +98,8 @@ export class ReportService {
         },
       },
     });
+
+    return this.populateRoomsForReports(reports);
   }
 
   // Lấy chi tiết một phản ánh - ĐÃ TÍCH HỢP KIỂM TRA CHÍNH CHỦ
@@ -100,7 +117,6 @@ export class ReportService {
             role: true,
           },
         },
-        room: true,
         equipment: {
           include: {
             category: true,
@@ -119,7 +135,7 @@ export class ReportService {
       throw new ForbiddenException('Bạn không có quyền xem chi tiết phản ánh của tài khoản khác');
     }
 
-    return report;
+    return this.populateRoomForSingleReport(report);
   }
 
   // Gửi phản ánh báo hỏng lên hệ thống (STUDENT & TEACHER)
@@ -132,12 +148,9 @@ export class ReportService {
       throw new BadRequestException('Người gửi phản ánh không tồn tại hoặc chưa đăng nhập');
     }
 
-    const room = await this.prisma.room.findUnique({
-      where: { roomId: dto.roomId },
-    });
-
+    const room = await this.roomService.findOne(dto.roomId);
     if (!room) {
-      throw new BadRequestException('Phòng học không tồn tại');
+      throw new BadRequestException('Phòng học không tồn tại trên hệ thống ROOM_API');
     }
 
     if (dto.equipmentId) {
@@ -150,7 +163,7 @@ export class ReportService {
       }
     }
 
-    return this.prisma.report.create({
+    const result = await this.prisma.report.create({
       data: {
         reporterId: userId, 
         roomId: dto.roomId,
@@ -160,10 +173,11 @@ export class ReportService {
       },
       include: {
         reporter: true,
-        room: true,
         equipment: true,
       },
     });
+
+    return this.populateRoomForSingleReport(result);
   }
 
   // Xử lý phản ánh dành riêng cho MANAGER
@@ -182,7 +196,7 @@ export class ReportService {
     const shouldSetResolvedAt =
       dto.status === ReportStatus.RESOLVED || dto.status === ReportStatus.REJECTED;
 
-    return this.prisma.report.update({
+    const result = await this.prisma.report.update({
       where: { reportId },
       data: {
         status: dto.status,
@@ -194,9 +208,10 @@ export class ReportService {
       include: {
         reporter: true,
         handler: true,
-        room: true,
         equipment: true,
       },
     });
+
+    return this.populateRoomForSingleReport(result);
   }
 }

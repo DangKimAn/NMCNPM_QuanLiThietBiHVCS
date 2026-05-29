@@ -21,11 +21,7 @@ enum UserStatus {
   LOCKED
 }
 
-enum RoomStatus {
-  AVAILABLE
-  MAINTENANCE
-  IN_USE
-}
+
 
 enum EquipmentStatus {
   GOOD
@@ -146,25 +142,7 @@ model ActivityLog {
   @@map("activity_logs")
 }
 
-model Room {
-  roomId   Int        @id @default(autoincrement())
-  code     String     @unique @db.VarChar(255)
-  name     String     @db.VarChar(255)
-  building String?    @db.VarChar(255)
-  floor    Int?
-  capacity Int?
-  status   RoomStatus @default(AVAILABLE)
 
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  allocations   EquipmentAllocation[]
-  transfersFrom EquipmentTransfer[]   @relation("FromRoom")
-  transfersTo   EquipmentTransfer[]   @relation("ToRoom")
-  reports       Report[]
-
-  @@map("rooms")
-}
 
 model EquipmentCategory {
   categoryId  Int     @id @default(autoincrement())
@@ -190,9 +168,7 @@ model Equipment {
   categoryId    Int
   unit          String?         @db.VarChar(255)
 
-  // Tạm thời vẫn giữ quantity để không ảnh hưởng code cũ.
-  // Nhưng từ giờ mỗi dòng thiết bị là 1 thiết bị riêng, nên mặc định là 1.
-  quantity      Int             @default(1)
+  // Đã xóa trường quantity vì mỗi bản ghi đại diện cho 1 thiết bị thực tế
 
   status        EquipmentStatus @default(GOOD)
   description   String?         @db.VarChar(255)
@@ -212,7 +188,6 @@ model EquipmentAllocation {
   allocationId Int       @id @default(autoincrement())
   equipmentId  Int
   roomId       Int
-  quantity     Int       @default(0)
   allocatedAt  DateTime? @db.Date
   note         String?   @db.VarChar(255)
 
@@ -220,7 +195,6 @@ model EquipmentAllocation {
   updatedAt DateTime @updatedAt
 
   equipment Equipment @relation(fields: [equipmentId], references: [equipmentId], onDelete: Restrict)
-  room      Room      @relation(fields: [roomId], references: [roomId], onDelete: Restrict)
 
   @@map("equipment_allocations")
 }
@@ -230,7 +204,6 @@ model EquipmentTransfer {
   equipmentId   Int
   fromRoomId    Int
   toRoomId      Int
-  quantity      Int      @default(0)
   transferredAt DateTime @db.Date
   executorId    Int
   note          String?  @db.VarChar(255)
@@ -239,8 +212,6 @@ model EquipmentTransfer {
   updatedAt DateTime @updatedAt
 
   equipment Equipment @relation(fields: [equipmentId], references: [equipmentId], onDelete: Restrict)
-  fromRoom  Room      @relation("FromRoom", fields: [fromRoomId], references: [roomId], onDelete: Restrict)
-  toRoom    Room      @relation("ToRoom", fields: [toRoomId], references: [roomId], onDelete: Restrict)
   executor  User      @relation("ExecutedTransfers", fields: [executorId], references: [userId], onDelete: Restrict)
 
   @@map("equipment_transfers")
@@ -266,7 +237,6 @@ model Report {
 
   reporter  User       @relation("ReportedIncidents", fields: [reporterId], references: [userId], onDelete: Restrict)
   handler   User?      @relation("HandledResolutions", fields: [handlerId], references: [userId], onDelete: Restrict)
-  room      Room       @relation(fields: [roomId], references: [roomId], onDelete: Restrict)
   equipment Equipment? @relation(fields: [equipmentId], references: [equipmentId], onDelete: Restrict)
 
   @@map("reports")

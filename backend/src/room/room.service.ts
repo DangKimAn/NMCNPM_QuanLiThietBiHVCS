@@ -1,112 +1,158 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
-import { Prisma, RoomStatus } from '@prisma/client';
-
-import { PrismaService } from '../prisma/prisma.service';
+import { Injectable, InternalServerErrorException, NotFoundException } from '@nestjs/common';
 import { CreateRoomDto } from './dto/create-room.dto';
 import { UpdateRoomDto } from './dto/update-room.dto';
 
 @Injectable()
 export class RoomService {
-  constructor(private readonly prisma: PrismaService) {}
+  private get baseUrl() {
+    return process.env.ROOM_API ? `${process.env.ROOM_API}/api/rooms` : 'http://localhost:3000/api/rooms';
+  }
 
-  // Lấy danh sách phòng học, có hỗ trợ tìm kiếm và lọc trạng thái
-  async findAll(query: { search?: string; status?: RoomStatus }) {
-    const where: Prisma.RoomWhereInput = {};
+  // Simple in-memory cache
+  private cachedRooms: any[] = [];
+  private cacheTimestamp: number = 0;
+  private readonly CACHE_TTL = 30000; // 30 seconds
+
+  private async fetchRoomsFromApi(): Promise<any[]> {
+    const now = Date.now();
+    if (this.cachedRooms.length > 0 && (now - this.cacheTimestamp < this.CACHE_TTL)) {
+      return this.cachedRooms;
+    }
+
+    try {
+      const response = await fetch(this.baseUrl);
+      if (!response.ok) {
+        throw new Error('Failed to fetch rooms');
+      }
+      const data = await response.json();
+      
+      const rawRooms = data.data || [];
+      this.cachedRooms = rawRooms.map((r: any) => ({
+        roomId: r.id,
+        code: r.name,
+        name: r.name,
+        capacity: r.totalEquipments || 0,
+        status: 'AVAILABLE',
+      }));
+      this.cacheTimestamp = now;
+
+      return this.cachedRooms;
+    } catch (error) {
+      console.error(error);
+      // Fallback to cache if API is down but we have stale cache
+      if (this.cachedRooms.length > 0) return this.cachedRooms;
+      return [];
+    }
+  }
+
+  // Lấy danh sách phòng học, có hỗ trợ tìm kiếm
+  async findAll(query: { search?: string }) {
+    const rooms = await this.fetchRoomsFromApi();
 
     if (query.search) {
-      where.OR = [
-        { code: { contains: query.search, mode: 'insensitive' } },
-        { name: { contains: query.search, mode: 'insensitive' } },
-        { building: { contains: query.search, mode: 'insensitive' } },
-      ];
+      const lowerSearch = query.search.toLowerCase();
+      return rooms.filter((r: any) => 
+        r.name.toLowerCase().includes(lowerSearch) || 
+        r.code.toLowerCase().includes(lowerSearch)
+      );
     }
-
-    if (query.status) {
-      where.status = query.status;
-    }
-
-    return this.prisma.room.findMany({
-      where,
-      orderBy: { roomId: 'asc' },
-      include: {
-        // Lấy luôn danh sách thiết bị đang được gắn trong phòng
-        allocations: {
-          include: {
-            equipment: {
-              include: {
-                category: true,
-              },
-            },
-          },
-        },
-      },
-    });
+    return rooms;
   }
 
   // Lấy chi tiết một phòng học
   async findOne(roomId: number) {
-    const room = await this.prisma.room.findUnique({
-      where: { roomId },
-      include: {
-        allocations: {
-          include: {
-            equipment: {
-              include: {
-                category: true,
-              },
-            },
-          },
-        },
-        reports: true,
-      },
-    });
-
-    if (!room) {
-      throw new NotFoundException('Không tìm thấy phòng học');
-    }
-
-    return room;
+    const rooms = await this.fetchRoomsFromApi();
+    const room = rooms.find((r: any) => r.roomId === roomId);
+    return room || null;
   }
 
   // Thêm phòng học mới
   async create(dto: CreateRoomDto) {
-    const existedRoom = await this.prisma.room.findUnique({
-      where: { code: dto.code },
-    });
+    try {
+      const response = await fetch(this.baseUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: dto.name }),
+      });
+      if (!response.ok) {
+        throw new Error('Failed to create room');
+      }
+      
+      // Invalidate cache
+      this.cacheTimestamp = 0;
 
-    if (existedRoom) {
-      throw new BadRequestException('Mã phòng đã tồn tại');
+      const data = await response.json();
+      return {
+        roomId: data.id,
+        code: data.name,
+        name: data.name,
+        capacity: data.totalEquipments || 0,
+        status: 'AVAILABLE',
+      };
+    } catch (error) {
+      console.error(error);
+      throw new InternalServerErrorException('Lỗi khi tạo phòng học mới qua hệ thống ngoài');
     }
-
-    return this.prisma.room.create({
-      data: {
-        code: dto.code,
-        name: dto.name,
-        building: dto.building,
-        floor: dto.floor,
-        capacity: dto.capacity,
-        status: dto.status ?? RoomStatus.AVAILABLE,
-      },
-    });
   }
 
   // Cập nhật phòng học
   async update(roomId: number, dto: UpdateRoomDto) {
-    await this.findOne(roomId);
-
-    return this.prisma.room.update({
-      where: { roomId },
-      data: dto,
-    });
+    throw new InternalServerErrorException('API hiện tại không hỗ trợ cập nhật thông tin phòng');
   }
 
   // Xóa phòng học
-  // Lưu ý: nếu phòng đã có thiết bị/phản ánh liên quan thì Prisma có thể không cho xóa
   async remove(roomId: number) {
-    await this.findOne(roomId);
+    try {
+      const response = await fetch(`${this.baseUrl}/${roomId}`, {
+        method: 'DELETE',
+      });
+      if (!response.ok) {
+        const errText = await response.text();
+        throw new Error(errText);
+      }
+      
+      // Invalidate cache
+      this.cacheTimestamp = 0;
 
-    return this.prisma.room.delete({
-      where: { roomId },
+      return { success: true, message: 'Xóa phòng học thành công' };
+    } catch (error: any) {
+      console.error(error);
+      throw new InternalServerErrorException(error.message || 'Lỗi khi xóa phòng học');
+    }
+  }
+
+  // Cập nhật số lượng thiết bị (cộng/trừ) qua API và tự động ROLLBACK Prisma nếu lỗi
+  async updateEquipmentCount(roomId: number, action: 'add' | 'sub', amount: number) {
+    if (!roomId) return null;
+    
+    // Invalidate cache since count will change
+    this.cacheTimestamp = 0;
+
+    const response = await fetch(`${this.baseUrl}/${roomId}/equipment`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action, amount }),
     });
+
+    if (!response.ok) {
+      if (response.status === 404) {
+        throw new NotFoundException(`Phòng học ID ${roomId} không tồn tại trên ROOM_API`);
+      }
+      if (response.status === 400) {
+        const err = await response.json();
+        throw new InternalServerErrorException(err.error || 'Lỗi cập nhật số lượng thiết bị trên ROOM_API');
+      }
+      throw new InternalServerErrorException(`Lỗi hệ thống khi gọi ROOM_API (Status: ${response.status})`);
+    }
+
+    const data = await response.json();
+    
+    return {
+      roomId: data.id,
+      code: data.name,
+      name: data.name,
+      capacity: data.totalEquipments || 0,
+      status: 'AVAILABLE',
+    };
   }
 }
