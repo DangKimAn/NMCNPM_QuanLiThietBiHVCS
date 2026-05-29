@@ -11,7 +11,6 @@ import {
   FiTool,
   FiXCircle,
   FiUpload,
-  FiRefreshCw,
 } from 'react-icons/fi';
 
 import { ManagerLayout } from '../../components/layout/ManagerLayout';
@@ -31,10 +30,15 @@ import { DeviceRoomCards } from '../../components/manager/devices/DeviceRoomCard
 import { DeviceTable } from '../../components/manager/devices/DeviceTable';
 import { TransferHistory } from '../../components/manager/devices/TransferHistory';
 import { deviceStatuses } from '../../data/managerMockData';
-import { managerApi, type BackendCategory, type BackendRoom } from '../../services/managerApi';
+import {
+  managerApi,
+  type BackendCategory,
+  type BackendRoom,
+} from '../../services/managerApi';
 import type { Device, DeviceStatus, TransferLog } from '../../types/manager';
 
 const emptyDevice: Device = {
+  equipmentId: 0,
   id: '',
   name: '',
   type: '',
@@ -72,17 +76,24 @@ export const DeviceManager = () => {
   const [loading, setLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState('');
 
-  const [activeTab, setActiveTab] = useState<'all' | 'byRoom' | 'transfer'>('all');
+  const [activeTab, setActiveTab] = useState<'all' | 'byRoom' | 'transfer'>(
+    'all',
+  );
 
   const [keyword, setKeyword] = useState(searchParams.get('keyword') || '');
-  const [filterRoom, setFilterRoom] = useState(searchParams.get('room') || 'All');
-  const [filterType, setFilterType] = useState(searchParams.get('type') || 'All');
-  const [filterStatus, setFilterStatus] = useState(searchParams.get('status') || 'All');
-  
+  const [filterRoom, setFilterRoom] = useState(
+    searchParams.get('room') || 'All',
+  );
+  const [filterType, setFilterType] = useState(
+    searchParams.get('type') || 'All',
+  );
+  const [filterStatus, setFilterStatus] = useState(
+    searchParams.get('status') || 'All',
+  );
+
   const [roomSearchTerm, setRoomSearchTerm] = useState('');
 
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
-
   const [isGeneralTransferOpen, setIsGeneralTransferOpen] = useState(false);
 
   const [isDeviceModalOpen, setIsDeviceModalOpen] = useState(false);
@@ -142,12 +153,13 @@ export const DeviceManager = () => {
       setLoading(true);
       setErrorMessage('');
 
-      const [roomData, categoryData, deviceData, transferData] = await Promise.all([
-        managerApi.getRooms(),
-        managerApi.getCategories(),
-        managerApi.getDevices(),
-        managerApi.getTransfers(),
-      ]);
+      const [roomData, categoryData, deviceData, transferData] =
+        await Promise.all([
+          managerApi.getRooms(),
+          managerApi.getCategories(),
+          managerApi.getDevices(),
+          managerApi.getTransfers(),
+        ]);
 
       setRooms(roomData);
       setCategories(categoryData);
@@ -223,7 +235,8 @@ export const DeviceManager = () => {
       needFix: devices.filter((device) =>
         ['Báo hỏng', 'Đang sửa', 'Bảo trì'].includes(device.status),
       ).length,
-      discarded: devices.filter((device) => device.status === 'Thanh lý').length,
+      discarded: devices.filter((device) => device.status === 'Thanh lý')
+        .length,
     };
   }, [devices]);
 
@@ -232,7 +245,7 @@ export const DeviceManager = () => {
 
     setDeviceForm({
       ...emptyDevice,
-      id: 'Tự động',
+      id: '',
       type: typeOptions[0] || 'Khác',
       room: roomOptions[0] || 'Kho',
       importDate: getToday(),
@@ -250,6 +263,11 @@ export const DeviceManager = () => {
   const saveDevice = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
 
+    if (!deviceForm.id.trim()) {
+      alert('Vui lòng nhập mã thiết bị.');
+      return;
+    }
+
     if (!deviceForm.name.trim()) {
       alert('Vui lòng nhập tên thiết bị.');
       return;
@@ -258,24 +276,26 @@ export const DeviceManager = () => {
     const categoryId = getCategoryIdByName(deviceForm.type);
 
     if (!categoryId) {
-      alert('Loại thiết bị không hợp lệ. Vui lòng tạo loại thiết bị trong backend trước.');
+      alert(
+        'Loại thiết bị không hợp lệ. Vui lòng tạo loại thiết bị trong backend trước.',
+      );
       return;
     }
 
     try {
       if (editingDevice) {
-        await managerApi.updateEquipment(editingDevice.id, {
+        await managerApi.updateEquipment(editingDevice.equipmentId, {
+          equipmentCode: deviceForm.id,
           name: deviceForm.name,
           categoryId,
-          quantity: deviceForm.quantity,
           status: deviceForm.status,
           description: deviceForm.note,
         });
       } else {
         const created = await managerApi.createEquipment({
+          equipmentCode: deviceForm.id,
           name: deviceForm.name,
           categoryId,
-          quantity: deviceForm.quantity,
           status: deviceForm.status,
           description: deviceForm.note,
         });
@@ -286,7 +306,7 @@ export const DeviceManager = () => {
           await managerApi.allocateEquipment({
             equipmentId: created.equipmentId,
             roomId,
-            quantity: deviceForm.quantity,
+            quantity: 1,
             allocatedAt: deviceForm.importDate || getToday(),
             note: `Gắn thiết bị ${deviceForm.name} vào phòng ${deviceForm.room}`,
           });
@@ -301,13 +321,15 @@ export const DeviceManager = () => {
     }
   };
 
-  const deleteDevice = async (id: string) => {
-    const confirmDelete = window.confirm(`Bạn có chắc chắn muốn xóa thiết bị ${id}?`);
+  const deleteDevice = async (device: Device) => {
+    const confirmDelete = window.confirm(
+      `Bạn có chắc chắn muốn xóa thiết bị ${device.id}?`,
+    );
 
     if (!confirmDelete) return;
 
     try {
-      await managerApi.deleteEquipment(id);
+      await managerApi.deleteEquipment(device.equipmentId);
       await fetchAllData();
     } catch (error) {
       console.error(error);
@@ -330,7 +352,7 @@ export const DeviceManager = () => {
     if (!statusDevice) return;
 
     try {
-      await managerApi.updateEquipmentStatus(statusDevice.id, {
+      await managerApi.updateEquipmentStatus(statusDevice.equipmentId, {
         status: statusForm.status,
         description: statusForm.note,
       });
@@ -346,13 +368,14 @@ export const DeviceManager = () => {
   const openTransferModal = (device: Device) => {
     setTransferDevice(device);
 
-    const suggestedRoom = roomOptions.find((room) => room !== device.room) || roomOptions[0] || '';
+    const suggestedRoom =
+      roomOptions.find((room) => room !== device.room) || roomOptions[0] || '';
 
     setTransferForm({
       fromRoom: device.room,
-      equipmentId: device.id,
+      equipmentId: String(device.equipmentId),
       toRoom: suggestedRoom,
-      quantity: device.quantity,
+      quantity: 1,
       date: getToday(),
       handler: 'Cán bộ QLTB',
       reason: '',
@@ -362,8 +385,13 @@ export const DeviceManager = () => {
   const saveTransfer = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
 
-    const fromRoomCode = transferDevice ? transferDevice.room : transferForm.fromRoom;
-    const eqId = transferDevice ? transferDevice.id : transferForm.equipmentId;
+    const fromRoomCode = transferDevice
+      ? transferDevice.room
+      : transferForm.fromRoom;
+
+    const eqId = transferDevice
+      ? transferDevice.equipmentId
+      : Number(transferForm.equipmentId);
 
     if (!fromRoomCode || !eqId) {
       alert('Vui lòng chọn thiết bị và phòng hiện tại.');
@@ -385,13 +413,15 @@ export const DeviceManager = () => {
 
     try {
       await managerApi.createTransfer({
-        equipmentId: Number(eqId),
+        equipmentId: eqId,
         fromRoomId,
         toRoomId,
-        quantity: transferForm.quantity || 1,
+        quantity: 1,
         transferredAt: transferForm.date,
         executorId: getExecutorId(),
-        note: transferForm.reason || 'Điều chuyển theo nhu cầu sử dụng phòng học.',
+        note:
+          transferForm.reason ||
+          'Điều chuyển theo nhu cầu sử dụng phòng học.',
       });
 
       setTransferDevice(null);
@@ -400,7 +430,9 @@ export const DeviceManager = () => {
       await fetchAllData();
     } catch (error) {
       console.error(error);
-      alert('Không thể điều chuyển thiết bị. Kiểm tra dữ liệu phòng, thiết bị hoặc người thực hiện.');
+      alert(
+        'Không thể điều chuyển thiết bị. Kiểm tra dữ liệu phòng, thiết bị hoặc người thực hiện.',
+      );
     }
   };
 
@@ -408,10 +440,13 @@ export const DeviceManager = () => {
     <ManagerLayout>
       <div className="mb-6 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-black text-slate-800">Cán bộ quản lý thiết bị</h1>
+          <h1 className="text-2xl font-black text-slate-800">
+            Cán bộ quản lý thiết bị
+          </h1>
 
           <p className="text-sm text-slate-500 mt-1">
-            Quản lý danh mục thiết bị, phân bổ phòng học, điều chuyển và cập nhật trạng thái.
+            Quản lý danh mục thiết bị, phân bổ phòng học, điều chuyển và cập
+            nhật trạng thái.
           </p>
         </div>
 
@@ -444,9 +479,17 @@ export const DeviceManager = () => {
 
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
         <SummaryCard icon={<FiBox />} label="Tổng thiết bị" value={stats.total} />
-        <SummaryCard icon={<FiCheckCircle />} label="Hoạt động" value={stats.good} />
+        <SummaryCard
+          icon={<FiCheckCircle />}
+          label="Hoạt động"
+          value={stats.good}
+        />
         <SummaryCard icon={<FiTool />} label="Cần xử lý" value={stats.needFix} />
-        <SummaryCard icon={<FiXCircle />} label="Thanh lý" value={stats.discarded} />
+        <SummaryCard
+          icon={<FiXCircle />}
+          label="Thanh lý"
+          value={stats.discarded}
+        />
       </div>
 
       <div className="border-b border-slate-200 mb-6">
@@ -539,6 +582,7 @@ export const DeviceManager = () => {
           <div className="flex gap-2">
             <div className="relative flex-1 max-w-md">
               <FiSearch className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+
               <input
                 type="text"
                 placeholder="Tìm kiếm tên phòng học..."
@@ -548,10 +592,13 @@ export const DeviceManager = () => {
               />
             </div>
           </div>
+
           <DeviceRoomCards
             rooms={roomOptions
               .filter((room) => room !== 'Kho')
-              .filter((room) => room.toLowerCase().includes(roomSearchTerm.toLowerCase()))}
+              .filter((room) =>
+                room.toLowerCase().includes(roomSearchTerm.toLowerCase()),
+              )}
             devices={devices}
             onStatus={openStatusModal}
             onTransfer={openTransferModal}
@@ -614,9 +661,9 @@ export const DeviceManager = () => {
         />
       )}
 
-      <DeviceImportExcelModal 
-        isOpen={isImportModalOpen} 
-        onClose={() => setIsImportModalOpen(false)} 
+      <DeviceImportExcelModal
+        isOpen={isImportModalOpen}
+        onClose={() => setIsImportModalOpen(false)}
         onSuccess={() => fetchAllData()}
       />
     </ManagerLayout>

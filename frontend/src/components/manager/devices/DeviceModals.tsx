@@ -28,10 +28,13 @@ export const DeviceFormModal = ({
   onClose,
   onSubmit,
 }: DeviceFormModalProps) => {
-
   return (
     <Modal
-      title={editingDevice ? `Cập nhật thiết bị - ${editingDevice.id}` : 'Thêm thiết bị mới'}
+      title={
+        editingDevice
+          ? `Cập nhật thiết bị - ${editingDevice.id}`
+          : 'Thêm thiết bị mới'
+      }
       onClose={onClose}
       onSubmit={onSubmit}
       submitText={editingDevice ? 'Cập nhật' : 'Thêm mới'}
@@ -40,8 +43,7 @@ export const DeviceFormModal = ({
         <FieldInput
           label="Mã thiết bị"
           value={deviceForm.id}
-          disabled
-          required={false}
+          required
           onChange={(value) => setDeviceForm({ ...deviceForm, id: value })}
         />
 
@@ -56,18 +58,6 @@ export const DeviceFormModal = ({
           value={deviceForm.type}
           options={typeOptions}
           onChange={(value) => setDeviceForm({ ...deviceForm, type: value })}
-        />
-
-        <FieldInput
-          label="Số lượng"
-          type="number"
-          value={deviceForm.quantity}
-          onChange={(value) =>
-            setDeviceForm({
-              ...deviceForm,
-              quantity: Math.max(1, Number(value) || 1),
-            })
-          }
         />
 
         <FieldSelect
@@ -94,7 +84,9 @@ export const DeviceFormModal = ({
           type="date"
           value={deviceForm.importDate}
           required={false}
-          onChange={(value) => setDeviceForm({ ...deviceForm, importDate: value })}
+          onChange={(value) =>
+            setDeviceForm({ ...deviceForm, importDate: value })
+          }
         />
 
         <div className="md:col-span-2">
@@ -142,7 +134,8 @@ export const DeviceStatusModal = ({
         <p className="font-bold text-slate-800">{device.name}</p>
 
         <p className="text-xs text-slate-500 mt-1">
-          Phòng hiện tại: {device.room} • Trạng thái hiện tại: {device.status}
+          Mã thiết bị: {device.id} • Phòng hiện tại: {device.room} • Trạng thái
+          hiện tại: {device.status}
         </p>
       </div>
 
@@ -198,7 +191,11 @@ export const DeviceTransferModal = ({
 }: DeviceTransferModalProps) => {
   return (
     <Modal
-      title={device ? `Điều chuyển thiết bị - ${device.id}` : 'Điều chuyển thiết bị'}
+      title={
+        device
+          ? `Điều chuyển thiết bị - ${device.id}`
+          : 'Điều chuyển thiết bị'
+      }
       onClose={onClose}
       onSubmit={onSubmit}
       submitText="Xác nhận điều chuyển"
@@ -209,8 +206,13 @@ export const DeviceTransferModal = ({
 
           <p className="font-bold text-slate-800">{device.name}</p>
 
-          <p className="text-xs text-slate-500 mt-1">Phòng hiện tại: {device.room}</p>
-          <p className="text-xs text-slate-500 mt-1">Sẵn sàng điều chuyển: {device.quantity}</p>
+          <p className="text-xs text-slate-500 mt-1">
+            Mã thiết bị: {device.id}
+          </p>
+
+          <p className="text-xs text-slate-500 mt-1">
+            Phòng hiện tại: {device.room}
+          </p>
         </div>
       ) : (
         <>
@@ -218,21 +220,43 @@ export const DeviceTransferModal = ({
             label="Phòng hiện tại (Từ phòng)"
             value={transferForm.fromRoom || ''}
             options={roomOptions}
-            onChange={(value) => setTransferForm({ ...transferForm, fromRoom: value, equipmentId: '', quantity: 1 })}
+            onChange={(value) =>
+              setTransferForm({
+                ...transferForm,
+                fromRoom: value,
+                equipmentId: '',
+                quantity: 1,
+              })
+            }
           />
-          
+
           <div className="mt-4 mb-4">
-            <label className="block text-sm font-medium text-slate-700 mb-1.5">Thiết bị cần chuyển</label>
+            <label className="block text-sm font-medium text-slate-700 mb-1.5">
+              Thiết bị cần chuyển
+            </label>
+
             <select
               value={transferForm.equipmentId || ''}
-              onChange={(e) => setTransferForm({ ...transferForm, equipmentId: e.target.value, quantity: 1 })}
+              onChange={(e) =>
+                setTransferForm({
+                  ...transferForm,
+                  equipmentId: e.target.value,
+                  quantity: 1,
+                })
+              }
               className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:border-blue-500 bg-white"
             >
               <option value="">-- Chọn thiết bị --</option>
+
               {devices
-                ?.filter(d => d.room === transferForm.fromRoom)
-                .map(d => (
-                  <option key={d.id} value={d.id}>{d.name} (Có sẵn: {d.quantity})</option>
+                ?.filter((item) => item.room === transferForm.fromRoom)
+                .map((item) => (
+                  <option
+                    key={item.equipmentId}
+                    value={String(item.equipmentId)}
+                  >
+                    {item.id} - {item.name}
+                  </option>
                 ))}
             </select>
           </div>
@@ -243,35 +267,34 @@ export const DeviceTransferModal = ({
         label="Phòng mới (Đến phòng)"
         value={transferForm.toRoom}
         options={roomOptions}
-        onChange={(value) => setTransferForm({ ...transferForm, toRoom: value })}
+        onChange={(value) =>
+          setTransferForm({ ...transferForm, toRoom: value })
+        }
       />
-
-      <div className="mt-4 mb-4">
-        <FieldInput
-          label="Số lượng"
-          type="number"
-          value={transferForm.quantity}
-          onChange={(value) => setTransferForm({ ...transferForm, quantity: Math.max(1, Number(value)) })}
-        />
-      </div>
 
       <FieldInput
         label="Ngày điều chuyển"
         type="date"
         value={transferForm.date}
-        onChange={(value) => setTransferForm({ ...transferForm, date: value })}
+        onChange={(value) =>
+          setTransferForm({ ...transferForm, date: value })
+        }
       />
 
       <FieldInput
         label="Người thực hiện"
         value={transferForm.handler}
-        onChange={(value) => setTransferForm({ ...transferForm, handler: value })}
+        onChange={(value) =>
+          setTransferForm({ ...transferForm, handler: value })
+        }
       />
 
       <FieldTextArea
         label="Lý do điều chuyển"
         value={transferForm.reason}
-        onChange={(value) => setTransferForm({ ...transferForm, reason: value })}
+        onChange={(value) =>
+          setTransferForm({ ...transferForm, reason: value })
+        }
       />
     </Modal>
   );
