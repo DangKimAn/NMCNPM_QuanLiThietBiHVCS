@@ -1,7 +1,6 @@
 // src/report/report.service.ts
 import { BadRequestException, Injectable, NotFoundException, ForbiddenException } from '@nestjs/common';
-import { Prisma, ReportStatus } from '@prisma/client';
-
+import { Prisma, ReportStatus, EquipmentStatus } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateReportDto } from './dto/create-report.dto';
 import { HandleReportDto } from './dto/handle-report.dto';
@@ -161,6 +160,11 @@ export class ReportService {
       if (!equipment) {
         throw new BadRequestException('Thiết bị không tồn tại');
       }
+
+      await this.prisma.equipment.update({
+        where: { equipmentId: dto.equipmentId },
+        data: { status: EquipmentStatus.BROKEN },
+      });
     }
 
     const result = await this.prisma.report.create({
@@ -193,7 +197,7 @@ export class ReportService {
   // Xử lý phản ánh dành riêng cho MANAGER
   async handle(reportId: number, dto: HandleReportDto, handlerId: number) {
     // Truyền đầy đủ tham số nội bộ để hàm findOne không bị lỗi biên dịch
-    await this.findOne(reportId, handlerId, 'MANAGER');
+    const report = await this.findOne(reportId, handlerId, 'MANAGER');
 
     const handler = await this.prisma.user.findUnique({
       where: { userId: handlerId },
@@ -221,6 +225,28 @@ export class ReportService {
         equipment: true,
       },
     });
+
+    if (report.equipmentId) {
+      let equipmentStatus: EquipmentStatus;
+      switch (dto.status) {
+        case ReportStatus.PROCESSING:
+          equipmentStatus = EquipmentStatus.UNDER_REPAIR;
+          break;
+        case ReportStatus.RESOLVED:
+        case ReportStatus.REJECTED:
+          equipmentStatus = EquipmentStatus.GOOD;
+          break;
+        case ReportStatus.PENDING:
+        default:
+          equipmentStatus = EquipmentStatus.BROKEN;
+          break;
+      }
+
+      await this.prisma.equipment.update({
+        where: { equipmentId: report.equipmentId },
+        data: { status: equipmentStatus },
+      });
+    }
 
     return this.populateRoomForSingleReport(result);
   }
