@@ -158,48 +158,61 @@ interface ModalProps {
   onSubmit: (e: FormEvent<HTMLFormElement>) => void;
   submitText: string;
   extraActions?: ReactNode;
+  isSubmitting?: boolean;
 }
 
 // Modal dùng chung cho form thêm, sửa, cập nhật và xử lý
-export const Modal = ({ title, children, onClose, onSubmit, submitText, extraActions }: ModalProps) => (
+export const Modal = ({ title, children, onClose, onSubmit, submitText, extraActions, isSubmitting = false }: ModalProps) => (
   <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm">
-    <div className="bg-white rounded-2xl shadow-xl w-full max-w-2xl overflow-hidden">
-      <div className="px-6 py-4 border-b border-slate-200 flex justify-between items-center bg-slate-50">
+    <div className="bg-white rounded-2xl shadow-xl w-full max-w-2xl flex flex-col max-h-[90vh]">
+      <div className="px-6 py-4 border-b border-slate-200 flex justify-between items-center bg-slate-50 shrink-0 rounded-t-2xl">
         <h3 className="text-lg font-bold text-slate-800">{title}</h3>
 
         <button
           type="button"
           onClick={onClose}
-          className="text-slate-400 hover:text-slate-600 p-1"
+          disabled={isSubmitting}
+          className="text-slate-400 hover:text-slate-600 p-1 disabled:opacity-50"
         >
           <FiX className="text-xl" />
         </button>
       </div>
 
-      <form onSubmit={onSubmit} className="p-6">
-        <div className="space-y-4">{children}</div>
+      <form onSubmit={onSubmit} className="flex flex-col flex-1 overflow-hidden">
+        <div className="p-6 space-y-4 overflow-y-auto">
+          {children}
+        </div>
 
-        <div className="pt-4 flex items-center justify-between border-t border-slate-100 mt-6">
+        <div className="px-6 py-4 flex items-center justify-between border-t border-slate-100 bg-white shrink-0 rounded-b-2xl">
           <div className="flex items-center gap-3">
             {extraActions}
           </div>
           <div className="flex items-center gap-3">
             <button
-            type="button"
-            onClick={onClose}
-            className="px-4 py-2 bg-white border border-slate-300 text-slate-700 text-sm font-medium rounded-lg hover:bg-slate-50"
-          >
-            Hủy bỏ
-          </button>
+              type="button"
+              onClick={onClose}
+              disabled={isSubmitting}
+              className="px-4 py-2 bg-white border border-slate-300 text-slate-700 text-sm font-medium rounded-lg hover:bg-slate-50 disabled:opacity-60"
+            >
+              Hủy bỏ
+            </button>
 
-          <button
-            type="submit"
-            className="flex items-center px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 shadow-sm"
-          >
-            <FiSave className="mr-2" />
-            {submitText}
-          </button>
-        </div>
+            <button
+              type="submit"
+              disabled={isSubmitting}
+              className="flex items-center px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 shadow-sm disabled:opacity-60"
+            >
+              {isSubmitting ? (
+                <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+              ) : (
+                <FiSave className="mr-2" />
+              )}
+              {isSubmitting ? 'Đang lưu...' : submitText}
+            </button>
+          </div>
         </div>
       </form>
     </div>

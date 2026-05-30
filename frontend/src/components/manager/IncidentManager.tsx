@@ -56,6 +56,7 @@ export const IncidentManager = () => {
 
   // State loading/error
   const [loading, setLoading] = useState(true);
+  const [submitting, setSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
 
   // State tìm kiếm và lọc
@@ -183,6 +184,7 @@ export const IncidentManager = () => {
     if (!selectedReport) return;
 
     try {
+      setSubmitting(true);
       await managerApi.handleReport(selectedReport.id, {
         status: selectedReport.status,
         handlerId: getCurrentUserId(),
@@ -202,6 +204,8 @@ export const IncidentManager = () => {
       alert(
         'Không thể cập nhật phản ánh. Kiểm tra backend, dữ liệu phản ánh hoặc userId người xử lý.',
       );
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -307,8 +311,9 @@ export const IncidentManager = () => {
               <tbody className="divide-y divide-slate-100">
                 {filteredReports.map((report) => (
                   <tr 
-                    key={report.id} 
-                    className={`transition-colors ${
+                    key={report.id}
+                    onClick={() => openDetailModal(report)}
+                    className={`transition-colors cursor-pointer ${
                       highlightId === String(report.id)
                         ? 'bg-amber-50 border-amber-200'
                         : 'hover:bg-slate-50'
@@ -381,6 +386,7 @@ export const IncidentManager = () => {
           onClose={closeDetailModal}
           onSubmit={updateReport}
           submitText="Lưu xử lý"
+          isSubmitting={submitting}
         >
           <div className="bg-slate-50 border border-slate-200 rounded-lg p-4 space-y-2">
             <InfoRow label="Người gửi" value={selectedReport.sender} />

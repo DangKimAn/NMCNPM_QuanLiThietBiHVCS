@@ -78,6 +78,7 @@ export class NotificationService {
         OR: [
           { targetRole: NotificationTargetRole.ALL },
           { targetRole: roleName as NotificationTargetRole },
+          { targetUserId: userId },
         ],
       },
       orderBy: {

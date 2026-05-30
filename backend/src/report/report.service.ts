@@ -1,6 +1,6 @@
 // src/report/report.service.ts
 import { BadRequestException, Injectable, NotFoundException, ForbiddenException } from '@nestjs/common';
-import { Prisma, ReportStatus, EquipmentStatus } from '@prisma/client';
+import { Prisma, ReportStatus, EquipmentStatus, NotificationTargetRole } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateReportDto } from './dto/create-report.dto';
 import { HandleReportDto } from './dto/handle-report.dto';
@@ -247,6 +247,23 @@ export class ReportService {
         data: { status: equipmentStatus },
       });
     }
+
+    const statusTextMap = {
+      [ReportStatus.PROCESSING]: 'Đang xử lý',
+      [ReportStatus.RESOLVED]: 'Đã xử lý',
+      [ReportStatus.REJECTED]: 'Từ chối',
+      [ReportStatus.PENDING]: 'Mới tiếp nhận',
+    };
+
+    await this.prisma.notification.create({
+      data: {
+        title: `Phản ánh của bạn đã được cập nhật: ${statusTextMap[dto.status]}`,
+        content: `Phản ánh thiết bị ${report.equipment?.name || 'Không xác định'} tại phòng ${report.room?.name || 'Không xác định'} đã được chuyển sang trạng thái ${statusTextMap[dto.status]}.${dto.resolutionContent ? `\n\nGhi chú: ${dto.resolutionContent}` : ''}`,
+        targetRole: report.reporter.role.roleName as NotificationTargetRole,
+        targetUserId: report.reporterId,
+        senderId: handlerId,
+      },
+    });
 
     return this.populateRoomForSingleReport(result);
   }
