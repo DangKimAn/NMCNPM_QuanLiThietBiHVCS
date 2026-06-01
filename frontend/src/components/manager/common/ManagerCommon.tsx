@@ -1,8 +1,10 @@
 // File chứa các component và hàm dùng chung cho phần Cán bộ quản lý thiết bị.
 // Việc tách ra file này giúp tránh viết lặp lại code ở nhiều nơi.
 
+import { useEffect } from 'react';
 import type { FormEvent, ReactNode } from 'react';
 import { FiSave, FiX } from 'react-icons/fi';
+import Select from 'react-select';
 
 import type { DeviceStatus, ReportStatus } from '../../../types/manager';
 
@@ -121,7 +123,7 @@ export const StatusBadge = ({ status, type }: StatusBadgeProps) => {
       : getReportStatusStyle(status as ReportStatus);
 
   return (
-    <span className={`px-2.5 py-1 rounded-full text-xs font-semibold border ${className}`}>
+    <span className={`px-2.5 py-1 rounded-full text-xs font-semibold border whitespace-nowrap ${className}`}>
       {status}
     </span>
   );
@@ -162,10 +164,19 @@ interface ModalProps {
 }
 
 // Modal dùng chung cho form thêm, sửa, cập nhật và xử lý
-export const Modal = ({ title, children, onClose, onSubmit, submitText, extraActions, isSubmitting = false }: ModalProps) => (
-  <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm">
-    <div className="bg-white rounded-2xl shadow-xl w-full max-w-2xl flex flex-col max-h-[90vh]">
-      <div className="px-6 py-4 border-b border-slate-200 flex justify-between items-center bg-slate-50 shrink-0 rounded-t-2xl">
+export const Modal = ({ title, children, onClose, onSubmit, submitText, extraActions, isSubmitting = false }: ModalProps) => {
+  useEffect(() => {
+    const originalStyle = window.getComputedStyle(document.body).overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.body.style.overflow = originalStyle;
+    };
+  }, []);
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm">
+      <div className="bg-white rounded-2xl shadow-xl w-full max-w-2xl flex flex-col max-h-[90vh] overflow-hidden">
+      <div className="px-6 py-4 border-b border-slate-200 flex justify-between items-center bg-slate-50 shrink-0">
         <h3 className="text-lg font-bold text-slate-800">{title}</h3>
 
         <button
@@ -179,11 +190,9 @@ export const Modal = ({ title, children, onClose, onSubmit, submitText, extraAct
       </div>
 
       <form onSubmit={onSubmit} className="flex flex-col flex-1 overflow-hidden">
-        <div className="p-6 space-y-4 overflow-y-auto">
-          {children}
-        </div>
+        <div className="p-6 space-y-4 overflow-y-auto">{children}</div>
 
-        <div className="px-6 py-4 flex items-center justify-between border-t border-slate-100 bg-white shrink-0 rounded-b-2xl">
+        <div className="px-6 py-4 flex items-center justify-between border-t border-slate-100 shrink-0 bg-white">
           <div className="flex items-center gap-3">
             {extraActions}
           </div>
@@ -192,7 +201,9 @@ export const Modal = ({ title, children, onClose, onSubmit, submitText, extraAct
               type="button"
               onClick={onClose}
               disabled={isSubmitting}
-              className="px-4 py-2 bg-white border border-slate-300 text-slate-700 text-sm font-medium rounded-lg hover:bg-slate-50 disabled:opacity-60"
+              className={`px-4 py-2 border text-sm font-medium rounded-lg transition ${
+                isSubmitting ? 'bg-slate-100 text-slate-400 border-slate-200 cursor-not-allowed' : 'bg-white border-slate-300 text-slate-700 hover:bg-slate-50'
+              }`}
             >
               Hủy bỏ
             </button>
@@ -200,24 +211,24 @@ export const Modal = ({ title, children, onClose, onSubmit, submitText, extraAct
             <button
               type="submit"
               disabled={isSubmitting}
-              className="flex items-center px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 shadow-sm disabled:opacity-60"
+              className={`flex items-center px-4 py-2 text-white text-sm font-medium rounded-lg shadow-sm transition ${
+                isSubmitting ? 'bg-blue-400 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700'
+              }`}
             >
               {isSubmitting ? (
-                <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                </svg>
+                <span className="w-4 h-4 border-2 border-white/20 border-t-white rounded-full animate-spin mr-2"></span>
               ) : (
                 <FiSave className="mr-2" />
               )}
-              {isSubmitting ? 'Đang lưu...' : submitText}
+              {isSubmitting ? 'Đang xử lý...' : submitText}
             </button>
           </div>
         </div>
       </form>
     </div>
   </div>
-);
+  );
+};
 
 interface FieldInputProps {
   label: string;
@@ -281,6 +292,55 @@ export const FieldSelect = ({ label, value, options, onChange }: FieldSelectProp
     </select>
   </div>
 );
+
+interface SearchOption {
+  value: string;
+  label: string;
+}
+
+interface FieldSearchSelectProps {
+  label: string;
+  value: string;
+  options: readonly (string | SearchOption)[];
+  onChange: (value: string) => void;
+  placeholder?: string;
+}
+
+export const FieldSearchSelect = ({ label, value, options, onChange, placeholder = 'Chọn...' }: FieldSearchSelectProps) => {
+  const selectOptions = options.map(opt => 
+    typeof opt === 'string' ? { value: opt, label: opt } : opt
+  );
+  const selectedOption = selectOptions.find(opt => opt.value === value) || null;
+
+  return (
+    <div>
+      <label className="block text-sm font-medium text-slate-700 mb-1.5">{label}</label>
+      <Select
+        value={selectedOption}
+        onChange={(option) => onChange(option ? option.value : '')}
+        options={selectOptions}
+        placeholder={placeholder}
+        isClearable={false}
+        isSearchable={true}
+        className="text-sm"
+        menuPortalTarget={document.body}
+        styles={{
+          control: (base, state) => ({
+            ...base,
+            borderColor: state.isFocused ? '#3b82f6' : '#cbd5e1',
+            boxShadow: state.isFocused ? '0 0 0 1px #3b82f6' : 'none',
+            borderRadius: '0.5rem',
+            padding: '2px',
+            '&:hover': {
+              borderColor: '#3b82f6'
+            }
+          }),
+          menuPortal: base => ({ ...base, zIndex: 9999 })
+        }}
+      />
+    </div>
+  );
+};
 
 interface FieldTextAreaProps {
   label: string;

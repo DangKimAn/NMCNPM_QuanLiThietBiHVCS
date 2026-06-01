@@ -66,7 +66,7 @@ export const DeviceTable = ({
                 </td>
 
                 <td className="px-6 py-4 text-sm">
-                  <span className="px-2.5 py-1 rounded-md bg-slate-100 text-slate-700 text-xs font-semibold border border-slate-200">
+                  <span className="px-2.5 py-1 rounded-md bg-slate-100 text-slate-700 text-xs font-semibold border border-slate-200 whitespace-nowrap">
                     {device.room}
                   </span>
                 </td>

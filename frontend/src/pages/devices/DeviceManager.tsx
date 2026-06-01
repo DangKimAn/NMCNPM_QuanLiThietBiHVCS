@@ -118,6 +118,7 @@ export const DeviceManager = () => {
     handler: 'Cán bộ QLTB',
     reason: '',
   });
+  const [isSubmittingTransfer, setIsSubmittingTransfer] = useState(false);
 
   const roomOptions = useMemo(() => {
     const codes = rooms.map((room) => room.code);
@@ -414,6 +415,7 @@ export const DeviceManager = () => {
     }
 
     try {
+      setIsSubmittingTransfer(true);
       await managerApi.createTransfer({
         equipmentId: eqId,
         fromRoomId,
@@ -435,6 +437,8 @@ export const DeviceManager = () => {
       alert(
         'Không thể điều chuyển thiết bị. Kiểm tra dữ liệu phòng, thiết bị hoặc người thực hiện.',
       );
+    } finally {
+      setIsSubmittingTransfer(false);
     }
   };
 
@@ -453,23 +457,9 @@ export const DeviceManager = () => {
         </div>
 
         <div className="flex gap-2">
-          <button
-            type="button"
-            onClick={() => setIsImportModalOpen(true)}
-            className="flex items-center justify-center px-4 py-2 bg-gradient-to-r from-cyan-400 via-blue-500 to-purple-500 text-white text-sm font-medium rounded-lg hover:opacity-90 transition shadow-sm"
-          >
-            <FiUpload className="mr-2 text-lg" />
-            Import Excel
-          </button>
 
-          <button
-            type="button"
-            onClick={() => setIsTransferImportOpen(true)}
-            className="flex items-center justify-center px-4 py-2 bg-amber-500 text-white text-sm font-medium rounded-lg hover:bg-amber-600 transition shadow-sm"
-          >
-            <FiUpload className="mr-2 text-lg" />
-            Chuyển thiết bị
-          </button>
+
+
 
           <button
             type="button"
@@ -638,6 +628,7 @@ export const DeviceManager = () => {
           typeOptions={typeOptions}
           onClose={() => setIsDeviceModalOpen(false)}
           onSubmit={saveDevice}
+          onImportExcel={() => setIsImportModalOpen(true)}
         />
       )}
 
@@ -663,6 +654,8 @@ export const DeviceManager = () => {
             setIsGeneralTransferOpen(false);
           }}
           onSubmit={saveTransfer}
+          onTransferImport={() => setIsTransferImportOpen(true)}
+          isSubmitting={isSubmittingTransfer}
         />
       )}
 
