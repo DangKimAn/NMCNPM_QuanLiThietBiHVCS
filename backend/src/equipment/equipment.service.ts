@@ -419,7 +419,7 @@ export class EquipmentService {
       }
 
       return createdEquipments;
-    });
+    }, { timeout: 30000 });
 
     return {
       success: true,

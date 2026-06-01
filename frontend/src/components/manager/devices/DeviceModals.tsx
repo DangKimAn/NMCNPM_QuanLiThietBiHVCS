@@ -1,10 +1,12 @@
 import type { FormEvent } from 'react';
+import { FiUpload } from 'react-icons/fi';
 
 import { deviceStatuses } from '../../../data/managerMockData';
 import type { Device, DeviceStatus } from '../../../types/manager';
 import {
   FieldInput,
   FieldSelect,
+  FieldSearchSelect,
   FieldTextArea,
   Modal,
 } from '../common/ManagerCommon';
@@ -17,6 +19,7 @@ interface DeviceFormModalProps {
   typeOptions: string[];
   onClose: () => void;
   onSubmit: (e: FormEvent<HTMLFormElement>) => void;
+  onImportExcel?: () => void;
 }
 
 export const DeviceFormModal = ({
@@ -27,6 +30,7 @@ export const DeviceFormModal = ({
   typeOptions,
   onClose,
   onSubmit,
+  onImportExcel,
 }: DeviceFormModalProps) => {
   return (
     <Modal
@@ -38,6 +42,18 @@ export const DeviceFormModal = ({
       onClose={onClose}
       onSubmit={onSubmit}
       submitText={editingDevice ? 'Cập nhật' : 'Thêm mới'}
+      extraActions={
+        !editingDevice && onImportExcel ? (
+          <button
+            type="button"
+            onClick={onImportExcel}
+            className="flex items-center justify-center px-4 py-2 bg-gradient-to-r from-cyan-400 via-blue-500 to-purple-500 text-white text-sm font-medium rounded-lg hover:opacity-90 transition shadow-sm"
+          >
+            <FiUpload className="mr-2 text-lg" />
+            Import Excel
+          </button>
+        ) : null
+      }
     >
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <FieldInput
@@ -53,14 +69,14 @@ export const DeviceFormModal = ({
           onChange={(value) => setDeviceForm({ ...deviceForm, name: value })}
         />
 
-        <FieldSelect
+        <FieldSearchSelect
           label="Loại thiết bị"
           value={deviceForm.type}
           options={typeOptions}
           onChange={(value) => setDeviceForm({ ...deviceForm, type: value })}
         />
 
-        <FieldSelect
+        <FieldSearchSelect
           label="Phòng học"
           value={deviceForm.room}
           options={roomOptions}
@@ -178,6 +194,8 @@ interface DeviceTransferModalProps {
   roomOptions: string[];
   onClose: () => void;
   onSubmit: (e: FormEvent<HTMLFormElement>) => void;
+  onTransferImport?: () => void;
+  isSubmitting?: boolean;
 }
 
 export const DeviceTransferModal = ({
@@ -188,6 +206,8 @@ export const DeviceTransferModal = ({
   roomOptions,
   onClose,
   onSubmit,
+  onTransferImport,
+  isSubmitting,
 }: DeviceTransferModalProps) => {
   return (
     <Modal
@@ -199,6 +219,19 @@ export const DeviceTransferModal = ({
       onClose={onClose}
       onSubmit={onSubmit}
       submitText="Xác nhận điều chuyển"
+      isSubmitting={isSubmitting}
+      extraActions={
+        !device && onTransferImport ? (
+          <button
+            type="button"
+            onClick={onTransferImport}
+            className="flex items-center justify-center px-4 py-2 bg-amber-500 text-white text-sm font-medium rounded-lg hover:bg-amber-600 transition shadow-sm"
+          >
+            <FiUpload className="mr-2 text-lg" />
+            Chuyển thiết bị
+          </button>
+        ) : null
+      }
     >
       {device ? (
         <div className="bg-slate-50 border border-slate-200 rounded-lg p-4">
@@ -216,7 +249,7 @@ export const DeviceTransferModal = ({
         </div>
       ) : (
         <>
-          <FieldSelect
+          <FieldSearchSelect
             label="Phòng hiện tại (Từ phòng)"
             value={transferForm.fromRoom || ''}
             options={roomOptions}
@@ -231,39 +264,30 @@ export const DeviceTransferModal = ({
           />
 
           <div className="mt-4 mb-4">
-            <label className="block text-sm font-medium text-slate-700 mb-1.5">
-              Thiết bị cần chuyển
-            </label>
-
-            <select
+            <FieldSearchSelect
+              label="Thiết bị cần chuyển"
               value={transferForm.equipmentId || ''}
-              onChange={(e) =>
+              options={
+                devices
+                  ?.filter((item) => item.room === transferForm.fromRoom)
+                  .map((item) => ({
+                    value: String(item.equipmentId),
+                    label: `${item.id} - ${item.name}`,
+                  })) || []
+              }
+              onChange={(value) =>
                 setTransferForm({
                   ...transferForm,
-                  equipmentId: e.target.value,
+                  equipmentId: value,
                   quantity: 1,
                 })
               }
-              className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:border-blue-500 bg-white"
-            >
-              <option value="">-- Chọn thiết bị --</option>
-
-              {devices
-                ?.filter((item) => item.room === transferForm.fromRoom)
-                .map((item) => (
-                  <option
-                    key={item.equipmentId}
-                    value={String(item.equipmentId)}
-                  >
-                    {item.id} - {item.name}
-                  </option>
-                ))}
-            </select>
+            />
           </div>
         </>
       )}
 
-      <FieldSelect
+      <FieldSearchSelect
         label="Phòng mới (Đến phòng)"
         value={transferForm.toRoom}
         options={roomOptions}

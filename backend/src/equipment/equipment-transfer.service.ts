@@ -106,7 +106,7 @@ export class EquipmentTransferService {
       await this.roomService.updateEquipmentCount(createDto.toRoomId, 'add', 1);
 
       return transferResult;
-    });
+    }, { timeout: 20000 });
 
     return this.populateRooms(result);
   }
@@ -191,7 +191,7 @@ export class EquipmentTransferService {
       }
 
       return createdTransfers;
-    });
+    }, { timeout: 30000 });
 
     return Promise.all(results.map(t => this.populateRooms(t)));
   }
