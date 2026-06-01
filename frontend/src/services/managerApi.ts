@@ -451,6 +451,22 @@ export const managerApi = {
     });
   },
 
+  importTransfers(file: File) {
+    const formData = new FormData();
+    formData.append('file', file);
+
+    // Endpoint giả định là '/equipment-transfers/import' 
+    // Bạn có thể sửa lại route này nếu Backend quy định khác đi một chút
+    return request<{
+      successCount: number;
+      failedCount: number;
+      errors: { row: number; reason: string }[];
+    }>('/equipment-transfers/import', {
+      method: 'POST',
+      body: formData,
+    });
+  },
+
   async getReports(params?: {
     status?: string;
     roomId?: number;

@@ -26,6 +26,7 @@ import {
   DeviceTransferModal,
 } from '../../components/manager/devices/DeviceModals';
 import { DeviceImportExcelModal } from '../../components/manager/devices/DeviceImportExcelModal';
+import { EquipmentTransferImportModal } from '../../components/manager/devices/EquipmentTransferImportModal';
 import { DeviceRoomCards } from '../../components/manager/devices/DeviceRoomCards';
 import { DeviceTable } from '../../components/manager/devices/DeviceTable';
 import { TransferHistory } from '../../components/manager/devices/TransferHistory';
@@ -95,6 +96,7 @@ export const DeviceManager = () => {
 
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
   const [isGeneralTransferOpen, setIsGeneralTransferOpen] = useState(false);
+  const [isTransferImportOpen, setIsTransferImportOpen] = useState(false);
 
   const [isDeviceModalOpen, setIsDeviceModalOpen] = useState(false);
   const [editingDevice, setEditingDevice] = useState<Device | null>(null);
@@ -462,6 +464,15 @@ export const DeviceManager = () => {
 
           <button
             type="button"
+            onClick={() => setIsTransferImportOpen(true)}
+            className="flex items-center justify-center px-4 py-2 bg-amber-500 text-white text-sm font-medium rounded-lg hover:bg-amber-600 transition shadow-sm"
+          >
+            <FiUpload className="mr-2 text-lg" />
+            Chuyển thiết bị
+          </button>
+
+          <button
+            type="button"
             onClick={openAddModal}
             className="flex items-center justify-center px-4 py-2 bg-indigo-600 text-white text-sm font-medium rounded-lg hover:bg-indigo-700 transition shadow-sm"
           >
@@ -470,13 +481,7 @@ export const DeviceManager = () => {
           </button>
         </div>
       </div>
-
-      {errorMessage && (
-        <div className="mb-4 bg-rose-50 border border-rose-200 text-rose-700 rounded-xl p-4">
-          {errorMessage}
-        </div>
-      )}
-
+      
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
         <SummaryCard icon={<FiBox />} label="Tổng thiết bị" value={stats.total} />
         <SummaryCard
@@ -665,6 +670,15 @@ export const DeviceManager = () => {
         isOpen={isImportModalOpen}
         onClose={() => setIsImportModalOpen(false)}
         onSuccess={() => fetchAllData()}
+      />
+
+      <EquipmentTransferImportModal
+        isOpen={isTransferImportOpen}
+        onClose={() => setIsTransferImportOpen(false)}
+        onSuccess={() => {
+          setIsTransferImportOpen(false);
+          fetchAllData();
+        }}
       />
     </ManagerLayout>
   );

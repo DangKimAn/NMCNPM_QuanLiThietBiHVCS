@@ -8,6 +8,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { CreateEquipmentTransferDto } from './dto/create-equipment-transfer.dto';
 import { CreateBulkEquipmentTransferDto } from './dto/create-bulk-equipment-transfer.dto';
 import { RoomService } from '../room/room.service';
+import * as xlsx from 'xlsx';
 
 @Injectable()
 export class EquipmentTransferService {
@@ -235,5 +236,151 @@ export class EquipmentTransferService {
     }
 
     return this.populateRooms(transfer);
+  }
+
+  async importFromExcel(file: any) {
+    let successCount = 0;
+    let failedCount = 0;
+
+    const errors: any[] = [];
+
+    try {
+      const workbook = xlsx.read(file.buffer, {
+        type: 'buffer',
+      });
+
+      const sheetName = workbook.SheetNames[0];
+
+      const sheet = workbook.Sheets[sheetName];
+
+      const data: any[] = xlsx.utils.sheet_to_json(sheet);
+
+      const rooms = await this.roomService.findAll({});
+
+      for (let i = 0; i < data.length; i++) {
+        const row = data[i];
+
+        try {
+          const equipmentCode = String(row['Mã thiết bị'] || '').trim();
+
+          const toRoomCode = String(row['Phòng mới'] || '').trim();
+
+          const note = String(row['Ghi chú'] || '').trim();
+
+          if (!equipmentCode) {
+            throw new BadRequestException('Thiếu mã thiết bị');
+          }
+
+          if (!toRoomCode) {
+            throw new BadRequestException('Thiếu phòng mới');
+          }
+
+          // tìm thiết bị
+          const equipment = await this.prisma.equipment.findUnique({
+            where: {
+              equipmentCode,
+            },
+            include: {
+              allocations: true,
+            },
+          });
+
+          if (!equipment) {
+            throw new BadRequestException(
+              `Không tìm thấy thiết bị ${equipmentCode}`,
+            );
+          }
+
+          const currentAllocation = equipment.allocations[0];
+
+          if (!currentAllocation) {
+            throw new BadRequestException(
+              `Thiết bị ${equipmentCode} chưa có phòng`,
+            );
+          }
+
+          // tìm phòng mới
+          const toRoom = rooms.find(
+            (r: any) => r.code === toRoomCode,
+          );
+
+          if (!toRoom) {
+            throw new BadRequestException(
+              `Phòng ${toRoomCode} không tồn tại`,
+            );
+          }
+
+          if (currentAllocation.roomId === toRoom.roomId) {
+            throw new BadRequestException(
+              'Phòng mới trùng phòng hiện tại',
+            );
+          }
+
+          // transaction
+          await this.prisma.$transaction(async (tx) => {
+            // update allocation
+            await tx.equipmentAllocation.update({
+              where: {
+                allocationId: currentAllocation.allocationId,
+              },
+              data: {
+                roomId: toRoom.roomId,
+                allocatedAt: new Date(),
+                note,
+              },
+            });
+
+            // tạo lịch sử transfer
+            await tx.equipmentTransfer.create({
+              data: {
+                equipmentId: equipment.equipmentId,
+                fromRoomId: currentAllocation.roomId,
+                toRoomId: toRoom.roomId,
+
+                // sửa executorId theo user đang login
+                executorId: 1,
+
+                transferredAt: new Date(),
+
+                note:
+                  note || 'Import điều chuyển từ Excel',
+              },
+            });
+          });
+
+          // update ROOM_API
+          await this.roomService.updateEquipmentCount(
+            currentAllocation.roomId,
+            'sub',
+            1,
+          );
+
+          await this.roomService.updateEquipmentCount(
+            toRoom.roomId,
+            'add',
+            1,
+          );
+
+          successCount++;
+        } catch (error: any) {
+          failedCount++;
+
+          errors.push({
+            row: i + 2,
+            reason: error.message,
+          });
+        }
+      }
+
+      return {
+        successCount,
+        failedCount,
+        errors,
+      };
+    } catch (error) {
+      throw new BadRequestException(
+        'Lỗi đọc file Excel',
+      );
+    }
   }
 }
