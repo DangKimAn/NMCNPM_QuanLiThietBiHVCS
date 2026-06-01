@@ -182,7 +182,8 @@ export const Modal = ({ title, children, onClose, onSubmit, submitText, extraAct
         <button
           type="button"
           onClick={onClose}
-          className="text-slate-400 hover:text-slate-600 p-1"
+          disabled={isSubmitting}
+          className="text-slate-400 hover:text-slate-600 p-1 disabled:opacity-50"
         >
           <FiX className="text-xl" />
         </button>
