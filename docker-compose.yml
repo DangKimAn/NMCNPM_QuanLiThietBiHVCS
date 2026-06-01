@@ -1,0 +1,34 @@
+version: '3.8'
+
+services:
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+      network: host
+    container_name: quanli-backend
+    ports:
+      - "3000:3000"
+    env_file:
+      - ./backend/.env
+    restart: unless-stopped
+    networks:
+      - quanli_network
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      network: host
+    container_name: quanli-frontend
+    ports:
+      - "5173:80" # Mapping 5173 on host to 80 on container to match backend CORS policy
+    restart: unless-stopped
+    depends_on:
+      - backend
+    networks:
+      - quanli_network
+
+networks:
+  quanli_network:
+    driver: bridge
