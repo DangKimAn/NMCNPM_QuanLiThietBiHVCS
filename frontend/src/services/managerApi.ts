@@ -6,7 +6,7 @@ import type {
   TransferLog,
 } from '../types/manager';
 
-const API_BASE_URL = 'http://localhost:3000/api';
+import { API_BASE_URL } from '../config/env';
 
 // =======================
 // Mapping trạng thái thiết bị
