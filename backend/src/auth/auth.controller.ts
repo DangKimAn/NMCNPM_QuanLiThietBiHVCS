@@ -60,12 +60,17 @@ async register() {
   })
   @ApiResponse({ status: 200, description: 'Trả về chuỗi AccessToken và RefreshToken' })
   async googleAuthRedirect(@Req() req: any, @Res() res: any) {
+    // Lấy URL frontend từ biến môi trường (production: Vercel URL, dev: localhost:5173)
+    const frontendUrl = (process.env.FRONTEND_URL ?? 'http://localhost:5173')
+      .split(',')[0]  // nếu có nhiều domain thì lấy cái đầu tiên
+      .trim();
+
     try {
       const data = await this.authService.googleLogin(req);
-      return res.redirect(`http://localhost:5173/login?accessToken=${data.accessToken}&refreshToken=${data.refreshToken}`);
+      return res.redirect(`${frontendUrl}/login?accessToken=${data.accessToken}&refreshToken=${data.refreshToken}`);
     } catch (error: any) {
       const errorMessage = encodeURIComponent(error.message || 'Đăng nhập Google thất bại');
-      return res.redirect(`http://localhost:5173/login?error=${errorMessage}`);
+      return res.redirect(`${frontendUrl}/login?error=${errorMessage}`);
     }
   }
 
