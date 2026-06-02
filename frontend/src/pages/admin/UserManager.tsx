@@ -1,6 +1,6 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { AdminLayout } from '../../components/layout/AdminLayout';
-import { FiUserPlus, FiUpload } from 'react-icons/fi';
+import { FiSearch, FiUserPlus, FiUpload, FiX } from 'react-icons/fi';
 import { DynamicFormModal } from '../../components/ui/DynamicFormModal';
 import { UserImportExcelModal } from './UserImportExcelModal';
 import { PageHeader } from '../../components/ui/PageHeader';
@@ -120,12 +120,16 @@ export const UserManager = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
   const [editingUser, setEditingUser] = useState<AdminUser | null>(null);
+  const [searchKeyword, setSearchKeyword] = useState('');
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const loadUsers = async () => {
+  const loadUsers = async (keyword?: string) => {
     try {
       setLoading(true);
       setError(null);
-      const data = await adminApi.getUsers();
+      const data = keyword && keyword.trim()
+        ? await adminApi.searchUsers(keyword.trim())
+        : await adminApi.getUsers();
       setUsers(data);
     } catch (err) {
       setError('Không thể tải danh sách tài khoản. Vui lòng thử lại.');
@@ -138,6 +142,20 @@ export const UserManager = () => {
   useEffect(() => {
     loadUsers();
   }, []);
+
+  // Debounce tìm kiếm 400ms
+  const handleSearchChange = (value: string) => {
+    setSearchKeyword(value);
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => {
+      loadUsers(value);
+    }, 400);
+  };
+
+  const handleClearSearch = () => {
+    setSearchKeyword('');
+    loadUsers();
+  };
 
   const handleOpenAdd = () => {
     setEditingUser(null);
@@ -261,6 +279,36 @@ export const UserManager = () => {
         }
       />
 
+      {/* Ô tìm kiếm */}
+      <div className="mb-4 flex items-center gap-3">
+        <div className="relative flex-1 max-w-md">
+          <FiSearch className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm" />
+          <input
+            id="user-search-input"
+            type="text"
+            value={searchKeyword}
+            onChange={(e) => handleSearchChange(e.target.value)}
+            placeholder="Tìm theo tên, email hoặc tên đăng nhập..."
+            className="w-full pl-9 pr-9 py-2.5 text-sm bg-white border border-slate-300 rounded-lg focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-200 transition"
+          />
+          {searchKeyword && (
+            <button
+              type="button"
+              onClick={handleClearSearch}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+              title="Xoá tìm kiếm"
+            >
+              <FiX />
+            </button>
+          )}
+        </div>
+        {searchKeyword && !loading && (
+          <span className="text-sm text-slate-500">
+            Tìm thấy <span className="font-semibold text-indigo-600">{users.length}</span> kết quả
+          </span>
+        )}
+      </div>
+
       {loading && (
         <div className="text-center py-10 text-slate-500">
           Đang tải dữ liệu...
@@ -272,7 +320,7 @@ export const UserManager = () => {
           {error}
           <button
             type="button"
-            onClick={loadUsers}
+            onClick={() => loadUsers()}
             className="ml-3 text-sm underline"
           >
             Thử lại
@@ -286,7 +334,11 @@ export const UserManager = () => {
           columns={userColumns}
           onEdit={handleOpenEdit}
           onDelete={handleDelete}
-          emptyMessage="Không có tài khoản nào trong hệ thống."
+          emptyMessage={
+            searchKeyword
+              ? `Không tìm thấy tài khoản nào khớp với "${searchKeyword}".`
+              : 'Không có tài khoản nào trong hệ thống.'
+          }
         />
       )}
 
