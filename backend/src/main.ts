@@ -19,9 +19,25 @@ async function bootstrap() {
   app.setGlobalPrefix('api');
 
   // Cho phép frontend React/Vite gọi API backend
-  // Frontend thường chạy ở http://localhost:5173
+  // Bao gồm: localhost (dev) và Vercel domain (production)
+  const allowedOrigins = [
+    'http://localhost:5173',
+    'http://localhost:4173',
+    // Cho phép mọi subdomain của vercel.app (deploy preview + production)
+    /https:\/\/.*\.vercel\.app$/,
+    // Nếu bạn dùng custom domain trên Vercel, thêm vào đây:
+    // 'https://your-custom-domain.com',
+  ];
+
   app.enableCors({
-    origin: ['http://localhost:5173'],
+    origin: (origin, callback) => {
+      // Cho phép request không có origin (Postman, cron ping, ...)
+      if (!origin) return callback(null, true);
+      const isAllowed = allowedOrigins.some((o) =>
+        typeof o === 'string' ? o === origin : o.test(origin),
+      );
+      callback(null, isAllowed);
+    },
     credentials: true,
   });
 
