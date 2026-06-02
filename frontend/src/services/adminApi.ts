@@ -159,6 +159,14 @@ export const adminApi = {
     return data.map(mapBackendUser);
   },
 
+  /** Tìm kiếm user theo username / email / họ tên */
+  async searchUsers(keyword: string): Promise<AdminUser[]> {
+    const data = await request<BackendUser[]>(
+      `/user/search?keyword=${encodeURIComponent(keyword)}`,
+    );
+    return data.map(mapBackendUser);
+  },
+
   /** Tìm kiếm user theo username */
   async searchUserByUsername(username: string): Promise<AdminUser> {
     const data = await request<BackendUser>(
