@@ -59,14 +59,14 @@ interface SummaryCardProps {
 
 // Card thống kê dùng ở đầu trang
 export const SummaryCard = ({ icon, label, value }: SummaryCardProps) => (
-  <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4 flex items-center gap-3">
-    <div className="w-10 h-10 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center text-xl">
+  <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-3 sm:p-4 flex items-center gap-2 sm:gap-3">
+    <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center text-lg sm:text-xl shrink-0">
       {icon}
     </div>
 
-    <div>
-      <p className="text-xs font-medium text-slate-500 uppercase tracking-wide">{label}</p>
-      <p className="text-xl font-black text-slate-800 mt-0.5">{value}</p>
+    <div className="min-w-0 flex-1">
+      <p className="text-[10px] sm:text-xs font-medium text-slate-500 uppercase tracking-wide truncate">{label}</p>
+      <p className="text-lg sm:text-xl font-black text-slate-800 mt-0.5">{value}</p>
     </div>
   </div>
 );
@@ -174,10 +174,10 @@ export const Modal = ({ title, children, onClose, onSubmit, submitText, extraAct
   }, []);
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm">
-      <div className="bg-white rounded-2xl shadow-xl w-full max-w-2xl flex flex-col max-h-[90vh] overflow-hidden">
-      <div className="px-6 py-4 border-b border-slate-200 flex justify-between items-center bg-slate-50 shrink-0">
-        <h3 className="text-lg font-bold text-slate-800">{title}</h3>
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-slate-900/50 backdrop-blur-sm">
+      <div className="bg-white rounded-2xl shadow-xl w-full max-w-2xl flex flex-col max-h-[95vh] sm:max-h-[90vh] overflow-hidden">
+      <div className="px-4 py-3 sm:px-6 sm:py-4 border-b border-slate-200 flex justify-between items-center bg-slate-50 shrink-0">
+        <h3 className="text-base sm:text-lg font-bold text-slate-800">{title}</h3>
 
         <button
           type="button"
@@ -189,9 +189,9 @@ export const Modal = ({ title, children, onClose, onSubmit, submitText, extraAct
       </div>
 
       <form onSubmit={onSubmit} className="flex flex-col flex-1 overflow-hidden">
-        <div className="p-6 space-y-4 overflow-y-auto">{children}</div>
+        <div className="p-4 sm:p-6 space-y-4 overflow-y-auto">{children}</div>
 
-        <div className="px-6 py-4 flex items-center justify-between border-t border-slate-100 shrink-0 bg-white">
+        <div className="px-4 py-3 sm:px-6 sm:py-4 flex items-center justify-between border-t border-slate-100 shrink-0 bg-white">
           <div className="flex items-center gap-3">
             {extraActions}
           </div>

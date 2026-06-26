@@ -16,7 +16,7 @@ export const PageHeader = ({ title, description, action }: PageHeaderProps) => {
       
       {/* Chỉ render khu vực nút bấm nếu có truyền prop action vào */}
       {action && (
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3 w-full sm:w-auto overflow-x-auto pb-2 sm:pb-0 hide-scrollbar">
           {action}
         </div>
       )}

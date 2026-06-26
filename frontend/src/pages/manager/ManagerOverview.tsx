@@ -94,7 +94,7 @@ export const ManagerOverview = () => {
 
       {!loading && overview && (
         <>
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mb-6">
             <OverviewLinkCard
               to="/manager/devices"
               icon={<FiBox />}
@@ -391,16 +391,16 @@ interface OverviewLinkCardProps {
 const OverviewLinkCard = ({ to, icon, label, value, note }: OverviewLinkCardProps) => (
   <Link
     to={to}
-    className="bg-white rounded-xl border border-slate-200 shadow-sm p-4 flex items-center gap-3 hover:border-blue-300 hover:shadow-md transition"
+    className="bg-white rounded-xl border border-slate-200 shadow-sm p-3 sm:p-4 flex items-center gap-2 sm:gap-3 hover:border-blue-300 hover:shadow-md transition"
   >
-    <div className="w-10 h-10 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center text-xl">
+    <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center text-lg sm:text-xl shrink-0">
       {icon}
     </div>
 
-    <div>
-      <p className="text-xs font-medium text-slate-500 uppercase tracking-wide">{label}</p>
-      <p className="text-xl font-black text-slate-800 mt-0.5">{value}</p>
-      {note && <p className="text-xs text-blue-600 mt-1">{note}</p>}
+    <div className="min-w-0 flex-1">
+      <p className="text-[10px] sm:text-xs font-medium text-slate-500 uppercase tracking-wide truncate">{label}</p>
+      <p className="text-lg sm:text-xl font-black text-slate-800 mt-0.5">{value}</p>
+      {note && <p className="text-[10px] sm:text-xs text-blue-600 mt-0.5 sm:mt-1 truncate">{note}</p>}
     </div>
   </Link>
 );

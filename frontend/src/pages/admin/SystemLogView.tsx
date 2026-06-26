@@ -181,7 +181,7 @@ export const SystemLogView = () => {
 
       {/* Thanh lọc */}
       <div className="mt-4 bg-white rounded-xl border border-slate-200 shadow-sm p-4 flex flex-col md:flex-row gap-3 items-end">
-        <div className="flex-1">
+        <div className="w-full md:flex-1">
           <label className="block text-xs font-medium text-slate-500 mb-1">
             Tên đăng nhập
           </label>
@@ -194,34 +194,33 @@ export const SystemLogView = () => {
           />
         </div>
 
-        <div>
+        <div className="w-full md:w-auto">
           <label className="block text-xs font-medium text-slate-500 mb-1">
-            Từ ngày
+            Khoảng thời gian
           </label>
-          <input
-            type="datetime-local"
-            value={filterFrom}
-            onChange={(e) => setFilterFrom(e.target.value)}
-            className="px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:border-indigo-500"
-          />
-        </div>
-
-        <div>
-          <label className="block text-xs font-medium text-slate-500 mb-1">
-            Đến ngày
-          </label>
-          <input
-            type="datetime-local"
-            value={filterTo}
-            onChange={(e) => setFilterTo(e.target.value)}
-            className="px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:border-indigo-500"
-          />
+          <div className="flex items-center w-full border border-slate-200 rounded-lg overflow-hidden focus-within:border-indigo-500 focus-within:ring-1 focus-within:ring-indigo-500 bg-white">
+            <input
+              type="datetime-local"
+              value={filterFrom}
+              onChange={(e) => setFilterFrom(e.target.value)}
+              className="w-[130px] sm:w-[150px] px-2 py-2 text-xs sm:text-sm focus:outline-none bg-transparent"
+              title="Từ ngày"
+            />
+            <span className="text-slate-300 px-1 text-xs sm:text-sm font-medium">→</span>
+            <input
+              type="datetime-local"
+              value={filterTo}
+              onChange={(e) => setFilterTo(e.target.value)}
+              className="w-[130px] sm:w-[150px] px-2 py-2 text-xs sm:text-sm focus:outline-none bg-transparent"
+              title="Đến ngày"
+            />
+          </div>
         </div>
 
         <button
           type="button"
           onClick={handleFilter}
-          className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white text-sm font-medium rounded-lg hover:bg-indigo-700 transition-all"
+          className="w-full md:w-auto flex items-center justify-center gap-2 px-4 py-2 bg-indigo-600 text-white text-sm font-medium rounded-lg hover:bg-indigo-700 transition-all"
         >
           <FiRefreshCw />
           Lọc / Làm mới

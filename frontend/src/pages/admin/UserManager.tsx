@@ -426,6 +426,8 @@ export const UserManager = () => {
                 ? `Không tìm thấy tài khoản nào khớp với "${searchKeyword}".`
                 : 'Không có tài khoản nào trong hệ thống.'
             }
+            mobilePrimaryColumnKey="fullName"
+            mobileSecondaryColumnKey="email"
           />
 
           {/* Pagination dưới */}

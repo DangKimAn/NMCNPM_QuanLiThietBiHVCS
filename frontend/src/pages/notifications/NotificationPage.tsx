@@ -334,7 +334,7 @@ const NotificationContent = () => {
           </div>
         </div>
 
-        <div className="mt-5 grid gap-3 sm:grid-cols-3">
+        <div className="mt-5 hidden sm:grid gap-3 sm:grid-cols-3">
           <div className="rounded-xl bg-slate-50 p-4">
             <p className="text-sm text-slate-500">Tổng thông báo</p>
             <p className="mt-1 text-2xl font-bold text-slate-800">
