@@ -4,8 +4,7 @@
 import { FiActivity, FiEdit2, FiRefreshCw, FiTrash2 } from 'react-icons/fi';
 import type { Device } from '../../../types/manager';
 import { StatusBadge } from '../common/ManagerCommon';
-import { Table } from '../../ui/Table';
-import type { TableColumn } from '../../ui/Table';
+import { Table, type TableColumn } from '../../ui/Table';
 
 interface DeviceTableProps {
   devices: Device[];

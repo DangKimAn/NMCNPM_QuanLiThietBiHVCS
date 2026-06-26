@@ -5,8 +5,7 @@ import { DynamicFormModal } from '../../components/ui/DynamicFormModal';
 import { UserImportExcelModal } from './UserImportExcelModal';
 import { PageHeader } from '../../components/ui/PageHeader';
 import type { FormField } from '../../components/ui/DynamicFormModal';
-import type { TableColumn } from '../../components/ui/Table';
-import { Table } from '../../components/ui/Table';
+import { Table, type TableColumn } from '../../components/ui/Table';
 import { adminApi, toBackendStatus } from '../../services/adminApi';
 import type { AdminUser } from '../../services/adminApi';
 
@@ -119,9 +118,6 @@ export const UserManager = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
   const [editingUser, setEditingUser] = useState<AdminUser | null>(null);
-  const [searchKeyword, setSearchKeyword] = useState('');
-  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
   const PAGE_SIZE = 10;
   const [currentPage, setCurrentPage] = useState(1);
   const [searchKeyword, setSearchKeyword] = useState('');
@@ -161,20 +157,6 @@ export const UserManager = () => {
   useEffect(() => {
     loadUsers();
   }, []);
-
-  // Debounce tìm kiếm 400ms
-  const handleSearchChange = (value: string) => {
-    setSearchKeyword(value);
-    if (debounceRef.current) clearTimeout(debounceRef.current);
-    debounceRef.current = setTimeout(() => {
-      loadUsers(value);
-    }, 400);
-  };
-
-  const handleClearSearch = () => {
-    setSearchKeyword('');
-    loadUsers();
-  };
 
   const handleOpenAdd = () => {
     setEditingUser(null);
