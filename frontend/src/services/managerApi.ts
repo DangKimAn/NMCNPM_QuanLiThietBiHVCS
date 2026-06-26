@@ -261,7 +261,9 @@ export const mapReportToIncident = (report: BackendReport): IncidentReport => {
     id: String(report.reportId),
     sender: reporterName,
     room: report.room?.code || '',
-    device: report.equipment?.name || 'Không xác định',
+    device: report.equipment 
+      ? `${report.equipment.name} - ${report.equipment.equipmentCode || `TB${String(report.equipment.equipmentId).padStart(6, '0')}`}` 
+      : 'Không xác định',
     issue: report.reportContent,
     date: report.reportedAt
       ? report.reportedAt.replace('T', ' ').slice(0, 16)

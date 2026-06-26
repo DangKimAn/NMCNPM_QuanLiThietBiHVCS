@@ -9,6 +9,8 @@ import {
   FiTool,
 } from 'react-icons/fi';
 
+import { socket } from '../../services/socket';
+
 import { StudentTeacherLayout } from '../../components/layout/StudentTeacherLayout';
 import {
   Modal,
@@ -47,16 +49,23 @@ export const StudentMyReports = () => {
   useEffect(() => {
     const fetchReports = async () => {
       try {
-        setLoading(true);
         const data = await studentApi.getMyReports();
         setReports(data);
       } catch (error) {
         console.error('Lỗi khi lấy danh sách phản ánh:', error);
-      } finally {
-        setLoading(false);
       }
     };
-    fetchReports();
+
+    // Tải dữ liệu lần đầu
+    setLoading(true);
+    fetchReports().finally(() => setLoading(false));
+
+    // Lắng nghe sự kiện realtime khi có báo hỏng được xử lý
+    socket.on('report_updated', fetchReports);
+
+    return () => {
+      socket.off('report_updated', fetchReports);
+    };
   }, [currentUser.userId]);
 
   useEffect(() => {

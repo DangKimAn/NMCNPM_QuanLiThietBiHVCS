@@ -21,6 +21,8 @@ import {
   FiTool,
 } from 'react-icons/fi';
 
+import { socket } from '../../services/socket';
+
 import { ManagerLayout } from '../../components/layout/ManagerLayout';
 import type { IncidentReport, ReportStatus } from '../../types/manager';
 import { managerApi } from '../../services/managerApi';
@@ -134,6 +136,15 @@ export const IncidentManager = () => {
   // Khi mở trang thì gọi API
   useEffect(() => {
     fetchReports();
+
+    // Lắng nghe sự kiện realtime
+    socket.on('report_created', fetchReports);
+    socket.on('report_updated', fetchReports);
+
+    return () => {
+      socket.off('report_created', fetchReports);
+      socket.off('report_updated', fetchReports);
+    };
   }, []);
 
   // Khi URL thay đổi thì cập nhật bộ lọc

@@ -15,6 +15,10 @@ async function bootstrap() {
   // Dùng Winston làm logger chính của NestJS
   app.useLogger(app.get(WINSTON_MODULE_NEST_PROVIDER));
 
+  // Cấu hình WebSocket Adapter (Socket.IO)
+  const { IoAdapter } = require('@nestjs/platform-socket.io');
+  app.useWebSocketAdapter(new IoAdapter(app));
+
   // Đặt prefix /api cho tất cả các route
   app.setGlobalPrefix('api');
 

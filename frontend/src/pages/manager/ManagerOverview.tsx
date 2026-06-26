@@ -11,6 +11,8 @@ import {
   FiTool,
 } from 'react-icons/fi';
 
+import { socket } from '../../services/socket';
+
 import { ManagerLayout } from '../../components/layout/ManagerLayout';
 import { StatusBadge, TableHead } from '../../components/manager/common/ManagerCommon';
 import { managerApi, type DashboardOverview } from '../../services/managerApi';
@@ -42,6 +44,17 @@ export const ManagerOverview = () => {
     };
 
     fetchOverview();
+
+    // Lắng nghe sự kiện realtime
+    socket.on('report_created', fetchOverview);
+    socket.on('report_updated', fetchOverview);
+    socket.on('equipment_transferred', fetchOverview);
+
+    return () => {
+      socket.off('report_created', fetchOverview);
+      socket.off('report_updated', fetchOverview);
+      socket.off('equipment_transferred', fetchOverview);
+    };
   }, []);
 
   const equipmentSummary = overview?.equipmentSummary;

@@ -20,6 +20,7 @@ import {
   type NotificationItem,
 } from '../../services/notificationApi';
 import { API_BASE_URL } from '../../config/env';
+import { socket } from '../../services/socket';
 
 export interface LayoutMenuItem {
   label: string;
@@ -270,12 +271,18 @@ export const AppLayoutBase = ({
     // Initial fetch
     fetchUnreadNotificationCount();
     
-    // Polling every 10 seconds for real-time notification
-    const interval = setInterval(() => {
+    // Lắng nghe sự kiện WebSocket thay vì dùng Polling
+    const handleNewNotification = (data: any) => {
+      // Có thể lọc thêm dựa trên role nếu cần
+      // console.log('New notification received:', data);
       fetchUnreadNotificationCount();
-    }, 10000);
+    };
+
+    socket.on('notification_created', handleNewNotification);
     
-    return () => clearInterval(interval);
+    return () => {
+      socket.off('notification_created', handleNewNotification);
+    };
   }, []);
 
   const getAvatarText = (fullName: string) => {
