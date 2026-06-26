@@ -1,10 +1,6 @@
-<<<<<<< Updated upstream
-import { useEffect, useState } from 'react';
-=======
 import { useEffect, useMemo, useRef, useState } from 'react';
->>>>>>> Stashed changes
 import { AdminLayout } from '../../components/layout/AdminLayout';
-import { FiUserPlus, FiUpload } from 'react-icons/fi';
+import { FiUserPlus, FiUpload, FiSearch, FiX } from 'react-icons/fi';
 import { DynamicFormModal } from '../../components/ui/DynamicFormModal';
 import { UserImportExcelModal } from './UserImportExcelModal';
 import { PageHeader } from '../../components/ui/PageHeader';
@@ -105,11 +101,10 @@ const userColumns: TableColumn[] = [
     key: 'status',
     render: (item) => (
       <span
-        className={`px-2.5 py-1 rounded-full text-xs font-semibold border whitespace-nowrap ${
-          item.status === 'Hoạt động'
+        className={`px-2.5 py-1 rounded-full text-xs font-semibold border whitespace-nowrap ${item.status === 'Hoạt động'
             ? 'bg-emerald-100 text-emerald-700 border-emerald-200'
             : 'bg-slate-100 text-slate-500 border-slate-200'
-        }`}
+          }`}
       >
         {item.status}
       </span>
@@ -125,14 +120,26 @@ export const UserManager = () => {
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
   const [editingUser, setEditingUser] = useState<AdminUser | null>(null);
 
-<<<<<<< Updated upstream
-  const loadUsers = async () => {
-=======
   const PAGE_SIZE = 10;
   const [currentPage, setCurrentPage] = useState(1);
+  const [searchKeyword, setSearchKeyword] = useState('');
+  const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  const handleSearchChange = (val: string) => {
+    setSearchKeyword(val);
+    if (searchTimeoutRef.current) clearTimeout(searchTimeoutRef.current);
+    searchTimeoutRef.current = setTimeout(() => {
+      loadUsers(val);
+    }, 500);
+  };
+
+  const handleClearSearch = () => {
+    setSearchKeyword('');
+    if (searchTimeoutRef.current) clearTimeout(searchTimeoutRef.current);
+    loadUsers('');
+  };
 
   const loadUsers = async (keyword?: string) => {
->>>>>>> Stashed changes
     try {
       setLoading(true);
       setError(null);
@@ -286,8 +293,6 @@ export const UserManager = () => {
         }
       />
 
-<<<<<<< Updated upstream
-=======
       {/* Ô tìm kiếm */}
       <div className="mb-4 flex items-center gap-3">
         <div className="relative flex-1 max-w-md">
@@ -317,37 +322,31 @@ export const UserManager = () => {
           </span>
         )}
       </div>
+  {
+    loading && (
+      <div className="text-center py-10 text-slate-500">
+        Đang tải dữ liệu...
+      </div>
+    )
+  }
 
->>>>>>> Stashed changes
-      {loading && (
-        <div className="text-center py-10 text-slate-500">
-          Đang tải dữ liệu...
-        </div>
-      )}
+  {
+    error && (
+      <div className="bg-red-50 border border-red-200 text-red-600 rounded-lg p-4 mb-4">
+        {error}
+        <button
+          type="button"
+          onClick={loadUsers}
+          className="ml-3 text-sm underline"
+        >
+          Thử lại
+        </button>
+      </div>
+    )
+  }
 
-      {error && (
-        <div className="bg-red-50 border border-red-200 text-red-600 rounded-lg p-4 mb-4">
-          {error}
-          <button
-            type="button"
-            onClick={loadUsers}
-            className="ml-3 text-sm underline"
-          >
-            Thử lại
-          </button>
-        </div>
-      )}
-
-      {!loading && !error && (
-<<<<<<< Updated upstream
-        <Table
-          data={users}
-          columns={userColumns}
-          onEdit={handleOpenEdit}
-          onDelete={handleDelete}
-          emptyMessage="Không có tài khoản nào trong hệ thống."
-        />
-=======
+  {
+    !loading && !error && (
         <>
           {/* Pagination bar - luôn nằm trên bảng */}
           {totalPages > 1 && (() => {
@@ -462,7 +461,6 @@ export const UserManager = () => {
             );
           })()}
         </>
->>>>>>> Stashed changes
       )}
 
 
@@ -485,7 +483,7 @@ export const UserManager = () => {
         onClose={() => setIsImportModalOpen(false)}
         onSuccess={loadUsers}
       />
-    </AdminLayout>
+    </AdminLayout >
   );
 };
 
