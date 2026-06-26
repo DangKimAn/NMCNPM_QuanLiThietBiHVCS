@@ -183,7 +183,11 @@ export const ManagerOverview = () => {
                   </p>
                 )}
 
-                {roomStats.map((room) => (
+                {/* Sắp xếp giảm dần theo tổng thiết bị và lấy 4 phòng đầu */}
+                {[...roomStats]
+                  .sort((a, b) => b.totalQuantity - a.totalQuantity)
+                  .slice(0, 4)
+                  .map((room) => (
                   <Link
                     key={room.roomId}
                     to={`/manager/devices?room=${encodeURIComponent(room.code)}`}
@@ -214,6 +218,17 @@ export const ManagerOverview = () => {
                     </div>
                   </Link>
                 ))}
+
+                {roomStats.length > 4 && (
+                  <div className="pt-2">
+                    <Link
+                      to="/manager/devices?tab=byRoom"
+                      className="block w-full py-2.5 text-center text-sm font-semibold text-indigo-600 bg-indigo-50 hover:bg-indigo-100 rounded-xl transition"
+                    >
+                      Xem thêm các phòng khác
+                    </Link>
+                  </div>
+                )}
               </div>
             </div>
           </div>

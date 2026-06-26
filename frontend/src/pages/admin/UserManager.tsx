@@ -1,4 +1,8 @@
+<<<<<<< Updated upstream
 import { useEffect, useState } from 'react';
+=======
+import { useEffect, useMemo, useRef, useState } from 'react';
+>>>>>>> Stashed changes
 import { AdminLayout } from '../../components/layout/AdminLayout';
 import { FiUserPlus, FiUpload } from 'react-icons/fi';
 import { DynamicFormModal } from '../../components/ui/DynamicFormModal';
@@ -121,12 +125,20 @@ export const UserManager = () => {
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
   const [editingUser, setEditingUser] = useState<AdminUser | null>(null);
 
+<<<<<<< Updated upstream
   const loadUsers = async () => {
+=======
+  const PAGE_SIZE = 10;
+  const [currentPage, setCurrentPage] = useState(1);
+
+  const loadUsers = async (keyword?: string) => {
+>>>>>>> Stashed changes
     try {
       setLoading(true);
       setError(null);
       const data = await adminApi.getUsers();
       setUsers(data);
+      setCurrentPage(1);
     } catch (err) {
       setError('Không thể tải danh sách tài khoản. Vui lòng thử lại.');
       console.error(err);
@@ -234,6 +246,19 @@ export const UserManager = () => {
     }
   };
 
+  // Sắp xếp: updatedAt giảm dần, fallback createdAt giảm dần
+  const sortedUsers = useMemo(() => {
+    return [...users].sort((a, b) => {
+      const dateA = new Date(a.updatedAt || a.createdAt || 0).getTime();
+      const dateB = new Date(b.updatedAt || b.createdAt || 0).getTime();
+      return dateB - dateA;
+    });
+  }, [users]);
+
+  const totalPages = Math.max(1, Math.ceil(sortedUsers.length / PAGE_SIZE));
+  const safePage = Math.min(currentPage, totalPages);
+  const pagedUsers = sortedUsers.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE);
+
   return (
     <AdminLayout>
       <PageHeader
@@ -261,6 +286,39 @@ export const UserManager = () => {
         }
       />
 
+<<<<<<< Updated upstream
+=======
+      {/* Ô tìm kiếm */}
+      <div className="mb-4 flex items-center gap-3">
+        <div className="relative flex-1 max-w-md">
+          <FiSearch className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm" />
+          <input
+            id="user-search-input"
+            type="text"
+            value={searchKeyword}
+            onChange={(e) => handleSearchChange(e.target.value)}
+            placeholder="Tìm theo tên, email hoặc tên đăng nhập..."
+            className="w-full pl-9 pr-9 py-2.5 text-sm bg-white border border-slate-300 rounded-lg focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-200 transition"
+          />
+          {searchKeyword && (
+            <button
+              type="button"
+              onClick={handleClearSearch}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+              title="Xoá tìm kiếm"
+            >
+              <FiX />
+            </button>
+          )}
+        </div>
+        {searchKeyword && !loading && (
+          <span className="text-sm text-slate-500">
+            Tìm thấy <span className="font-semibold text-indigo-600">{sortedUsers.length}</span> kết quả
+          </span>
+        )}
+      </div>
+
+>>>>>>> Stashed changes
       {loading && (
         <div className="text-center py-10 text-slate-500">
           Đang tải dữ liệu...
@@ -281,6 +339,7 @@ export const UserManager = () => {
       )}
 
       {!loading && !error && (
+<<<<<<< Updated upstream
         <Table
           data={users}
           columns={userColumns}
@@ -288,7 +347,124 @@ export const UserManager = () => {
           onDelete={handleDelete}
           emptyMessage="Không có tài khoản nào trong hệ thống."
         />
+=======
+        <>
+          {/* Pagination bar - luôn nằm trên bảng */}
+          {totalPages > 1 && (() => {
+            // Smart window: hiển thị tối đa 5 số trang
+            const pages: (number | '...')[] = [];
+            const delta = 2; // số trang mỗi bên của trang hiện tại
+            const left = safePage - delta;
+            const right = safePage + delta;
+
+            if (left > 2) {
+              pages.push(1, '...');
+            } else {
+              for (let i = 1; i < left; i++) pages.push(i);
+            }
+
+            for (let i = Math.max(1, left); i <= Math.min(totalPages, right); i++) {
+              pages.push(i);
+            }
+
+            if (right < totalPages - 1) {
+              pages.push('...', totalPages);
+            } else {
+              for (let i = right + 1; i <= totalPages; i++) pages.push(i);
+            }
+
+            return (
+              <div className="mb-3 flex items-center justify-end gap-1">
+                <button
+                  type="button"
+                  onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                  disabled={safePage === 1}
+                  className="rounded-lg border border-slate-200 px-3 py-1.5 text-sm font-medium text-slate-600 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
+                >
+                  ← Trước
+                </button>
+
+                {pages.map((page, idx) =>
+                  page === '...' ? (
+                    <span key={`dots-${idx}`} className="px-1 text-slate-400 select-none">
+                      ...
+                    </span>
+                  ) : (
+                    <button
+                      key={page}
+                      type="button"
+                      onClick={() => setCurrentPage(page as number)}
+                      className={`h-8 w-8 rounded-lg border text-sm font-medium ${
+                        page === safePage
+                          ? 'border-indigo-600 bg-indigo-600 text-white'
+                          : 'border-slate-200 text-slate-600 hover:bg-slate-50'
+                      }`}
+                    >
+                      {page}
+                    </button>
+                  )
+                )}
+
+                <button
+                  type="button"
+                  onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                  disabled={safePage === totalPages}
+                  className="rounded-lg border border-slate-200 px-3 py-1.5 text-sm font-medium text-slate-600 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
+                >
+                  Sau →
+                </button>
+              </div>
+            );
+          })()}
+
+          <Table
+            data={pagedUsers}
+            columns={userColumns}
+            onEdit={handleOpenEdit}
+            onDelete={handleDelete}
+            emptyMessage={
+              searchKeyword
+                ? `Không tìm thấy tài khoản nào khớp với "${searchKeyword}".`
+                : 'Không có tài khoản nào trong hệ thống.'
+            }
+          />
+
+          {/* Pagination dưới */}
+          {totalPages > 1 && (() => {
+            const pages: (number | '...')[] = [];
+            const delta = 2;
+            const left = safePage - delta;
+            const right = safePage + delta;
+            if (left > 2) { pages.push(1, '...'); } else { for (let i = 1; i < left; i++) pages.push(i); }
+            for (let i = Math.max(1, left); i <= Math.min(totalPages, right); i++) pages.push(i);
+            if (right < totalPages - 1) { pages.push('...', totalPages); } else { for (let i = right + 1; i <= totalPages; i++) pages.push(i); }
+            return (
+              <div className="mt-3 flex items-center justify-end gap-1">
+                <button type="button" onClick={() => setCurrentPage((p) => Math.max(1, p - 1))} disabled={safePage === 1}
+                  className="rounded-lg border border-slate-200 px-3 py-1.5 text-sm font-medium text-slate-600 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40">
+                  ← Trước
+                </button>
+                {pages.map((page, idx) =>
+                  page === '...' ? (
+                    <span key={`b-dots-${idx}`} className="px-1 text-slate-400 select-none">...</span>
+                  ) : (
+                    <button key={`b-${page}`} type="button" onClick={() => setCurrentPage(page as number)}
+                      className={`h-8 w-8 rounded-lg border text-sm font-medium ${page === safePage ? 'border-indigo-600 bg-indigo-600 text-white' : 'border-slate-200 text-slate-600 hover:bg-slate-50'}`}>
+                      {page}
+                    </button>
+                  )
+                )}
+                <button type="button" onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))} disabled={safePage === totalPages}
+                  className="rounded-lg border border-slate-200 px-3 py-1.5 text-sm font-medium text-slate-600 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40">
+                  Sau →
+                </button>
+              </div>
+            );
+          })()}
+        </>
+>>>>>>> Stashed changes
       )}
+
 
       <DynamicFormModal
         isOpen={isModalOpen}

@@ -57,6 +57,8 @@ export interface BackendUser {
   roleId: number;
   role: string;
   status: string;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 export interface BackendRole {
@@ -131,6 +133,8 @@ export interface AdminUser {
   phoneNumber?: string | null;
   userId: number;
   roleId: number;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 export const mapBackendUser = (u: BackendUser): AdminUser => ({
@@ -143,6 +147,8 @@ export const mapBackendUser = (u: BackendUser): AdminUser => ({
   phoneNumber: u.phoneNumber,
   userId: u.userId,
   roleId: u.roleId,
+  createdAt: u.createdAt,
+  updatedAt: u.updatedAt,
 });
 
 // =======================
