@@ -26,6 +26,7 @@ import { AuthModule } from './auth/auth.module';
 
 // Thêm module thông báo
 import { NotificationModule } from './notification/notification.module';
+import { HealthModule } from './health/health.module';
 
 import { winstonConfig } from './common/logger/logger.config';
 import { HttpLoggerMiddleware } from './common/logger/http-logger.middleware';
@@ -57,6 +58,7 @@ import { GlobalExceptionFilter } from './common/filters/global-exception.filter'
     // Tất cả role xem được thông báo
     // Chỉ MANAGER được viết thông báo
     NotificationModule,
+    HealthModule,
   ],
 
   // AuditLogController đăng ký ở AppModule để dùng JwtAuthGuard/RolesGuard từ AuthModule

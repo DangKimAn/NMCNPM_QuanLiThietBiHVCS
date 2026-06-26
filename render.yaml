@@ -1,0 +1,23 @@
+services:
+  - type: web
+    name: quanli-thietbi-backend
+    env: node
+    region: singapore
+    plan: free
+    rootDir: backend
+    buildCommand: npm install && npx prisma generate && npm run build
+    startCommand: npx prisma migrate deploy && npm run start:prod
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: quanli-thietbi-db
+          property: connectionString
+      - key: JWT_SECRET
+        generateValue: true
+
+databases:
+  - name: quanli-thietbi-db
+    databaseName: thietbi_db
+    user: thietbi_user
+    plan: free
+    region: singapore

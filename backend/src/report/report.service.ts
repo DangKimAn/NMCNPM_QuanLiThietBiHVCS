@@ -1,7 +1,6 @@
 // src/report/report.service.ts
 import { BadRequestException, Injectable, NotFoundException, ForbiddenException } from '@nestjs/common';
-import { Prisma, ReportStatus } from '@prisma/client';
-
+import { Prisma, ReportStatus, EquipmentStatus, NotificationTargetRole } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateReportDto } from './dto/create-report.dto';
 import { HandleReportDto } from './dto/handle-report.dto';
@@ -161,6 +160,11 @@ export class ReportService {
       if (!equipment) {
         throw new BadRequestException('Thiết bị không tồn tại');
       }
+
+      await this.prisma.equipment.update({
+        where: { equipmentId: dto.equipmentId },
+        data: { status: EquipmentStatus.BROKEN },
+      });
     }
 
     const result = await this.prisma.report.create({
@@ -193,7 +197,7 @@ export class ReportService {
   // Xử lý phản ánh dành riêng cho MANAGER
   async handle(reportId: number, dto: HandleReportDto, handlerId: number) {
     // Truyền đầy đủ tham số nội bộ để hàm findOne không bị lỗi biên dịch
-    await this.findOne(reportId, handlerId, 'MANAGER');
+    const report = await this.findOne(reportId, handlerId, 'MANAGER');
 
     const handler = await this.prisma.user.findUnique({
       where: { userId: handlerId },
@@ -219,6 +223,45 @@ export class ReportService {
         reporter: true,
         handler: true,
         equipment: true,
+      },
+    });
+
+    if (report.equipmentId) {
+      let equipmentStatus: EquipmentStatus;
+      switch (dto.status) {
+        case ReportStatus.PROCESSING:
+          equipmentStatus = EquipmentStatus.UNDER_REPAIR;
+          break;
+        case ReportStatus.RESOLVED:
+        case ReportStatus.REJECTED:
+          equipmentStatus = EquipmentStatus.GOOD;
+          break;
+        case ReportStatus.PENDING:
+        default:
+          equipmentStatus = EquipmentStatus.BROKEN;
+          break;
+      }
+
+      await this.prisma.equipment.update({
+        where: { equipmentId: report.equipmentId },
+        data: { status: equipmentStatus },
+      });
+    }
+
+    const statusTextMap = {
+      [ReportStatus.PROCESSING]: 'Đang xử lý',
+      [ReportStatus.RESOLVED]: 'Đã xử lý',
+      [ReportStatus.REJECTED]: 'Từ chối',
+      [ReportStatus.PENDING]: 'Mới tiếp nhận',
+    };
+
+    await this.prisma.notification.create({
+      data: {
+        title: `Phản ánh của bạn đã được cập nhật: ${statusTextMap[dto.status]}`,
+        content: `Phản ánh thiết bị ${report.equipment?.name || 'Không xác định'} tại phòng ${report.room?.name || 'Không xác định'} đã được chuyển sang trạng thái ${statusTextMap[dto.status]}.${dto.resolutionContent ? `\n\nGhi chú: ${dto.resolutionContent}` : ''}`,
+        targetRole: report.reporter.role.roleName as NotificationTargetRole,
+        targetUserId: report.reporterId,
+        senderId: handlerId,
       },
     });
 

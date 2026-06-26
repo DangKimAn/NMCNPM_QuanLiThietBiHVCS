@@ -119,6 +119,8 @@ export const UserManager = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
   const [editingUser, setEditingUser] = useState<AdminUser | null>(null);
+  const [searchKeyword, setSearchKeyword] = useState('');
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const PAGE_SIZE = 10;
   const [currentPage, setCurrentPage] = useState(1);
@@ -143,7 +145,9 @@ export const UserManager = () => {
     try {
       setLoading(true);
       setError(null);
-      const data = await adminApi.getUsers();
+      const data = keyword && keyword.trim()
+        ? await adminApi.searchUsers(keyword.trim())
+        : await adminApi.getUsers();
       setUsers(data);
       setCurrentPage(1);
     } catch (err) {
@@ -157,6 +161,20 @@ export const UserManager = () => {
   useEffect(() => {
     loadUsers();
   }, []);
+
+  // Debounce tìm kiếm 400ms
+  const handleSearchChange = (value: string) => {
+    setSearchKeyword(value);
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => {
+      loadUsers(value);
+    }, 400);
+  };
+
+  const handleClearSearch = () => {
+    setSearchKeyword('');
+    loadUsers();
+  };
 
   const handleOpenAdd = () => {
     setEditingUser(null);

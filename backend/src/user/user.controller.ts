@@ -1,5 +1,5 @@
-import { Body, Controller, Delete, Get, Param, ParseIntPipe, Patch, Post, UseGuards, ForbiddenException, UseInterceptors, UploadedFile, BadRequestException } from '@nestjs/common';
-import { ApiBearerAuth, ApiTags, ApiConsumes, ApiBody } from '@nestjs/swagger';
+import { Body, Controller, Delete, Get, Param, ParseIntPipe, Patch, Post, Query, UseGuards, ForbiddenException, UseInterceptors, UploadedFile, BadRequestException } from '@nestjs/common';
+import { ApiBearerAuth, ApiOperation, ApiQuery, ApiTags, ApiConsumes, ApiBody } from '@nestjs/swagger';
 import { UserService } from './user.service';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UserDto } from './dto/user.dto';
@@ -50,6 +50,19 @@ export class UserController {
   async findAll(): Promise<UserDto[]> {
     return await this.userService.getAllUser();
   }
+
+  // CHỈ ADMIN: Tìm kiếm user theo username, email hoặc họ tên
+  @Get('search')
+  @Roles(Role.ADMIN)
+  @ApiOperation({ summary: 'Tìm kiếm user theo username / email / họ tên' })
+  @ApiQuery({ name: 'keyword', required: true, description: 'Từ khoá tìm kiếm' })
+  async search(@Query('keyword') keyword: string): Promise<UserDto[]> {
+    if (!keyword || keyword.trim() === '') {
+      return this.userService.getAllUser();
+    }
+    return this.userService.searchUsers(keyword.trim());
+  }
+
 
   //ADMIN & MANAGER: Xem thông tin user qua Email
   @Get('getUserbyEmail/:email')

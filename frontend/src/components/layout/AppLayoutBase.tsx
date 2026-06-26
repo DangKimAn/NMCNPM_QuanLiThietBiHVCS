@@ -19,6 +19,7 @@ import {
   markNotificationAsRead,
   type NotificationItem,
 } from '../../services/notificationApi';
+import { API_BASE_URL } from '../../config/env';
 
 export interface LayoutMenuItem {
   label: string;
@@ -43,7 +44,7 @@ interface CurrentUser {
   role: string;
 }
 
-const API_BASE_URL = 'http://localhost:3000/api';
+
 
 export const AppLayoutBase = ({
   children,
