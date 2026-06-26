@@ -115,8 +115,10 @@ model User {
   // Quan hệ thông báo
   // sentNotifications: các thông báo do user này tạo
   // notificationReads: trạng thái đã đọc thông báo của user này
-  sentNotifications Notification[]     @relation("SentNotifications")
-  notificationReads NotificationRead[]
+  // receivedNotifications: các thông báo nhắm mục tiêu đích danh người dùng
+  sentNotifications     Notification[]     @relation("SentNotifications")
+  receivedNotifications Notification[]     @relation("ReceivedNotifications")
+  notificationReads     NotificationRead[]
 
   @@map("users")
 }
@@ -260,6 +262,10 @@ model Notification {
   // Theo yêu cầu hiện tại: chỉ MANAGER được viết thông báo
   senderId Int
   sender   User @relation("SentNotifications", fields: [senderId], references: [userId], onDelete: Restrict)
+
+  // Người nhận thông báo đích danh (nếu có)
+  targetUserId Int?
+  targetUser   User? @relation("ReceivedNotifications", fields: [targetUserId], references: [userId], onDelete: Cascade)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

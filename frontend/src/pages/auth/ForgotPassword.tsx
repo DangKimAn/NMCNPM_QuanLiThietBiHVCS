@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { FiMail, FiLock, FiAlertCircle, FiCheckCircle, FiArrowLeft, FiShield } from 'react-icons/fi';
 import { Link, useNavigate } from 'react-router-dom';
 import axios from 'axios';
+import { API_BASE_URL } from '../../config/env';
 
 // -------- Bước 1: Nhập email --------
 interface Step1Props {
@@ -17,7 +18,7 @@ const Step1Email = ({ onSuccess }: Step1Props) => {
     setError('');
     setLoading(true);
     try {
-      await axios.post('http://localhost:3000/api/auth/forgot-password', { email });
+      await axios.post(`${API_BASE_URL}/auth/forgot-password`, { email });
       onSuccess(email);
     } catch (err: any) {
       setError(err.response?.data?.message || 'Không thể gửi email. Vui lòng thử lại.');
@@ -119,7 +120,7 @@ const Step2Otp = ({ email, onSuccess, onBack }: Step2Props) => {
     setResending(true);
     setError('');
     try {
-      await axios.post('http://localhost:3000/api/auth/forgot-password', { email });
+      await axios.post(`${API_BASE_URL}/auth/forgot-password`, { email });
       setResent(true);
       setTimeout(() => setResent(false), 4000);
     } catch (err: any) {
@@ -135,7 +136,7 @@ const Step2Otp = ({ email, onSuccess, onBack }: Step2Props) => {
     setError('');
     setLoading(true);
     try {
-      await axios.post('http://localhost:3000/api/auth/verify-otp', { email, otp: otpValue });
+      await axios.post(`${API_BASE_URL}/auth/verify-otp`, { email, otp: otpValue });
       onSuccess(otpValue);
     } catch (err: any) {
       setError(err.response?.data?.message || 'Mã OTP không chính xác hoặc đã hết hạn.');
@@ -238,7 +239,7 @@ const Step3Reset = ({ email, otp }: Step3Props) => {
     setError('');
     setLoading(true);
     try {
-      await axios.post('http://localhost:3000/api/auth/reset-password', {
+      await axios.post(`${API_BASE_URL}/auth/reset-password`, {
         email,
         otp,
         newPassword,

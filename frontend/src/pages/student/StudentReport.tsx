@@ -58,14 +58,18 @@ export const StudentReport = () => {
         studentApi.getEquipments(),
       ]);
 
-      const filteredRooms = fetchedRooms.filter(room => room.building !== 'Kho');
+      const activeEquipments = fetchedEquipments.filter(e => e.status === 'Hoạt động');
+      
+      const activeRoomIds = new Set(activeEquipments.map(e => e.roomId));
+      const filteredRooms = fetchedRooms.filter(room => room.building !== 'Kho' && activeRoomIds.has(room.roomId));
+      
       setRooms(filteredRooms);
-      setEquipments(fetchedEquipments);
+      setEquipments(activeEquipments);
 
       setForm((current) => ({
         ...current,
         roomId: current.roomId || String(filteredRooms[0]?.roomId || ''),
-        equipmentId: current.equipmentId || String(fetchedEquipments.find(e => e.roomId === filteredRooms[0]?.roomId)?.equipmentId || ''),
+        equipmentId: current.equipmentId || String(activeEquipments.find(e => e.roomId === filteredRooms[0]?.roomId)?.equipmentId || ''),
       }));
     } catch (error) {
       console.error(error);
