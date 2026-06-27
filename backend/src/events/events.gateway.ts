@@ -6,10 +6,12 @@ import {
 } from '@nestjs/websockets';
 import { Server, Socket } from 'socket.io';
 import { Logger } from '@nestjs/common';
+import { JwtService } from '@nestjs/jwt';
+import { ConfigService } from '@nestjs/config';
 
 @WebSocketGateway({
   cors: {
-    origin: '*', // Trong thực tế nên giới hạn origin
+    origin: '*',
   },
 })
 export class EventsGateway implements OnGatewayConnection, OnGatewayDisconnect {
@@ -18,30 +20,69 @@ export class EventsGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
   private logger: Logger = new Logger('EventsGateway');
 
-  handleConnection(client: Socket) {
-    this.logger.log(`Client connected: ${client.id}`);
+  constructor(
+    private readonly jwtService: JwtService,
+    private readonly configService: ConfigService,
+  ) {}
+
+  async handleConnection(client: Socket) {
+    try {
+      const token =
+        client.handshake.auth?.token || client.handshake.query?.token;
+
+      if (!token) {
+        this.logger.warn(`Client ${client.id} connected without token, disconnecting`);
+        client.disconnect();
+        return;
+      }
+
+      const payload = await this.jwtService.verifyAsync(token, {
+        secret: this.configService.get<string>('JWT_ACCESS_SECRET'),
+      });
+
+      const userId = payload.sub;
+      const role = payload.role;
+
+      client.data.userId = userId;
+      client.data.role = role;
+
+      client.join(`role:${role}`);
+      client.join('role:ALL');
+      client.join(`user:${userId}`);
+
+      this.logger.log(`Client connected: ${client.id} (user:${userId}, role:${role})`);
+    } catch {
+      this.logger.warn(`Client ${client.id} authentication failed, disconnecting`);
+      client.disconnect();
+    }
   }
 
   handleDisconnect(client: Socket) {
     this.logger.log(`Client disconnected: ${client.id}`);
   }
 
-  // Phát sự kiện có thông báo mới
   emitNotification(data: any) {
-    this.server.emit('notification_created', data);
+    const targetRole = data.targetRole;
+
+    if (targetRole === 'ALL') {
+      this.server.to('role:ALL').emit('notification_created', data);
+    } else {
+      this.server.to(`role:${targetRole}`).emit('notification_created', data);
+    }
+
+    if (data.targetUserId) {
+      this.server.to(`user:${data.targetUserId}`).emit('notification_created', data);
+    }
   }
 
-  // Phát sự kiện có báo hỏng mới (dành cho Manager)
   emitReportCreated(data: any) {
     this.server.emit('report_created', data);
   }
 
-  // Phát sự kiện báo hỏng được cập nhật (dành cho sinh viên và manager)
   emitReportUpdated(data: any) {
     this.server.emit('report_updated', data);
   }
 
-  // Phát sự kiện thiết bị được điều chuyển
   emitEquipmentTransferred(data: any) {
     this.server.emit('equipment_transferred', data);
   }

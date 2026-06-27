@@ -26,6 +26,7 @@ import {
 } from '../../services/notificationApi';
 import { useFormConfig } from '../../hooks/useFormConfig';
 import { DynamicField } from '../../components/ui/DynamicField';
+import { socket } from '../../services/socket';
 
 const targetRoleOptions: {
   value: NotificationTargetRole;
@@ -141,6 +142,21 @@ const NotificationContent = () => {
 
   useEffect(() => {
     fetchNotifications();
+  }, []);
+
+  useEffect(() => {
+    const handleNotificationCreated = (notification: NotificationItem) => {
+      setNotifications((prev) => [
+        { ...notification, isRead: false, readAt: null },
+        ...prev,
+      ]);
+    };
+
+    socket.on('notification_created', handleNotificationCreated);
+
+    return () => {
+      socket.off('notification_created', handleNotificationCreated);
+    };
   }, []);
 
   useEffect(() => {
@@ -567,7 +583,7 @@ const NotificationContent = () => {
                           </button>
                         )}
 
-                        {isManager && (
+                        {canManage && (
                           <button
                             type="button"
                             onClick={() => handleDeleteNotification(item.notificationId)}
