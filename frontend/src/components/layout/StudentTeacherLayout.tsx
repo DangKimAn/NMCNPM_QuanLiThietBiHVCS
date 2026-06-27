@@ -4,6 +4,7 @@ import {
   FiEdit3,
   FiFileText,
   FiHome,
+  FiMonitor,
 } from 'react-icons/fi';
 
 import { AppLayoutBase } from './AppLayoutBase';
@@ -29,6 +30,11 @@ const studentTeacherMenuItems: LayoutMenuItem[] = [
     label: 'Phản ánh của tôi',
     icon: <FiFileText />,
     path: '/student/my-reports',
+  },
+  {
+    label: 'Thiết bị theo phòng',
+    icon: <FiMonitor />,
+    path: '/student/rooms',
   },
   {
     label: 'Thông báo',

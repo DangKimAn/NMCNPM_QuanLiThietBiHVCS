@@ -35,6 +35,8 @@ import {
   SummaryCard,
   TableHead,
 } from './common/ManagerCommon';
+import { useFormConfig } from '../../hooks/useFormConfig';
+import { DynamicField } from '../ui/DynamicField';
 
 // Danh sách trạng thái phản ánh hiển thị trên frontend
 const reportStatuses: ReportStatus[] = [
@@ -65,6 +67,13 @@ export const IncidentManager = () => {
   const [keyword, setKeyword] = useState('');
   const [filterStatus, setFilterStatus] = useState(searchParams.get('status') || 'All');
   const [filterRoom, setFilterRoom] = useState(searchParams.get('room') || 'All');
+
+  const { fields: configFields } = useFormConfig('incident_handle');
+  const configMap = useMemo(() => {
+    const map = new Map<string, boolean>();
+    configFields.forEach((f) => map.set(f.fieldKey, true));
+    return map;
+  }, [configFields]);
 
   // Pagination state
   const PAGE_SIZE = 15;
@@ -99,7 +108,6 @@ export const IncidentManager = () => {
       </div>
     );
   };
-
 
   // Lấy ID cán bộ đang đăng nhập.
   // Nếu chưa có userId trong localStorage thì tạm dùng 1.
@@ -463,40 +471,63 @@ export const IncidentManager = () => {
             </div>
           </div>
 
-          <FieldSelect
-            label="Trạng thái xử lý"
-            value={selectedReport.status}
-            options={reportStatuses}
-            onChange={(value) =>
-              setSelectedReport({
-                ...selectedReport,
-                status: value as ReportStatus,
-              })
+          {configFields.map((cfg) => {
+            if (cfg.fieldKey === 'status') {
+              return (
+                <FieldSelect
+                  key="status"
+                  label={cfg.label}
+                  value={selectedReport.status}
+                  options={reportStatuses}
+                  onChange={(value) =>
+                    setSelectedReport({
+                      ...selectedReport,
+                      status: value as ReportStatus,
+                    })
+                  }
+                />
+              );
             }
-          />
-
-          <FieldInput
-            label="Người xử lý"
-            value={selectedReport.handlerName || 'Cán bộ QLTB'}
-            onChange={(value) =>
-              setSelectedReport({
-                ...selectedReport,
-                handlerName: value,
-              })
+            if (cfg.fieldKey === 'handlerName') {
+              return (
+                <FieldInput
+                  key="handlerName"
+                  label={cfg.label}
+                  value={selectedReport.handlerName || 'Cán bộ QLTB'}
+                  onChange={(value) =>
+                    setSelectedReport({
+                      ...selectedReport,
+                      handlerName: value,
+                    })
+                  }
+                />
+              );
             }
-          />
-
-          <FieldTextArea
-            label="Ghi chú xử lý"
-            value={selectedReport.handlerNote || ''}
-            placeholder="Ví dụ: Đã kiểm tra, cần thay dây HDMI..."
-            onChange={(value) =>
-              setSelectedReport({
-                ...selectedReport,
-                handlerNote: value,
-              })
+            if (cfg.fieldKey === 'handlerNote') {
+              return (
+                <FieldTextArea
+                  key="handlerNote"
+                  label={cfg.label}
+                  value={selectedReport.handlerNote || ''}
+                  placeholder={cfg.placeholder || 'Nhập ghi chú...'}
+                  onChange={(value) =>
+                    setSelectedReport({
+                      ...selectedReport,
+                      handlerNote: value,
+                    })
+                  }
+                />
+              );
             }
-          />
+            return (
+              <DynamicField
+                key={cfg.fieldKey}
+                config={cfg}
+                value={''}
+                onChange={() => {}}
+              />
+            );
+          })}
 
           {selectedReport.handledAt && (
             <p className="text-xs text-slate-400">

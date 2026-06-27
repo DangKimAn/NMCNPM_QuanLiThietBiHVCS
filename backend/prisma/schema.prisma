@@ -113,13 +113,12 @@ model User {
   handledResolutions Report[]            @relation("HandledResolutions")
 
   // Quan hệ thông báo
-  // sentNotifications: các thông báo do user này tạo
-  // notificationReads: trạng thái đã đọc thông báo của user này
-  // receivedNotifications: các thông báo nhắm mục tiêu đích danh người dùng
   sentNotifications     Notification[]     @relation("SentNotifications")
   receivedNotifications Notification[]     @relation("ReceivedNotifications")
   notificationReads     NotificationRead[]
 
+  @@index([roleId])
+  @@index([status])
   @@map("users")
 }
 
@@ -141,6 +140,8 @@ model ActivityLog {
 
   user User @relation(fields: [userId], references: [userId], onDelete: Restrict)
 
+  @@index([userId])
+  @@index([createdAt])
   @@map("activity_logs")
 }
 
@@ -183,6 +184,8 @@ model Equipment {
   transfers   EquipmentTransfer[]
   reports     Report[]
 
+  @@index([categoryId])
+  @@index([status])
   @@map("equipments")
 }
 
@@ -198,6 +201,8 @@ model EquipmentAllocation {
 
   equipment Equipment @relation(fields: [equipmentId], references: [equipmentId], onDelete: Restrict)
 
+  @@index([equipmentId])
+  @@index([roomId])
   @@map("equipment_allocations")
 }
 
@@ -216,6 +221,10 @@ model EquipmentTransfer {
   equipment Equipment @relation(fields: [equipmentId], references: [equipmentId], onDelete: Restrict)
   executor  User      @relation("ExecutedTransfers", fields: [executorId], references: [userId], onDelete: Restrict)
 
+  @@index([equipmentId])
+  @@index([fromRoomId])
+  @@index([toRoomId])
+  @@index([executorId])
   @@map("equipment_transfers")
 }
 
@@ -241,7 +250,33 @@ model Report {
   handler   User?      @relation("HandledResolutions", fields: [handlerId], references: [userId], onDelete: Restrict)
   equipment Equipment? @relation(fields: [equipmentId], references: [equipmentId], onDelete: Restrict)
 
+  @@index([reporterId])
+  @@index([handlerId])
+  @@index([roomId])
+  @@index([equipmentId])
+  @@index([status])
   @@map("reports")
+}
+
+// ==========================================
+// FORM_CONFIG - Cấu hình form động cho Admin
+// ==========================================
+
+model FormConfig {
+  formConfigId Int      @id @default(autoincrement())
+  formKey      String   @db.VarChar(100)
+  fieldKey     String   @db.VarChar(100)
+  label        String   @db.VarChar(255)
+  fieldType    String   @db.VarChar(50)
+  required     Boolean  @default(false)
+  visible      Boolean  @default(true)
+  sortOrder    Int      @default(0)
+  options      String?  @db.Text
+  placeholder  String?  @db.VarChar(255)
+  updatedAt    DateTime @updatedAt
+
+  @@unique([formKey, fieldKey])
+  @@map("form_configs")
 }
 
 // ==========================================
@@ -272,6 +307,9 @@ model Notification {
 
   reads NotificationRead[]
 
+  @@index([senderId])
+  @@index([targetRole])
+  @@index([targetUserId])
   @@map("notifications")
 }
 

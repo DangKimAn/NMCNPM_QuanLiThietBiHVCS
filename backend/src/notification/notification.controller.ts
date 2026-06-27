@@ -58,10 +58,10 @@ export class NotificationController {
     return this.notificationService.countUnread(userId);
   }
 
-  // Chỉ MANAGER được viết thông báo
+  // MANAGER và ADMIN được viết thông báo
   // POST /notifications
   @Post()
-  @Roles(Role.MANAGER)
+  @Roles(Role.MANAGER, Role.ADMIN)
   async createNotification(
     @Req() req: AuthRequest,
     @Body() dto: CreateNotificationDto,
@@ -89,10 +89,10 @@ export class NotificationController {
     return this.notificationService.markAllAsRead(userId);
   }
 
-  // Chỉ MANAGER được xóa thông báo do mình tạo
+  // MANAGER và ADMIN được xóa thông báo do mình tạo
   // DELETE /notifications/:id
   @Delete(':id')
-  @Roles(Role.MANAGER)
+  @Roles(Role.MANAGER, Role.ADMIN)
   async deleteNotification(
     @Req() req: AuthRequest,
     @Param('id', ParseIntPipe) notificationId: number,

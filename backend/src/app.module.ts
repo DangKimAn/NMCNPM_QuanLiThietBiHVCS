@@ -12,6 +12,7 @@ import { AppService } from './app.service';
 import { AuditLogModule } from './audit-log/audit-log.module';
 import { AuditLogMiddleware } from './audit-log/audit-log.middleware';
 import { AuditLogController } from './audit-log/audit-log.controller';
+import { FormConfigController } from './form-config/form-config.controller';
 
 import { PrismaModule } from './prisma/prisma.module';
 
@@ -27,6 +28,8 @@ import { AuthModule } from './auth/auth.module';
 import { NotificationModule } from './notification/notification.module';
 import { HealthModule } from './health/health.module';
 import { EventsModule } from './events/events.module';
+
+import { FormConfigModule } from './form-config/form-config.module';
 
 import { winstonConfig } from './common/logger/logger.config';
 import { HttpLoggerMiddleware } from './common/logger/http-logger.middleware';
@@ -58,12 +61,13 @@ import { GlobalExceptionFilter } from './common/filters/global-exception.filter'
     // Tất cả role xem được thông báo
     // Chỉ MANAGER được viết thông báo
     NotificationModule,
+    FormConfigModule,
     HealthModule,
     EventsModule,
   ],
 
-  // AuditLogController đăng ký ở AppModule để dùng JwtAuthGuard/RolesGuard từ AuthModule
-  controllers: [AppController, AuditLogController],
+  // AuditLogController & FormConfigController đăng ký ở AppModule để dùng JwtAuthGuard/RolesGuard từ AuthModule
+  controllers: [AppController, AuditLogController, FormConfigController],
   providers: [AppService, GlobalExceptionFilter],
 })
 export class AppModule implements NestModule {

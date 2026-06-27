@@ -24,6 +24,9 @@ import {
   type NotificationItem,
   type NotificationTargetRole,
 } from '../../services/notificationApi';
+import { useFormConfig } from '../../hooks/useFormConfig';
+import { DynamicField } from '../../components/ui/DynamicField';
+import { socket } from '../../services/socket';
 
 const targetRoleOptions: {
   value: NotificationTargetRole;
@@ -97,14 +100,15 @@ const NotificationContent = () => {
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
 
-  const [formData, setFormData] = useState<CreateNotificationPayload>({
+  const [formData, setFormData] = useState<Record<string, string>>({
     title: '',
     content: '',
     targetRole: 'ALL',
   });
 
   const currentRole = getCurrentUserRole();
-  const isManager = currentRole === 'MANAGER';
+  const canManage = currentRole === 'MANAGER' || currentRole === 'ADMIN';
+  const { fields: configFields } = useFormConfig('notification');
 
   const unreadCount = useMemo(() => {
     return notifications.filter((item) => !item.isRead).length;
@@ -141,6 +145,21 @@ const NotificationContent = () => {
   }, []);
 
   useEffect(() => {
+    const handleNotificationCreated = (notification: NotificationItem) => {
+      setNotifications((prev) => [
+        { ...notification, isRead: false, readAt: null },
+        ...prev,
+      ]);
+    };
+
+    socket.on('notification_created', handleNotificationCreated);
+
+    return () => {
+      socket.off('notification_created', handleNotificationCreated);
+    };
+  }, []);
+
+  useEffect(() => {
     if (!hasSelectedNotificationId) return;
 
     const readSelectedNotification = async () => {
@@ -166,10 +185,7 @@ const NotificationContent = () => {
     readSelectedNotification();
   }, [selectedNotificationId, hasSelectedNotificationId]);
 
-  const handleChangeForm = (
-    field: keyof CreateNotificationPayload,
-    value: string,
-  ) => {
+  const handleChangeForm = (field: string, value: string) => {
     setFormData((prev) => ({
       ...prev,
       [field]: value,
@@ -178,6 +194,13 @@ const NotificationContent = () => {
 
   const handleCreateNotification = async (event: React.FormEvent) => {
     event.preventDefault();
+
+    for (const cfg of configFields) {
+      if (cfg.required && !formData[cfg.fieldKey]?.trim()) {
+        setErrorMessage(`Vui lòng nhập ${cfg.label.toLowerCase()}`);
+        return;
+      }
+    }
 
     if (!formData.title.trim()) {
       setErrorMessage('Vui lòng nhập tiêu đề thông báo');
@@ -196,7 +219,7 @@ const NotificationContent = () => {
       await createNotification({
         title: formData.title.trim(),
         content: formData.content.trim(),
-        targetRole: formData.targetRole,
+        targetRole: formData.targetRole as NotificationTargetRole,
       });
 
       setFormData({
@@ -321,7 +344,7 @@ const NotificationContent = () => {
               Đánh dấu tất cả đã đọc
             </button>
 
-            {isManager && (
+            {canManage && (
               <button
                 type="button"
                 onClick={() => setShowCreateForm((prev) => !prev)}
@@ -405,7 +428,7 @@ const NotificationContent = () => {
         </div>
       )}
 
-      {isManager && showCreateForm && (
+      {canManage && showCreateForm && (
         <form
           onSubmit={handleCreateNotification}
           className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm"
@@ -415,56 +438,41 @@ const NotificationContent = () => {
           </h2>
 
           <div className="grid gap-4">
-            <div>
-              <label className="mb-1 block text-sm font-medium text-slate-700">
-                Tiêu đề
-              </label>
-              <input
-                value={formData.title}
-                onChange={(event) =>
-                  handleChangeForm('title', event.target.value)
-                }
-                placeholder="Nhập tiêu đề thông báo"
-                className="w-full rounded-xl border border-slate-200 px-4 py-2 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
-              />
-            </div>
-
-            <div>
-              <label className="mb-1 block text-sm font-medium text-slate-700">
-                Gửi đến
-              </label>
-              <select
-                value={formData.targetRole}
-                onChange={(event) =>
-                  handleChangeForm(
-                    'targetRole',
-                    event.target.value as NotificationTargetRole,
-                  )
-                }
-                className="w-full rounded-xl border border-slate-200 px-4 py-2 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
-              >
-                {targetRoleOptions.map((item) => (
-                  <option key={item.value} value={item.value}>
-                    {item.label}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div>
-              <label className="mb-1 block text-sm font-medium text-slate-700">
-                Nội dung
-              </label>
-              <textarea
-                value={formData.content}
-                onChange={(event) =>
-                  handleChangeForm('content', event.target.value)
-                }
-                rows={5}
-                placeholder="Nhập nội dung thông báo"
-                className="w-full resize-none rounded-xl border border-slate-200 px-4 py-2 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
-              />
-            </div>
+            {configFields.map((cfg) => {
+              if (cfg.fieldKey === 'targetRole') {
+                return (
+                  <div key="targetRole">
+                    <label className="mb-1 block text-sm font-medium text-slate-700">
+                      {cfg.label}
+                    </label>
+                    <select
+                      value={formData.targetRole}
+                      onChange={(event) =>
+                        handleChangeForm(
+                          'targetRole',
+                          event.target.value as NotificationTargetRole,
+                        )
+                      }
+                      className="w-full rounded-xl border border-slate-200 px-4 py-2 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+                    >
+                      {targetRoleOptions.map((item) => (
+                        <option key={item.value} value={item.value}>
+                          {item.label}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                );
+              }
+              return (
+                <DynamicField
+                  key={cfg.fieldKey}
+                  config={cfg}
+                  value={formData[cfg.fieldKey] || ''}
+                  onChange={(value) => handleChangeForm(cfg.fieldKey, value)}
+                />
+              );
+            })}
 
             <div className="flex justify-end gap-3">
               <button
@@ -575,7 +583,7 @@ const NotificationContent = () => {
                           </button>
                         )}
 
-                        {isManager && (
+                        {canManage && (
                           <button
                             type="button"
                             onClick={() => handleDeleteNotification(item.notificationId)}

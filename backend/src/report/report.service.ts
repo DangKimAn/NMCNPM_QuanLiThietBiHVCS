@@ -39,6 +39,8 @@ export class ReportService {
     equipmentId?: number;
     search?: string;
     reporterId?: number;
+    page?: number;
+    limit?: number;
   }) {
     const where: Prisma.ReportWhereInput = {};
 
@@ -74,6 +76,46 @@ export class ReportService {
           },
         },
       ];
+    }
+
+    const page = query.page;
+    const limit = query.limit || 500;
+
+    if (page) {
+      const skip = (page - 1) * limit;
+
+      const [reports, total] = await Promise.all([
+        this.prisma.report.findMany({
+          where,
+          orderBy: {
+            reportedAt: 'desc',
+          },
+          skip,
+          take: limit,
+          include: {
+            reporter: {
+              include: {
+                role: true,
+              },
+            },
+            handler: {
+              include: {
+                role: true,
+              },
+            },
+            equipment: {
+              include: {
+                category: true,
+              },
+            },
+          },
+        }),
+        this.prisma.report.count({ where }),
+      ]);
+
+      const data = await this.populateRoomsForReports(reports);
+
+      return { data, total, page, limit };
     }
 
     const reports = await this.prisma.report.findMany({

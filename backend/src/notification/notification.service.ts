@@ -43,8 +43,8 @@ export class NotificationService {
   async createNotification(userId: number, dto: CreateNotificationDto) {
     const roleName = await this.getUserRoleName(userId);
 
-    if (roleName !== 'MANAGER') {
-      throw new ForbiddenException('Chỉ cán bộ quản lý mới được viết thông báo');
+    if (roleName !== 'MANAGER' && roleName !== 'ADMIN') {
+      throw new ForbiddenException('Chỉ cán bộ quản lý và quản trị viên mới được viết thông báo');
     }
 
     if (!dto.title?.trim()) {

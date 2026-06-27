@@ -39,21 +39,6 @@ const roleConfigs = [
     ],
   },
   {
-    roleName: 'LEADER',
-    description: 'Trưởng phòng / Trưởng bộ phận',
-    permissions: [
-      SystemPermission.VIEW_USER,
-      FacilityPermission.VIEW_EQUIPMENT,
-      FacilityPermission.VIEW_ROOM,
-      BorrowRequestPermission.CREATE_BORROW_REQUEST,
-      BorrowRequestPermission.VIEW_BORROW_REQUEST,
-      BorrowRequestPermission.APPROVE_BORROW_REQUEST,
-      IncidentReportPermission.CREATE_REPORT,
-      IncidentReportPermission.VIEW_REPORT,
-      DashboardPermission.VIEW_DASHBOARD,
-    ],
-  },
-  {
     roleName: 'TEACHER',
     description: 'Giáo viên / Giảng viên',
     permissions: [
@@ -151,7 +136,7 @@ async function main() {
   }
 
   // --------------------------------------------------------
-  // 3. TẠO DỮ LIỆU USER MẪU (MANAGER, LEADER)
+  // 3. TẠO DỮ LIỆU USER MẪU
   // --------------------------------------------------------
   console.log('Đang khởi tạo các User mặc định...');
 
@@ -163,12 +148,6 @@ async function main() {
       email: 'manager@system.com',
       roleName: 'MANAGER',
       password: 'passwordmanagerdefault'
-    },
-    {
-      username: 'leader_01',
-      email: 'leader@system.com',
-      roleName: 'LEADER',
-      password: 'passwordleaderdefault'
     },
     {
       username: 'admin_super',
@@ -329,6 +308,68 @@ async function main() {
     console.log(`Đã tạo và phân bổ ${eqType.qty} thiết bị: ${eqType.name}`);
   }
   console.log(`Đã tạo và phân bổ thiết bị thành công!`);
+
+  // --------------------------------------------------------
+  // 6. TẠO CẤU HÌNH FORM MẶC ĐỊNH
+  // --------------------------------------------------------
+  console.log('Đang tạo cấu hình form mặc định...');
+
+  const formConfigs: { formKey: string; fieldKey: string; label: string; fieldType: string; required: boolean; visible: boolean; sortOrder: number; options: string | null; placeholder: string | null }[] = [
+    // Form báo cáo sự cố
+    { formKey: 'incident_report', fieldKey: 'roomId', label: 'Phòng học', fieldType: 'select', required: true, visible: true, sortOrder: 1, options: null, placeholder: 'Tìm kiếm và chọn phòng...' },
+    { formKey: 'incident_report', fieldKey: 'equipmentId', label: 'Thiết bị gặp sự cố', fieldType: 'select', required: true, visible: true, sortOrder: 2, options: null, placeholder: 'Tìm kiếm và chọn thiết bị...' },
+    { formKey: 'incident_report', fieldKey: 'reportContent', label: 'Nội dung phản ánh', fieldType: 'textarea', required: true, visible: true, sortOrder: 3, options: null, placeholder: 'Ví dụ: Máy chiếu không lên hình, loa bị rè, điều hòa không hoạt động...' },
+
+    // Form nhập thiết bị
+    { formKey: 'equipment', fieldKey: 'equipmentCode', label: 'Mã thiết bị', fieldType: 'text', required: true, visible: true, sortOrder: 1, options: null, placeholder: 'VD: TB000001' },
+    { formKey: 'equipment', fieldKey: 'name', label: 'Tên thiết bị', fieldType: 'text', required: true, visible: true, sortOrder: 2, options: null, placeholder: 'VD: Máy chiếu Panasonic' },
+    { formKey: 'equipment', fieldKey: 'categoryId', label: 'Loại thiết bị', fieldType: 'select', required: true, visible: true, sortOrder: 3, options: null, placeholder: 'Chọn loại...' },
+    { formKey: 'equipment', fieldKey: 'room', label: 'Phòng học', fieldType: 'select', required: true, visible: true, sortOrder: 4, options: null, placeholder: 'Chọn phòng...' },
+    { formKey: 'equipment', fieldKey: 'status', label: 'Trạng thái', fieldType: 'select', required: true, visible: true, sortOrder: 5, options: JSON.stringify(['Hoạt động', 'Báo hỏng', 'Đang sửa', 'Bảo trì', 'Thanh lý']), placeholder: 'Chọn trạng thái...' },
+    { formKey: 'equipment', fieldKey: 'importDate', label: 'Ngày nhập', fieldType: 'date', required: false, visible: true, sortOrder: 6, options: null, placeholder: null },
+    { formKey: 'equipment', fieldKey: 'note', label: 'Ghi chú', fieldType: 'textarea', required: false, visible: true, sortOrder: 7, options: null, placeholder: 'Nhập ghi chú...' },
+
+    // Form tạo user
+    { formKey: 'user_create', fieldKey: 'fullName', label: 'Họ và tên', fieldType: 'text', required: true, visible: true, sortOrder: 1, options: null, placeholder: 'VD: Nguyễn Văn A' },
+    { formKey: 'user_create', fieldKey: 'username', label: 'Tên đăng nhập', fieldType: 'text', required: true, visible: true, sortOrder: 2, options: null, placeholder: 'VD: nguyenvana' },
+    { formKey: 'user_create', fieldKey: 'email', label: 'Email', fieldType: 'email', required: true, visible: true, sortOrder: 3, options: null, placeholder: 'VD: a@hvcs.edu.vn' },
+    { formKey: 'user_create', fieldKey: 'password', label: 'Mật khẩu', fieldType: 'password', required: true, visible: true, sortOrder: 4, options: null, placeholder: 'Nhập mật khẩu...' },
+    { formKey: 'user_create', fieldKey: 'phoneNumber', label: 'Số điện thoại', fieldType: 'text', required: false, visible: true, sortOrder: 5, options: null, placeholder: 'VD: 0123456789' },
+    { formKey: 'user_create', fieldKey: 'role', label: 'Vai trò', fieldType: 'select', required: true, visible: true, sortOrder: 6, options: JSON.stringify(['ADMIN', 'MANAGER', 'TEACHER', 'STUDENT']), placeholder: 'Chọn vai trò...' },
+    { formKey: 'user_create', fieldKey: 'status', label: 'Trạng thái', fieldType: 'select', required: false, visible: true, sortOrder: 7, options: JSON.stringify(['Hoạt động', 'Đã khóa']), placeholder: 'Chọn trạng thái...' },
+
+    // Form xử lý báo cáo (Manager)
+    { formKey: 'incident_handle', fieldKey: 'status', label: 'Trạng thái xử lý', fieldType: 'select', required: true, visible: true, sortOrder: 1, options: JSON.stringify(['Mới tiếp nhận', 'Đang xử lý', 'Đã xử lý', 'Từ chối']), placeholder: null },
+    { formKey: 'incident_handle', fieldKey: 'handlerName', label: 'Người xử lý', fieldType: 'text', required: true, visible: true, sortOrder: 2, options: null, placeholder: 'VD: Cán bộ QLTB' },
+    { formKey: 'incident_handle', fieldKey: 'handlerNote', label: 'Ghi chú xử lý', fieldType: 'textarea', required: false, visible: true, sortOrder: 3, options: null, placeholder: 'VD: Đã kiểm tra, cần thay dây HDMI...' },
+
+    // Form thông báo
+    { formKey: 'notification', fieldKey: 'title', label: 'Tiêu đề', fieldType: 'text', required: true, visible: true, sortOrder: 1, options: null, placeholder: 'Nhập tiêu đề thông báo...' },
+    { formKey: 'notification', fieldKey: 'targetRole', label: 'Gửi đến', fieldType: 'select', required: false, visible: true, sortOrder: 2, options: JSON.stringify(['ALL', 'ADMIN', 'MANAGER', 'TEACHER', 'STUDENT']), placeholder: 'Chọn đối tượng...' },
+    { formKey: 'notification', fieldKey: 'content', label: 'Nội dung', fieldType: 'textarea', required: true, visible: true, sortOrder: 3, options: null, placeholder: 'Nhập nội dung thông báo...' },
+  ];
+
+  for (const config of formConfigs) {
+    await prisma.formConfig.upsert({
+      where: {
+        formKey_fieldKey: {
+          formKey: config.formKey,
+          fieldKey: config.fieldKey,
+        },
+      },
+      update: {
+        label: config.label,
+        fieldType: config.fieldType,
+        required: config.required,
+        visible: config.visible,
+        sortOrder: config.sortOrder,
+        options: config.options,
+        placeholder: config.placeholder,
+      },
+      create: config,
+    });
+  }
+  console.log(`Đã tạo ${formConfigs.length} cấu hình fields cho các form.`);
 
   console.log("==========================USER TEST==========================")
   console.log('+------------------------------+------------------------------+------------------------------+')

@@ -18,7 +18,7 @@ export const Login = () => {
   const redirectByRole = (role: string) => {
     if (role === 'ADMIN') {
       navigate('/admin/users');
-    } else if (role === 'MANAGER' || role === 'LEADER') {
+    } else if (role === 'MANAGER') {
       navigate('/manager/overview');
     } else {
       navigate('/student/overview');
