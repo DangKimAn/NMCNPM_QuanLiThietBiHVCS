@@ -20,6 +20,7 @@ import {
   type NotificationItem,
 } from '../../services/notificationApi';
 import { API_BASE_URL } from '../../config/env';
+import { socket } from '../../services/socket';
 
 export interface LayoutMenuItem {
   label: string;
@@ -270,12 +271,18 @@ export const AppLayoutBase = ({
     // Initial fetch
     fetchUnreadNotificationCount();
     
-    // Polling every 10 seconds for real-time notification
-    const interval = setInterval(() => {
+    // Lắng nghe sự kiện WebSocket thay vì dùng Polling
+    const handleNewNotification = (data: any) => {
+      // Có thể lọc thêm dựa trên role nếu cần
+      // console.log('New notification received:', data);
       fetchUnreadNotificationCount();
-    }, 10000);
+    };
+
+    socket.on('notification_created', handleNewNotification);
     
-    return () => clearInterval(interval);
+    return () => {
+      socket.off('notification_created', handleNewNotification);
+    };
   }, []);
 
   const getAvatarText = (fullName: string) => {
@@ -339,7 +346,8 @@ export const AppLayoutBase = ({
 
   return (
     <div className="min-h-screen bg-slate-50 flex">
-      <aside className="w-64 bg-white border-r border-slate-200 fixed left-0 top-0 bottom-0 z-30">
+      {/* Sidebar - Desktop Only */}
+      <aside className="hidden md:block w-64 bg-white border-r border-slate-200 fixed left-0 top-0 bottom-0 z-30">
         <Link
           to={homePath}
           className="h-20 flex items-center px-8 border-b border-slate-100"
@@ -376,9 +384,10 @@ export const AppLayoutBase = ({
         </nav>
       </aside>
 
-      <div className="flex-1 ml-64 min-w-0">
-        <header className="h-20 bg-white border-b border-slate-200 sticky top-0 z-20 flex items-center justify-between px-8">
-          <div className="relative w-full max-w-md">
+      {/* Main Content Area */}
+      <div className="flex-1 ml-0 md:ml-64 min-w-0">
+        <header className="h-16 md:h-20 bg-white border-b border-slate-200 sticky top-0 z-20 flex items-center justify-between px-4 md:px-8">
+          <div className="relative w-full max-w-xs md:max-w-md">
             <FiSearch className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" />
 
             <input
@@ -413,8 +422,8 @@ export const AppLayoutBase = ({
               </button>
 
               {isNotificationOpen && (
-                <div className="absolute right-0 mt-4 w-[630px] max-h-[620px] rounded-2xl border border-slate-200 bg-white shadow-2xl z-50 overflow-hidden">
-                  <div className="flex items-center gap-2 border-b border-blue-200 px-5 py-4">
+                <div className="absolute right-[-60px] md:right-0 mt-4 w-[90vw] sm:w-[400px] md:w-[630px] max-w-[630px] max-h-[80vh] md:max-h-[620px] rounded-2xl border border-slate-200 bg-white shadow-2xl z-50 overflow-hidden flex flex-col">
+                  <div className="flex items-center gap-2 border-b border-blue-200 px-4 py-3 md:px-5 md:py-4 shrink-0">
                     <FiBell className="text-blue-500" />
                     <h3 className="text-base font-bold uppercase text-slate-800">
                       Thông báo
@@ -447,7 +456,7 @@ export const AppLayoutBase = ({
                     </button>
                   </div>
 
-                  <div className="max-h-[460px] overflow-y-auto px-5 pb-4">
+                  <div className="flex-1 overflow-y-auto px-4 pb-4 md:px-5">
                     {displayedNotifications.length === 0 ? (
                       <div className="py-10 text-center text-sm text-slate-500">
                         Không có thông báo nào
@@ -495,7 +504,7 @@ export const AppLayoutBase = ({
                     )}
                   </div>
 
-                  <div className="flex items-center justify-end border-t border-slate-100 px-5 py-3">
+                  <div className="flex items-center justify-end border-t border-slate-100 px-4 py-3 shrink-0">
                     <button
                       type="button"
                       onClick={() => {
@@ -532,12 +541,12 @@ export const AppLayoutBase = ({
                   </p>
                 </div>
 
-                <div className="w-11 h-11 rounded-full bg-blue-600 text-white flex items-center justify-center font-bold shadow-md">
+                <div className="w-9 h-9 md:w-11 md:h-11 rounded-full bg-blue-600 text-white flex items-center justify-center font-bold shadow-md text-sm md:text-base shrink-0">
                   {getAvatarText(currentUser.fullName)}
                 </div>
 
                 <span
-                  className={`text-slate-400 transition ${
+                  className={`text-slate-400 transition hidden sm:block ${
                     isUserMenuOpen ? 'rotate-180' : ''
                   }`}
                 >
@@ -615,8 +624,30 @@ export const AppLayoutBase = ({
           </div>
         </header>
 
-        <main className="p-8">{children}</main>
+        <main className="p-4 md:p-8 pb-28 md:pb-8">{children}</main>
       </div>
+
+      {/* Apple-style Bottom Navigation - Mobile Only */}
+      <nav className="md:hidden fixed bottom-6 left-1/2 -translate-x-1/2 w-[90%] max-w-sm bg-white/80 backdrop-blur-xl border border-white/40 shadow-[0_8px_32px_rgba(0,0,0,0.12)] rounded-full z-40 px-2 py-2 flex items-center justify-around">
+        {menuItems.map((item) => (
+          <NavLink
+            key={item.label}
+            to={item.path}
+            className={({ isActive }) =>
+              `flex flex-col items-center justify-center w-14 h-12 rounded-2xl transition-all duration-300 ${
+                isActive
+                  ? 'bg-blue-100/80 text-blue-700 shadow-sm scale-105'
+                  : 'text-slate-500 hover:bg-slate-100/50 hover:text-slate-800'
+              }`
+            }
+          >
+            <div className="text-[22px] mb-0.5">{item.icon}</div>
+            <span className="text-[9px] font-semibold tracking-wide truncate w-full text-center px-1">
+              {item.label}
+            </span>
+          </NavLink>
+        ))}
+      </nav>
 
       <UserProfileModal
         isOpen={isProfileModalOpen}

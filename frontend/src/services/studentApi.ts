@@ -117,7 +117,7 @@ function mapReport(r: BackendReport): StudentReportItem {
     roomId: r.room?.roomId ?? 0,
     equipmentId: r.equipment?.equipmentId ?? 0,
     room: r.room?.code ?? '',
-    device: r.equipment?.name ?? 'Không xác định',
+    device: r.equipment ? `${r.equipment.name} - ${r.equipment.equipmentCode || `TB${String(r.equipment.equipmentId).padStart(6, '0')}`}` : 'Không xác định',
     issue: r.reportContent,
     status: reportStatusMap[r.status] ?? 'Mới tiếp nhận',
     date: r.reportedAt ? r.reportedAt.replace('T', ' ').slice(0, 16) : '',

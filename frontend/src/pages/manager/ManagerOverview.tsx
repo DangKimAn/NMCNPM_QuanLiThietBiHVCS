@@ -11,6 +11,8 @@ import {
   FiTool,
 } from 'react-icons/fi';
 
+import { socket } from '../../services/socket';
+
 import { ManagerLayout } from '../../components/layout/ManagerLayout';
 import { StatusBadge, TableHead } from '../../components/manager/common/ManagerCommon';
 import { managerApi, type DashboardOverview } from '../../services/managerApi';
@@ -42,6 +44,17 @@ export const ManagerOverview = () => {
     };
 
     fetchOverview();
+
+    // Lắng nghe sự kiện realtime
+    socket.on('report_created', fetchOverview);
+    socket.on('report_updated', fetchOverview);
+    socket.on('equipment_transferred', fetchOverview);
+
+    return () => {
+      socket.off('report_created', fetchOverview);
+      socket.off('report_updated', fetchOverview);
+      socket.off('equipment_transferred', fetchOverview);
+    };
   }, []);
 
   const equipmentSummary = overview?.equipmentSummary;
@@ -94,7 +107,7 @@ export const ManagerOverview = () => {
 
       {!loading && overview && (
         <>
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mb-6">
             <OverviewLinkCard
               to="/manager/devices"
               icon={<FiBox />}
@@ -183,7 +196,11 @@ export const ManagerOverview = () => {
                   </p>
                 )}
 
-                {roomStats.map((room) => (
+                {/* Sắp xếp giảm dần theo tổng thiết bị và lấy 4 phòng đầu */}
+                {[...roomStats]
+                  .sort((a, b) => b.totalQuantity - a.totalQuantity)
+                  .slice(0, 4)
+                  .map((room) => (
                   <Link
                     key={room.roomId}
                     to={`/manager/devices?room=${encodeURIComponent(room.code)}`}
@@ -214,6 +231,17 @@ export const ManagerOverview = () => {
                     </div>
                   </Link>
                 ))}
+
+                {roomStats.length > 4 && (
+                  <div className="pt-2">
+                    <Link
+                      to="/manager/devices?tab=byRoom"
+                      className="block w-full py-2.5 text-center text-sm font-semibold text-indigo-600 bg-indigo-50 hover:bg-indigo-100 rounded-xl transition"
+                    >
+                      Xem thêm các phòng khác
+                    </Link>
+                  </div>
+                )}
               </div>
             </div>
           </div>
@@ -376,16 +404,16 @@ interface OverviewLinkCardProps {
 const OverviewLinkCard = ({ to, icon, label, value, note }: OverviewLinkCardProps) => (
   <Link
     to={to}
-    className="bg-white rounded-xl border border-slate-200 shadow-sm p-4 flex items-center gap-3 hover:border-blue-300 hover:shadow-md transition"
+    className="bg-white rounded-xl border border-slate-200 shadow-sm p-3 sm:p-4 flex items-center gap-2 sm:gap-3 hover:border-blue-300 hover:shadow-md transition"
   >
-    <div className="w-10 h-10 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center text-xl">
+    <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center text-lg sm:text-xl shrink-0">
       {icon}
     </div>
 
-    <div>
-      <p className="text-xs font-medium text-slate-500 uppercase tracking-wide">{label}</p>
-      <p className="text-xl font-black text-slate-800 mt-0.5">{value}</p>
-      {note && <p className="text-xs text-blue-600 mt-1">{note}</p>}
+    <div className="min-w-0 flex-1">
+      <p className="text-[10px] sm:text-xs font-medium text-slate-500 uppercase tracking-wide truncate">{label}</p>
+      <p className="text-lg sm:text-xl font-black text-slate-800 mt-0.5">{value}</p>
+      {note && <p className="text-[10px] sm:text-xs text-blue-600 mt-0.5 sm:mt-1 truncate">{note}</p>}
     </div>
   </Link>
 );

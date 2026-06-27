@@ -5,12 +5,14 @@ import { PrismaService } from '../prisma/prisma.service';
 import { CreateReportDto } from './dto/create-report.dto';
 import { HandleReportDto } from './dto/handle-report.dto';
 import { RoomService } from '../room/room.service';
+import { EventsGateway } from '../events/events.gateway';
 
 @Injectable()
 export class ReportService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly roomService: RoomService,
+    private readonly eventsGateway: EventsGateway,
   ) {}
 
   private async populateRoomsForReports(reports: any[]) {
@@ -182,7 +184,7 @@ export class ReportService {
     });
 
     // Tạo thông báo cho Manager
-    await this.prisma.notification.create({
+    const notification = await this.prisma.notification.create({
       data: {
         title: `Phản ánh mới từ ${reporter.fullName || reporter.username}`,
         content: `[ID:${result.reportId}] Phòng ${room.name}: ${dto.reportContent}`,
@@ -191,7 +193,13 @@ export class ReportService {
       },
     });
 
-    return this.populateRoomForSingleReport(result);
+    const populatedResult = await this.populateRoomForSingleReport(result);
+
+    // Phát sự kiện realtime
+    this.eventsGateway.emitReportCreated(populatedResult);
+    this.eventsGateway.emitNotification(notification);
+
+    return populatedResult;
   }
 
   // Xử lý phản ánh dành riêng cho MANAGER
@@ -255,7 +263,7 @@ export class ReportService {
       [ReportStatus.PENDING]: 'Mới tiếp nhận',
     };
 
-    await this.prisma.notification.create({
+    const notification = await this.prisma.notification.create({
       data: {
         title: `Phản ánh của bạn đã được cập nhật: ${statusTextMap[dto.status]}`,
         content: `Phản ánh thiết bị ${report.equipment?.name || 'Không xác định'} tại phòng ${report.room?.name || 'Không xác định'} đã được chuyển sang trạng thái ${statusTextMap[dto.status]}.${dto.resolutionContent ? `\n\nGhi chú: ${dto.resolutionContent}` : ''}`,
@@ -265,6 +273,12 @@ export class ReportService {
       },
     });
 
-    return this.populateRoomForSingleReport(result);
+    const populatedResult = await this.populateRoomForSingleReport(result);
+
+    // Phát sự kiện realtime
+    this.eventsGateway.emitReportUpdated(populatedResult);
+    this.eventsGateway.emitNotification(notification);
+
+    return populatedResult;
   }
 }

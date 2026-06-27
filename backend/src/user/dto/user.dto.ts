@@ -53,4 +53,8 @@ export class UserDto {
   @Expose()
   @IsDate()
   createdAt!: Date;
+
+  @Expose()
+  @IsDate()
+  updatedAt!: Date;
 }

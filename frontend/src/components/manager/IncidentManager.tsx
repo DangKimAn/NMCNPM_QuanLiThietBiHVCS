@@ -8,7 +8,7 @@
 // /manager/incidents?room=A201
 // /manager/incidents?report=1
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, useCallback } from 'react';
 import type { FormEvent } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import {
@@ -20,6 +20,8 @@ import {
   FiSearch,
   FiTool,
 } from 'react-icons/fi';
+
+import { socket } from '../../services/socket';
 
 import { ManagerLayout } from '../../components/layout/ManagerLayout';
 import type { IncidentReport, ReportStatus } from '../../types/manager';
@@ -64,6 +66,41 @@ export const IncidentManager = () => {
   const [filterStatus, setFilterStatus] = useState(searchParams.get('status') || 'All');
   const [filterRoom, setFilterRoom] = useState(searchParams.get('room') || 'All');
 
+  // Pagination state
+  const PAGE_SIZE = 15;
+  const [currentPage, setCurrentPage] = useState(1);
+
+  const buildPageWindow = useCallback((current: number, total: number): (number | '...')[] => {
+    const pages: (number | '...')[] = [];
+    const delta = 2;
+    const left  = current - delta;
+    const right = current + delta;
+    if (left > 2) { pages.push(1, '...'); } else { for (let i = 1; i < left; i++) pages.push(i); }
+    for (let i = Math.max(1, left); i <= Math.min(total, right); i++) pages.push(i);
+    if (right < total - 1) { pages.push('...', total); } else { for (let i = right + 1; i <= total; i++) pages.push(i); }
+    return pages;
+  }, []);
+
+  const Pagination = ({ current, total, onChange }: { current: number; total: number; onChange: (p: number) => void }) => {
+    if (total <= 1) return null;
+    const window = buildPageWindow(current, total);
+    return (
+      <div className="flex items-center justify-end gap-1">
+        <button type="button" onClick={() => onChange(Math.max(1, current - 1))} disabled={current === 1}
+          className="rounded-lg border border-slate-200 px-3 py-1.5 text-sm font-medium text-slate-600 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40">← Trước</button>
+        {window.map((p, i) => p === '...' ? (
+          <span key={`dots-${i}`} className="px-1 text-slate-400 select-none">...</span>
+        ) : (
+          <button key={`page-${p}`} type="button" onClick={() => onChange(p as number)}
+            className={`h-8 w-8 rounded-lg border text-sm font-medium ${p === current ? 'border-indigo-600 bg-indigo-600 text-white' : 'border-slate-200 text-slate-600 hover:bg-slate-50'}`}>{p}</button>
+        ))}
+        <button type="button" onClick={() => onChange(Math.min(total, current + 1))} disabled={current === total}
+          className="rounded-lg border border-slate-200 px-3 py-1.5 text-sm font-medium text-slate-600 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40">Sau →</button>
+      </div>
+    );
+  };
+
+
   // Lấy ID cán bộ đang đăng nhập.
   // Nếu chưa có userId trong localStorage thì tạm dùng 1.
   // Lưu ý: trong database phải có userId = 1, nếu không backend sẽ báo "Người xử lý không tồn tại".
@@ -99,6 +136,15 @@ export const IncidentManager = () => {
   // Khi mở trang thì gọi API
   useEffect(() => {
     fetchReports();
+
+    // Lắng nghe sự kiện realtime
+    socket.on('report_created', fetchReports);
+    socket.on('report_updated', fetchReports);
+
+    return () => {
+      socket.off('report_created', fetchReports);
+      socket.off('report_updated', fetchReports);
+    };
   }, []);
 
   // Khi URL thay đổi thì cập nhật bộ lọc
@@ -147,6 +193,17 @@ export const IncidentManager = () => {
       return matchKeyword && matchStatus && matchRoom;
     });
   }, [reports, keyword, filterStatus, filterRoom]);
+
+  // Reset page when filters change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [keyword, filterStatus, filterRoom]);
+
+  // Pagination calculation
+  const totalPages = Math.max(1, Math.ceil(filteredReports.length / PAGE_SIZE));
+  const safePage = Math.min(currentPage, totalPages);
+  const pagedReports = filteredReports.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE);
+
 
   // Tính số liệu thống kê phản ánh
   const stats = useMemo(() => {
@@ -294,9 +351,14 @@ export const IncidentManager = () => {
 
       {/* Bảng danh sách phản ánh báo hỏng */}
       {!loading && (
-        <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse">
+        <div className="space-y-3">
+          <div className="flex justify-end">
+            <Pagination current={safePage} total={totalPages} onChange={setCurrentPage} />
+          </div>
+
+          <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="w-full text-left border-collapse">
               <thead>
                 <tr className="bg-slate-50 border-b border-slate-200">
                   <TableHead>Mã PA</TableHead>
@@ -309,7 +371,7 @@ export const IncidentManager = () => {
               </thead>
 
               <tbody className="divide-y divide-slate-100">
-                {filteredReports.map((report) => (
+                {pagedReports.map((report) => (
                   <tr 
                     key={report.id}
                     onClick={() => openDetailModal(report)}
@@ -372,11 +434,12 @@ export const IncidentManager = () => {
               </tbody>
             </table>
           </div>
-
-          <div className="px-6 py-4 border-t border-slate-200 bg-slate-50 text-sm text-slate-500">
-            Hiển thị {filteredReports.length} phản ánh
-          </div>
         </div>
+
+        <div className="flex justify-end">
+          <Pagination current={safePage} total={totalPages} onChange={setCurrentPage} />
+        </div>
+      </div>
       )}
 
       {/* Modal xem chi tiết và cập nhật xử lý phản ánh */}
