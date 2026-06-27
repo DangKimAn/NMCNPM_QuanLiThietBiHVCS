@@ -1,7 +1,7 @@
 // File chứa các component và hàm dùng chung cho phần Cán bộ quản lý thiết bị.
 // Việc tách ra file này giúp tránh viết lặp lại code ở nhiều nơi.
 
-import { useEffect } from 'react';
+import { useEffect, memo } from 'react';
 import type { FormEvent, ReactNode } from 'react';
 import { FiSave, FiX } from 'react-icons/fi';
 import Select from 'react-select';
@@ -58,7 +58,7 @@ interface SummaryCardProps {
 }
 
 // Card thống kê dùng ở đầu trang
-export const SummaryCard = ({ icon, label, value }: SummaryCardProps) => (
+export const SummaryCard = memo(({ icon, label, value }: SummaryCardProps) => (
   <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-3 sm:p-4 flex items-center gap-2 sm:gap-3">
     <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center text-lg sm:text-xl shrink-0">
       {icon}
@@ -66,10 +66,10 @@ export const SummaryCard = ({ icon, label, value }: SummaryCardProps) => (
 
     <div className="min-w-0 flex-1">
       <p className="text-[10px] sm:text-xs font-medium text-slate-500 uppercase tracking-wide truncate">{label}</p>
-      <p className="text-lg sm:text-xl font-black text-slate-800 mt-0.5">{value}</p>
+      <p className="text-lg sm:text-xl font-bold text-slate-800 truncate">{value}</p>
     </div>
   </div>
-);
+));
 
 interface TabButtonProps {
   active: boolean;

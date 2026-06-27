@@ -8,7 +8,7 @@
 // /manager/incidents?room=A201
 // /manager/incidents?report=1
 
-import { useEffect, useMemo, useState, useCallback } from 'react';
+import { useEffect, useMemo, useState, useCallback, useRef } from 'react';
 import type { FormEvent } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import {
@@ -65,6 +65,7 @@ export const IncidentManager = () => {
 
   // State tìm kiếm và lọc
   const [keyword, setKeyword] = useState('');
+  const keywordTimeoutRef = useRef<ReturnType<typeof setTimeout>>();
   const [filterStatus, setFilterStatus] = useState(searchParams.get('status') || 'All');
   const [filterRoom, setFilterRoom] = useState(searchParams.get('room') || 'All');
 
@@ -307,7 +308,10 @@ export const IncidentManager = () => {
 
           <input
             value={keyword}
-            onChange={(e) => setKeyword(e.target.value)}
+            onChange={(e) => {
+              if (keywordTimeoutRef.current) clearTimeout(keywordTimeoutRef.current);
+              keywordTimeoutRef.current = setTimeout(() => setKeyword(e.target.value), 300);
+            }}
             placeholder="Tìm mã, người gửi, phòng, thiết bị..."
             className="w-full pl-9 pr-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:border-blue-500"
           />

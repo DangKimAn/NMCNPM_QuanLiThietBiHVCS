@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, useRef } from 'react';
 import type { FormEvent } from 'react';
 import {
   FiEdit2,
@@ -69,6 +69,7 @@ export const RolePermissionManager = () => {
   const [permissions, setPermissions] = useState<AdminPermission[]>([]);
 
   const [keyword, setKeyword] = useState('');
+  const keywordTimeoutRef = useRef<ReturnType<typeof setTimeout>>();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -233,7 +234,10 @@ export const RolePermissionManager = () => {
           <FiSearch className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
           <input
             value={keyword}
-            onChange={(e) => setKeyword(e.target.value)}
+            onChange={(e) => {
+              if (keywordTimeoutRef.current) clearTimeout(keywordTimeoutRef.current);
+              keywordTimeoutRef.current = setTimeout(() => setKeyword(e.target.value), 300);
+            }}
             placeholder="Tìm vai trò, quyền..."
             className="w-full pl-9 pr-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:border-blue-500"
           />

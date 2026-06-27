@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { AdminLayout } from '../../components/layout/AdminLayout';
 import { PageHeader } from '../../components/ui/PageHeader';
 import { FiClock, FiCheckSquare, FiSquare, FiRefreshCw, FiGlobe, FiMonitor } from 'react-icons/fi';
@@ -53,6 +53,7 @@ export const SystemLogView = () => {
 
   // Filter state
   const [filterUsername, setFilterUsername] = useState('');
+  const filterTimeoutRef = useRef<ReturnType<typeof setTimeout>>();
   const [filterFrom, setFilterFrom] = useState('');
   const [filterTo, setFilterTo] = useState('');
 
@@ -188,7 +189,10 @@ export const SystemLogView = () => {
           <input
             type="text"
             value={filterUsername}
-            onChange={(e) => setFilterUsername(e.target.value)}
+            onChange={(e) => {
+              if (filterTimeoutRef.current) clearTimeout(filterTimeoutRef.current);
+              filterTimeoutRef.current = setTimeout(() => setFilterUsername(e.target.value), 300);
+            }}
             placeholder="Tìm theo username..."
             className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:border-indigo-500"
           />

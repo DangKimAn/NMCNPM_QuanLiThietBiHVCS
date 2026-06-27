@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, useRef } from 'react';
 import { FiMonitor, FiSearch, FiTool } from 'react-icons/fi';
 
 import { StudentTeacherLayout } from '../../components/layout/StudentTeacherLayout';
@@ -13,6 +13,7 @@ export const StudentRoomEquipment = () => {
   const [rooms, setRooms] = useState<RoomEquipment[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
+  const searchTimeoutRef = useRef<ReturnType<typeof setTimeout>>();
   const [selectedRoom, setSelectedRoom] = useState<number | null>(null);
 
   const loadData = async () => {
@@ -94,7 +95,10 @@ export const StudentRoomEquipment = () => {
         <input
           type="text"
           value={search}
-          onChange={(e) => setSearch(e.target.value)}
+          onChange={(e) => {
+            if (searchTimeoutRef.current) clearTimeout(searchTimeoutRef.current);
+            searchTimeoutRef.current = setTimeout(() => setSearch(e.target.value), 300);
+          }}
           placeholder="Tìm phòng theo mã, tên hoặc tòa nhà..."
           className="w-full pl-10 pr-4 py-2.5 border border-slate-200 rounded-lg text-sm focus:outline-none focus:border-blue-500"
         />

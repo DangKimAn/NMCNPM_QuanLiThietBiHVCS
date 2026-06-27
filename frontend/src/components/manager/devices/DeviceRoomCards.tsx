@@ -1,7 +1,7 @@
 // Component hiển thị thiết bị theo từng phòng học.
 // Mỗi phòng là một card riêng, bên trong có danh sách thiết bị thuộc phòng đó.
 
-import { useState } from 'react';
+import { useState, useMemo, memo } from 'react';
 import { FiActivity, FiRefreshCw } from 'react-icons/fi';
 
 import type { Device } from '../../../types/manager';
@@ -59,7 +59,7 @@ const DeviceListItem = ({
   </li>
 );
 
-export const DeviceRoomCards = ({
+export const DeviceRoomCards = memo(({
   rooms,
   devices,
   onStatus,
@@ -71,9 +71,9 @@ export const DeviceRoomCards = ({
   } | null>(null);
 
   // Lọc chỉ lấy những phòng có thiết bị và sắp xếp theo tên phòng
-  const roomsWithDevices = rooms
+  const roomsWithDevices = useMemo(() => rooms
     .filter((room) => devices.some((device) => device.room === room))
-    .sort((a, b) => a.localeCompare(b, 'vi', { numeric: true }));
+    .sort((a, b) => a.localeCompare(b, 'vi', { numeric: true })), [rooms, devices]);
 
   return (
     <>
@@ -179,4 +179,4 @@ export const DeviceRoomCards = ({
       )}
     </>
   );
-};
+});
