@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, useCallback } from 'react';
+import { useEffect, useMemo, useState, useCallback, useRef, memo } from 'react';
 import type { FormEvent } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import {
@@ -67,6 +67,36 @@ interface TransferForm {
   reason: string;
 }
 
+const buildPageWindow = (current: number, total: number): (number | '...')[] => {
+  const pages: (number | '...')[] = [];
+  const delta = 2;
+  const left  = current - delta;
+  const right = current + delta;
+  if (left > 2) { pages.push(1, '...'); } else { for (let i = 1; i < left; i++) pages.push(i); }
+  for (let i = Math.max(1, left); i <= Math.min(total, right); i++) pages.push(i);
+  if (right < total - 1) { pages.push('...', total); } else { for (let i = right + 1; i <= total; i++) pages.push(i); }
+  return pages;
+};
+
+const Pagination = memo(({ current, total, onChange, prefix = '' }: { current: number; total: number; onChange: (p: number) => void; prefix?: string }) => {
+  if (total <= 1) return null;
+  const window = buildPageWindow(current, total);
+  return (
+    <div className="flex items-center justify-end gap-1">
+      <button type="button" onClick={() => onChange(Math.max(1, current - 1))} disabled={current === 1}
+        className="rounded-lg border border-slate-200 px-3 py-1.5 text-sm font-medium text-slate-600 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40">← Trước</button>
+      {window.map((p, i) => p === '...' ? (
+        <span key={`${prefix}d${i}`} className="px-1 text-slate-400 select-none">...</span>
+      ) : (
+        <button key={`${prefix}${p}`} type="button" onClick={() => onChange(p as number)}
+          className={`h-8 w-8 rounded-lg border text-sm font-medium ${p === current ? 'border-indigo-600 bg-indigo-600 text-white' : 'border-slate-200 text-slate-600 hover:bg-slate-50'}`}>{p}</button>
+      ))}
+      <button type="button" onClick={() => onChange(Math.min(total, current + 1))} disabled={current === total}
+        className="rounded-lg border border-slate-200 px-3 py-1.5 text-sm font-medium text-slate-600 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40">Sau →</button>
+    </div>
+  );
+});
+
 export const DeviceManager = () => {
   const [searchParams] = useSearchParams();
   const searchKey = searchParams.toString();
@@ -84,6 +114,7 @@ export const DeviceManager = () => {
   );
 
   const [keyword, setKeyword] = useState(searchParams.get('keyword') || '');
+  const keywordTimeoutRef = useRef<ReturnType<typeof setTimeout>>();
   const [filterRoom, setFilterRoom] = useState(
     searchParams.get('room') || 'All',
   );
@@ -95,6 +126,7 @@ export const DeviceManager = () => {
   );
 
   const [roomSearchTerm, setRoomSearchTerm] = useState('');
+  const roomSearchTimeoutRef = useRef<ReturnType<typeof setTimeout>>();
 
   // Drill-down: null = hiển danh sách nhóm, string = hiển thiết bị của nhóm đó
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
@@ -134,35 +166,6 @@ export const DeviceManager = () => {
   const [roomPage,     setRoomPage]     = useState(1);
   const [transferPage, setTransferPage] = useState(1);
 
-  const buildPageWindow = useCallback((current: number, total: number): (number | '...')[] => {
-    const pages: (number | '...')[] = [];
-    const delta = 2;
-    const left  = current - delta;
-    const right = current + delta;
-    if (left > 2) { pages.push(1, '...'); } else { for (let i = 1; i < left; i++) pages.push(i); }
-    for (let i = Math.max(1, left); i <= Math.min(total, right); i++) pages.push(i);
-    if (right < total - 1) { pages.push('...', total); } else { for (let i = right + 1; i <= total; i++) pages.push(i); }
-    return pages;
-  }, []);
-
-  const Pagination = ({ current, total, onChange, prefix = '' }: { current: number; total: number; onChange: (p: number) => void; prefix?: string }) => {
-    if (total <= 1) return null;
-    const window = buildPageWindow(current, total);
-    return (
-      <div className="flex items-center justify-end gap-1">
-        <button type="button" onClick={() => onChange(Math.max(1, current - 1))} disabled={current === 1}
-          className="rounded-lg border border-slate-200 px-3 py-1.5 text-sm font-medium text-slate-600 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40">← Trước</button>
-        {window.map((p, i) => p === '...' ? (
-          <span key={`${prefix}d${i}`} className="px-1 text-slate-400 select-none">...</span>
-        ) : (
-          <button key={`${prefix}${p}`} type="button" onClick={() => onChange(p as number)}
-            className={`h-8 w-8 rounded-lg border text-sm font-medium ${p === current ? 'border-indigo-600 bg-indigo-600 text-white' : 'border-slate-200 text-slate-600 hover:bg-slate-50'}`}>{p}</button>
-        ))}
-        <button type="button" onClick={() => onChange(Math.min(total, current + 1))} disabled={current === total}
-          className="rounded-lg border border-slate-200 px-3 py-1.5 text-sm font-medium text-slate-600 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40">Sau →</button>
-      </div>
-    );
-  };
   // ────────────────────────────────────────────────────────────
 
   const roomOptions = useMemo(() => {
@@ -676,7 +679,10 @@ export const DeviceManager = () => {
                   <FiSearch className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
                   <input
                     value={keyword}
-                    onChange={(e) => setKeyword(e.target.value)}
+                    onChange={(e) => {
+                      if (keywordTimeoutRef.current) clearTimeout(keywordTimeoutRef.current);
+                      keywordTimeoutRef.current = setTimeout(() => setKeyword(e.target.value), 300);
+                    }}
                     placeholder="Tìm mã, tên, phòng..."
                     className="w-full pl-9 pr-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:border-blue-500"
                   />
@@ -732,7 +738,10 @@ export const DeviceManager = () => {
                 type="text"
                 placeholder="Tìm kiếm tên phòng học..."
                 value={roomSearchTerm}
-                onChange={(e) => setRoomSearchTerm(e.target.value)}
+                onChange={(e) => {
+                  if (roomSearchTimeoutRef.current) clearTimeout(roomSearchTimeoutRef.current);
+                  roomSearchTimeoutRef.current = setTimeout(() => setRoomSearchTerm(e.target.value), 300);
+                }}
                 className="w-full pl-10 pr-4 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 bg-white"
               />
             </div>

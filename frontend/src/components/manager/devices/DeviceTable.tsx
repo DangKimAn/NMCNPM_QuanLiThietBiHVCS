@@ -1,6 +1,7 @@
 // Component hiển thị bảng danh sách thiết bị.
 // Nhận dữ liệu từ DeviceManager và gọi lại các hàm xử lý khi người dùng bấm nút thao tác.
 
+import { memo } from 'react';
 import { FiActivity, FiEdit2, FiRefreshCw, FiTrash2 } from 'react-icons/fi';
 import type { Device } from '../../../types/manager';
 import { StatusBadge } from '../common/ManagerCommon';
@@ -14,7 +15,7 @@ interface DeviceTableProps {
   onTransfer: (device: Device) => void;
 }
 
-export const DeviceTable = ({
+export const DeviceTable = memo(({
   devices,
   onEdit,
   onDelete,
@@ -92,4 +93,4 @@ export const DeviceTable = ({
       mobileSecondaryColumnKey="id"
     />
   );
-};
+});
