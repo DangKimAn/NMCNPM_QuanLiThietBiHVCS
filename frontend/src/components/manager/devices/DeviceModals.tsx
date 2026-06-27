@@ -1,4 +1,5 @@
 import type { FormEvent } from 'react';
+import { useMemo } from 'react';
 
 import { deviceStatuses } from '../../../data/managerMockData';
 import type { Device, DeviceStatus } from '../../../types/manager';
@@ -8,6 +9,7 @@ import {
   FieldTextArea,
   Modal,
 } from '../common/ManagerCommon';
+import { useFormConfig } from '../../../hooks/useFormConfig';
 
 interface DeviceFormModalProps {
   editingDevice: Device | null;
@@ -28,6 +30,16 @@ export const DeviceFormModal = ({
   onClose,
   onSubmit,
 }: DeviceFormModalProps) => {
+  const { fields: configFields } = useFormConfig('equipment');
+
+  const configMap = useMemo(() => {
+    const map = new Map<string, boolean>();
+    configFields.forEach((f) => map.set(f.fieldKey, true));
+    return map;
+  }, [configFields]);
+
+  const hasConfig = configFields.length > 0;
+
   return (
     <Modal
       title={
@@ -40,62 +52,76 @@ export const DeviceFormModal = ({
       submitText={editingDevice ? 'Cập nhật' : 'Thêm mới'}
     >
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <FieldInput
-          label="Mã thiết bị"
-          value={deviceForm.id}
-          required
-          onChange={(value) => setDeviceForm({ ...deviceForm, id: value })}
-        />
-
-        <FieldInput
-          label="Tên thiết bị"
-          value={deviceForm.name}
-          onChange={(value) => setDeviceForm({ ...deviceForm, name: value })}
-        />
-
-        <FieldSelect
-          label="Loại thiết bị"
-          value={deviceForm.type}
-          options={typeOptions}
-          onChange={(value) => setDeviceForm({ ...deviceForm, type: value })}
-        />
-
-        <FieldSelect
-          label="Phòng học"
-          value={deviceForm.room}
-          options={roomOptions}
-          onChange={(value) => setDeviceForm({ ...deviceForm, room: value })}
-        />
-
-        <FieldSelect
-          label="Trạng thái"
-          value={deviceForm.status}
-          options={deviceStatuses}
-          onChange={(value) =>
-            setDeviceForm({
-              ...deviceForm,
-              status: value as DeviceStatus,
-            })
-          }
-        />
-
-        <FieldInput
-          label="Ngày nhập"
-          type="date"
-          value={deviceForm.importDate}
-          required={false}
-          onChange={(value) =>
-            setDeviceForm({ ...deviceForm, importDate: value })
-          }
-        />
-
-        <div className="md:col-span-2">
-          <FieldTextArea
-            label="Ghi chú"
-            value={deviceForm.note}
-            onChange={(value) => setDeviceForm({ ...deviceForm, note: value })}
+        {(hasConfig ? configMap.get('equipmentCode') !== false : true) && (
+          <FieldInput
+            label="Mã thiết bị"
+            value={deviceForm.id}
+            required
+            onChange={(value) => setDeviceForm({ ...deviceForm, id: value })}
           />
-        </div>
+        )}
+
+        {(hasConfig ? configMap.get('name') !== false : true) && (
+          <FieldInput
+            label="Tên thiết bị"
+            value={deviceForm.name}
+            onChange={(value) => setDeviceForm({ ...deviceForm, name: value })}
+          />
+        )}
+
+        {(hasConfig ? configMap.get('categoryId') !== false : true) && (
+          <FieldSelect
+            label="Loại thiết bị"
+            value={deviceForm.type}
+            options={typeOptions}
+            onChange={(value) => setDeviceForm({ ...deviceForm, type: value })}
+          />
+        )}
+
+        {(hasConfig ? configMap.get('room') !== false : true) && (
+          <FieldSelect
+            label="Phòng học"
+            value={deviceForm.room}
+            options={roomOptions}
+            onChange={(value) => setDeviceForm({ ...deviceForm, room: value })}
+          />
+        )}
+
+        {(hasConfig ? configMap.get('status') !== false : true) && (
+          <FieldSelect
+            label="Trạng thái"
+            value={deviceForm.status}
+            options={deviceStatuses}
+            onChange={(value) =>
+              setDeviceForm({
+                ...deviceForm,
+                status: value as DeviceStatus,
+              })
+            }
+          />
+        )}
+
+        {(hasConfig ? configMap.get('importDate') !== false : true) && (
+          <FieldInput
+            label="Ngày nhập"
+            type="date"
+            value={deviceForm.importDate}
+            required={false}
+            onChange={(value) =>
+              setDeviceForm({ ...deviceForm, importDate: value })
+            }
+          />
+        )}
+
+        {(hasConfig ? configMap.get('note') !== false : true) && (
+          <div className="md:col-span-2">
+            <FieldTextArea
+              label="Ghi chú"
+              value={deviceForm.note}
+              onChange={(value) => setDeviceForm({ ...deviceForm, note: value })}
+            />
+          </div>
+        )}
       </div>
     </Modal>
   );

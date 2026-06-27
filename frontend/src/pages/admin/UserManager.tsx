@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import { AdminLayout } from '../../components/layout/AdminLayout';
 import { FiUserPlus, FiUpload } from 'react-icons/fi';
 import { DynamicFormModal } from '../../components/ui/DynamicFormModal';
@@ -9,8 +9,9 @@ import type { TableColumn } from '../../components/ui/Table';
 import { Table } from '../../components/ui/Table';
 import { adminApi, toBackendStatus } from '../../services/adminApi';
 import type { AdminUser } from '../../services/adminApi';
+import { useFormConfig } from '../../hooks/useFormConfig';
 
-const userFields: FormField[] = [
+const DEFAULT_USER_FIELDS: FormField[] = [
   {
     name: 'fullName',
     label: 'Họ và tên',
@@ -34,7 +35,7 @@ const userFields: FormField[] = [
   {
     name: 'password',
     label: 'Mật khẩu',
-    type: 'text',
+    type: 'password',
   },
   {
     name: 'phoneNumber',
@@ -120,6 +121,29 @@ export const UserManager = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
   const [editingUser, setEditingUser] = useState<AdminUser | null>(null);
+
+  const { fields: configFields } = useFormConfig('user_create');
+
+  const userFields: FormField[] = useMemo(() => {
+    if (configFields.length === 0) return DEFAULT_USER_FIELDS;
+
+    const configMap = new Map<string, any>();
+    configFields.forEach((f) => configMap.set(f.fieldKey, f));
+
+    return DEFAULT_USER_FIELDS.filter((field) => {
+      const cfg = configMap.get(field.name);
+      return cfg ? cfg.visible !== false : true;
+    }).map((field) => {
+      const cfg = configMap.get(field.name);
+      if (!cfg) return field;
+      return {
+        ...field,
+        label: cfg.label || field.label,
+        required: cfg.required !== undefined ? cfg.required : field.required,
+        type: (cfg.fieldType === 'password' ? 'password' : cfg.fieldType === 'email' ? 'email' : cfg.fieldType === 'select' ? 'select' : field.type) as FormField['type'],
+      };
+    });
+  }, [configFields]);
 
   const loadUsers = async () => {
     try {

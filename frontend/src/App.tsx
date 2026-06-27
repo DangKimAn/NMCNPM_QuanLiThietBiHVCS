@@ -10,10 +10,12 @@ import { IncidentManager } from './components/manager/IncidentManager';
 import { UserManager } from './pages/admin/UserManager';
 import { RolePermissionManager } from './pages/admin/RolePermissionManager';
 import { SystemLogViewer } from './pages/admin/SystemLogView';
+import { FormConfigPage } from './pages/admin/FormConfigPage';
 
 import { StudentReport } from './pages/student/StudentReport';
 import { StudentOverview } from './pages/student/StudentOverview';
 import { StudentMyReports } from './pages/student/StudentMyReports';
+import { StudentRoomEquipment } from './pages/student/StudentRoomEquipment';
 
 import NotificationPage from './pages/notifications/NotificationPage';
 
@@ -63,6 +65,7 @@ function App() {
           <Route path="/admin/users" element={<UserManager />} />
           <Route path="/admin/roles" element={<RolePermissionManager />} />
           <Route path="/admin/logs" element={<SystemLogViewer />} />
+          <Route path="/admin/form-config" element={<FormConfigPage />} />
         </Route>
 
         {/* Giảng viên / Sinh viên */}
@@ -80,6 +83,7 @@ function App() {
           <Route path="/student/overview" element={<StudentOverview />} />
           <Route path="/student/reports" element={<StudentReport />} />
           <Route path="/student/my-reports" element={<StudentMyReports />} />
+          <Route path="/student/rooms" element={<StudentRoomEquipment />} />
         </Route>
 
         {/* Sai đường dẫn thì quay về login */}

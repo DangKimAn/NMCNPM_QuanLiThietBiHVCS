@@ -273,6 +273,27 @@ model Report {
 }
 
 // ==========================================
+// FORM_CONFIG - Cấu hình form động cho Admin
+// ==========================================
+
+model FormConfig {
+  formConfigId Int      @id @default(autoincrement())
+  formKey      String   @db.VarChar(100)
+  fieldKey     String   @db.VarChar(100)
+  label        String   @db.VarChar(255)
+  fieldType    String   @db.VarChar(50)
+  required     Boolean  @default(false)
+  visible      Boolean  @default(true)
+  sortOrder    Int      @default(0)
+  options      String?  @db.Text
+  placeholder  String?  @db.VarChar(255)
+  updatedAt    DateTime @updatedAt
+
+  @@unique([formKey, fieldKey])
+  @@map("form_configs")
+}
+
+// ==========================================
 // NOTIFICATIONS - Chức năng thông báo
 // ==========================================
 

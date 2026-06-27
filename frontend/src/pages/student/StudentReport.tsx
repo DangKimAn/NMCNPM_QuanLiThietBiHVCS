@@ -2,10 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import type { FormEvent } from 'react';
 import { Link } from 'react-router-dom';
 import {
-  FiAlertTriangle,
   FiCheckCircle,
-  FiEdit3,
-  FiMonitor,
   FiRefreshCw,
 } from 'react-icons/fi';
 import Select from 'react-select';
@@ -13,7 +10,6 @@ import Select from 'react-select';
 import { StudentTeacherLayout } from '../../components/layout/StudentTeacherLayout';
 import {
   FieldTextArea,
-  SummaryCard,
 } from '../../components/manager/common/ManagerCommon';
 import { getCurrentStudentUser } from '../../data/studentMockData';
 import {
@@ -21,6 +17,7 @@ import {
   type StudentEquipmentOption,
   type StudentRoomOption,
 } from '../../services/studentApi';
+import { useFormConfig } from '../../hooks/useFormConfig';
 
 interface ReportForm {
   roomId: string;
@@ -36,6 +33,13 @@ const emptyForm: ReportForm = {
 
 export const StudentReport = () => {
   const currentUser = getCurrentStudentUser();
+  const { fields: configFields } = useFormConfig('incident_report');
+
+  const configMap = useMemo(() => {
+    const map = new Map<string, boolean>();
+    configFields.forEach((f) => map.set(f.fieldKey, true));
+    return map;
+  }, [configFields]);
 
   const [rooms, setRooms] = useState<StudentRoomOption[]>([]);
   const [equipments, setEquipments] = useState<StudentEquipmentOption[]>([]);
@@ -43,6 +47,7 @@ export const StudentReport = () => {
   const [form, setForm] = useState<ReportForm>(emptyForm);
 
   const [loading, setLoading] = useState(true);
+  const [configLoading, setConfigLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
 
   const [errorMessage, setErrorMessage] = useState('');
@@ -76,6 +81,12 @@ export const StudentReport = () => {
   };
 
   useEffect(() => {
+    if (configFields.length > 0) {
+      setConfigLoading(false);
+    }
+  }, [configFields]);
+
+  useEffect(() => {
     fetchData();
   }, []);
 
@@ -97,13 +108,8 @@ export const StudentReport = () => {
 
     setSuccessMessage('');
 
-    if (!form.roomId) {
+    if (configMap.get('roomId') && !form.roomId) {
       alert('Vui lòng chọn phòng học.');
-      return;
-    }
-
-    if (!form.equipmentId) {
-      alert('Vui lòng chọn thiết bị cần phản ánh.');
       return;
     }
 
@@ -116,8 +122,8 @@ export const StudentReport = () => {
       setSubmitting(true);
 
       await studentApi.createReport({
-        roomId: Number(form.roomId),
-        equipmentId: Number(form.equipmentId),
+        roomId: Number(form.roomId) || 0,
+        equipmentId: form.equipmentId ? Number(form.equipmentId) : undefined,
         reportContent: form.reportContent.trim(),
         reporterId: currentUser.userId,
       });
@@ -138,6 +144,8 @@ export const StudentReport = () => {
       setSubmitting(false);
     }
   };
+
+  const isReady = !loading && !configLoading;
 
   return (
     <StudentTeacherLayout>
@@ -166,13 +174,13 @@ export const StudentReport = () => {
       )}
 
 
-      {loading && (
+      {!isReady && (
         <div className="bg-white border border-slate-200 rounded-xl p-8 text-center text-slate-500">
           Đang tải dữ liệu phòng học và thiết bị...
         </div>
       )}
 
-      {!loading && (
+      {isReady && (
         <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
           <div className="xl:col-span-2 bg-white rounded-xl border border-slate-200 shadow-sm p-6">
             <div className="flex items-start justify-between gap-4 mb-5">
@@ -198,95 +206,101 @@ export const StudentReport = () => {
             </div>
 
             <form onSubmit={submitReport} className="space-y-4">
-              <div>
-                <label className="block text-sm font-semibold text-slate-700 mb-1">
-                  Phòng học
-                </label>
+              {configMap.get('roomId') && (
+                <div>
+                  <label className="block text-sm font-semibold text-slate-700 mb-1">
+                    Phòng học <span className="text-red-500">*</span>
+                  </label>
 
-                <Select
-                  options={rooms.map((room) => ({
-                    value: String(room.roomId),
-                    label: `${room.code} - ${room.name}`,
-                  }))}
-                  value={
-                    form.roomId
-                      ? {
-                          value: form.roomId,
-                          label: (() => {
-                            const r = rooms.find((r) => String(r.roomId) === form.roomId);
-                            return r ? `${r.code} - ${r.name}` : '';
-                          })(),
-                        }
-                      : null
-                  }
-                  onChange={(selectedOption) => {
-                    if (!selectedOption) return;
-                    const selectedRoomId = Number(selectedOption.value);
-                    const firstEquipmentInRoom = equipments.find(
-                      (equipment) => equipment.roomId === selectedRoomId,
-                    );
+                  <Select
+                    options={rooms.map((room) => ({
+                      value: String(room.roomId),
+                      label: `${room.code} - ${room.name}`,
+                    }))}
+                    value={
+                      form.roomId
+                        ? {
+                            value: form.roomId,
+                            label: (() => {
+                              const r = rooms.find((r) => String(r.roomId) === form.roomId);
+                              return r ? `${r.code} - ${r.name}` : '';
+                            })(),
+                          }
+                        : null
+                    }
+                    onChange={(selectedOption) => {
+                      if (!selectedOption) return;
+                      const selectedRoomId = Number(selectedOption.value);
+                      const firstEquipmentInRoom = equipments.find(
+                        (equipment) => equipment.roomId === selectedRoomId,
+                      );
+                      setForm({
+                        ...form,
+                        roomId: selectedOption.value,
+                        equipmentId: firstEquipmentInRoom
+                          ? String(firstEquipmentInRoom.equipmentId)
+                          : '',
+                      });
+                    }}
+                    placeholder="Tìm kiếm và chọn phòng..."
+                    noOptionsMessage={() => "Không tìm thấy phòng"}
+                    className="text-sm"
+                  />
+                </div>
+              )}
+
+              {configMap.get('equipmentId') && (
+                <div>
+                  <label className="block text-sm font-semibold text-slate-700 mb-1">
+                    Thiết bị gặp sự cố
+                  </label>
+
+                  <Select
+                    options={filteredEquipments.map((equipment) => ({
+                      value: String(equipment.equipmentId),
+                      label: equipment.name,
+                    }))}
+                    value={
+                      form.equipmentId
+                        ? {
+                            value: form.equipmentId,
+                            label: (() => {
+                              const eq = filteredEquipments.find(
+                                (e) => String(e.equipmentId) === form.equipmentId,
+                              );
+                              return eq ? eq.name : '';
+                            })(),
+                          }
+                        : null
+                    }
+                    onChange={(selectedOption) => {
+                      if (!selectedOption) return;
+                      setForm({
+                        ...form,
+                        equipmentId: selectedOption.value,
+                      });
+                    }}
+                    isDisabled={filteredEquipments.length === 0}
+                    placeholder={filteredEquipments.length === 0 ? "-- Phòng này không có thiết bị --" : "Tìm kiếm và chọn thiết bị..."}
+                    noOptionsMessage={() => "Không tìm thấy thiết bị"}
+                    className="text-sm"
+                  />
+                </div>
+              )}
+
+              {configMap.get('reportContent') && (
+                <FieldTextArea
+                  label="Nội dung phản ánh"
+                  value={form.reportContent}
+                  placeholder="Ví dụ: Máy chiếu không lên hình, loa bị rè, điều hòa không hoạt động..."
+                  onChange={(value) =>
                     setForm({
                       ...form,
-                      roomId: selectedOption.value,
-                      equipmentId: firstEquipmentInRoom
-                        ? String(firstEquipmentInRoom.equipmentId)
-                        : '',
-                    });
-                  }}
-                  placeholder="Tìm kiếm và chọn phòng..."
-                  noOptionsMessage={() => "Không tìm thấy phòng"}
-                  className="text-sm"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-semibold text-slate-700 mb-1">
-                  Thiết bị gặp sự cố
-                </label>
-
-                <Select
-                  options={filteredEquipments.map((equipment) => ({
-                    value: String(equipment.equipmentId),
-                    label: equipment.name,
-                  }))}
-                  value={
-                    form.equipmentId
-                      ? {
-                          value: form.equipmentId,
-                          label: (() => {
-                            const eq = filteredEquipments.find(
-                              (e) => String(e.equipmentId) === form.equipmentId,
-                            );
-                            return eq ? eq.name : '';
-                          })(),
-                        }
-                      : null
+                      reportContent: value,
+                    })
                   }
-                  onChange={(selectedOption) => {
-                    if (!selectedOption) return;
-                    setForm({
-                      ...form,
-                      equipmentId: selectedOption.value,
-                    });
-                  }}
-                  isDisabled={filteredEquipments.length === 0}
-                  placeholder={filteredEquipments.length === 0 ? "-- Phòng này không có thiết bị --" : "Tìm kiếm và chọn thiết bị..."}
-                  noOptionsMessage={() => "Không tìm thấy thiết bị"}
-                  className="text-sm"
                 />
-              </div>
-
-              <FieldTextArea
-                label="Nội dung phản ánh"
-                value={form.reportContent}
-                placeholder="Ví dụ: Máy chiếu không lên hình, loa bị rè, điều hòa không hoạt động..."
-                onChange={(value) =>
-                  setForm({
-                    ...form,
-                    reportContent: value,
-                  })
-                }
-              />
+              )}
 
               <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 pt-2">
                 <p className="text-xs text-slate-500">

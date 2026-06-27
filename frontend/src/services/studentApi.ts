@@ -124,6 +124,23 @@ function mapReport(r: BackendReport): StudentReportItem {
   };
 }
 
+export interface StudentRoomEquipment {
+  roomId: number;
+  code: string;
+  name: string;
+  building: string | null;
+  floor: number | null;
+  status: string;
+  equipments: Array<{
+    equipmentId: number;
+    name: string;
+    equipmentCode: string | null;
+    quantity: number;
+    status: string;
+    category: string;
+  }>;
+}
+
 // ─── API ────────────────────────────────────────────────────────────────────
 
 export const studentApi = {
@@ -131,6 +148,30 @@ export const studentApi = {
   async getRooms(): Promise<StudentRoomOption[]> {
     const data = await request<BackendRoom[]>('/rooms');
     return data.map((r) => ({ roomId: r.roomId, code: r.code, name: r.name, building: r.building ?? null }));
+  },
+
+  /** Lấy danh sách phòng kèm thiết bị */
+  async getRoomsWithEquipments(): Promise<StudentRoomEquipment[]> {
+    const data = await request<any[]>('/rooms');
+    return data.map((r: any) => ({
+      roomId: r.roomId,
+      code: r.code,
+      name: r.name,
+      building: r.building ?? null,
+      floor: r.floor ?? null,
+      status: r.status === 'AVAILABLE' ? 'Hoạt động' : 'Không hoạt động',
+      equipments: (r.allocations || []).map((alloc: any) => ({
+        equipmentId: alloc.equipment.equipmentId,
+        name: alloc.equipment.name,
+        equipmentCode: alloc.equipment.equipmentCode ?? null,
+        quantity: alloc.quantity,
+        status: alloc.equipment.status === 'GOOD' ? 'Hoạt động'
+          : alloc.equipment.status === 'BROKEN' ? 'Báo hỏng'
+            : alloc.equipment.status === 'UNDER_REPAIR' ? 'Đang sửa'
+              : 'Thanh lý',
+        category: alloc.equipment.category?.name ?? 'Khác',
+      })),
+    }));
   },
 
   /** Lấy danh sách thiết bị (có allocation theo phòng) */
