@@ -42,17 +42,23 @@ export class EquipmentController {
   @ApiQuery({ name: 'status', required: false, enum: EquipmentStatus })
   @ApiQuery({ name: 'roomId', required: false, type: String })
   @ApiQuery({ name: 'categoryId', required: false, type: String })
+  @ApiQuery({ name: 'page', required: false, type: Number })
+  @ApiQuery({ name: 'limit', required: false, type: Number })
   findAll(
     @Query('search') search?: string,
     @Query('status') status?: EquipmentStatus | 'need-handle',
     @Query('roomId') roomId?: string,
     @Query('categoryId') categoryId?: string,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
   ) {
     return this.equipmentService.findAll({
       search,
       status,
       roomId: roomId ? Number(roomId) : undefined,
       categoryId: categoryId ? Number(categoryId) : undefined,
+      page: page ? Number(page) : undefined,
+      limit: limit ? Number(limit) : undefined,
     });
   }
 

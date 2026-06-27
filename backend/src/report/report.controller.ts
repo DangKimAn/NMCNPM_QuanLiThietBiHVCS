@@ -28,11 +28,12 @@ export class ReportController {
     @Query('roomId') roomId?: string,
     @Query('equipmentId') equipmentId?: string,
     @Query('search') search?: string,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
     @Request() req?,
   ) {
     const role = req.user.role;
     const currentUserId = req.user.userId;
-    // Nếu không phải Manager/Admin thì ép buộc chỉ lấy report do chính user đó tạo
     const isManager = role === Role.MANAGER || role === Role.ADMIN;
     
     return this.reportService.findAll({
@@ -41,6 +42,8 @@ export class ReportController {
       equipmentId: equipmentId ? Number(equipmentId) : undefined,
       search,
       reporterId: isManager ? undefined : currentUserId,
+      page: page ? Number(page) : undefined,
+      limit: limit ? Number(limit) : undefined,
     });
   }
 

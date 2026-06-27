@@ -83,6 +83,8 @@ export class EquipmentService {
     status?: EquipmentStatus | 'need-handle';
     roomId?: number;
     categoryId?: number;
+    page?: number;
+    limit?: number;
   }) {
     const where: Prisma.EquipmentWhereInput = {};
 
@@ -119,6 +121,33 @@ export class EquipmentService {
           roomId: query.roomId,
         },
       };
+    }
+
+    const page = query.page;
+    const limit = query.limit || 500;
+
+    if (page) {
+      const skip = (page - 1) * limit;
+
+      const [equipments, total] = await Promise.all([
+        this.prisma.equipment.findMany({
+          where,
+          orderBy: { equipmentId: 'asc' },
+          skip,
+          take: limit,
+          include: {
+            category: true,
+            allocations: {
+
+            },
+          },
+        }),
+        this.prisma.equipment.count({ where }),
+      ]);
+
+      const data = await this.populateRoomsForEquipmentList(equipments);
+
+      return { data, total, page, limit };
     }
 
     const equipments = await this.prisma.equipment.findMany({

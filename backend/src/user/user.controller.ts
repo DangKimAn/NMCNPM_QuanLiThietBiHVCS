@@ -47,8 +47,14 @@ export class UserController {
   //CHỈ ADMIN: Xem toàn bộ danh sách User
   @Get()
   @Roles(Role.ADMIN)
-  async findAll(): Promise<UserDto[]> {
-    return await this.userService.getAllUser();
+  async findAll(
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+  ) {
+    return await this.userService.getAllUser(
+      page ? Number(page) : undefined,
+      limit ? Number(limit) : undefined,
+    );
   }
 
   // CHỈ ADMIN: Tìm kiếm user theo username, email hoặc họ tên
@@ -56,7 +62,7 @@ export class UserController {
   @Roles(Role.ADMIN)
   @ApiOperation({ summary: 'Tìm kiếm user theo username / email / họ tên' })
   @ApiQuery({ name: 'keyword', required: true, description: 'Từ khoá tìm kiếm' })
-  async search(@Query('keyword') keyword: string): Promise<UserDto[]> {
+  async search(@Query('keyword') keyword: string) {
     if (!keyword || keyword.trim() === '') {
       return this.userService.getAllUser();
     }

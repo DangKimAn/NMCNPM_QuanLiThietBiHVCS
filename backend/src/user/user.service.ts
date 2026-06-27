@@ -18,8 +18,33 @@ import * as xlsx from 'xlsx';
 export class UserService {
   constructor(private readonly prismaService: PrismaService) {}
 
-  async getAllUser(): Promise<UserDto[]> {
+  async getAllUser(page?: number, limit?: number) {
     try {
+      if (page) {
+        const limitNum = limit || 500;
+        const skip = (page - 1) * limitNum;
+
+        const [users, total] = await Promise.all([
+          this.prismaService.user.findMany({
+            skip,
+            take: limitNum,
+            include: { role: true },
+          }),
+          this.prismaService.user.count(),
+        ]);
+
+        const formattedUsers = users.map((user) => ({
+          ...user,
+          role: user.role?.roleName || 'User',
+        }));
+
+        const data = plainToInstance(UserDto, formattedUsers, {
+          excludeExtraneousValues: true,
+        });
+
+        return { data, total, page, limit: limitNum };
+      }
+
       const users = await this.prismaService.user.findMany({
         include: { role: true },
       });
