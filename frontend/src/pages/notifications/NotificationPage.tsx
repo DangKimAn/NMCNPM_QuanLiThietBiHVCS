@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useSearchParams, useNavigate } from 'react-router-dom';
 import {
   FiBell,
   FiCheck,
@@ -84,6 +84,7 @@ const formatDateTime = (value: string) => {
 
 const NotificationContent = () => {
   const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
 
   const selectedNotificationId = Number(searchParams.get('notificationId'));
   const hasSelectedNotificationId = selectedNotificationId > 0;
@@ -91,6 +92,9 @@ const NotificationContent = () => {
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const PAGE_SIZE = 15;
+  const [currentPage, setCurrentPage] = useState(1);
 
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
@@ -126,6 +130,7 @@ const NotificationContent = () => {
 
       const data = await getMyNotifications();
       setNotifications(data);
+      setCurrentPage(1);
     } catch (error) {
       console.error(error);
       setErrorMessage('Không thể tải danh sách thông báo');
@@ -272,6 +277,18 @@ const NotificationContent = () => {
     }
   };
 
+  const handleNavigateToReport = async (item: NotificationItem) => {
+    if (!item.isRead) {
+      await handleMarkAsRead(item.notificationId);
+    }
+    
+    const match = item.content.match(/\[ID:(\d+)\]/);
+    if (match) {
+      const reportId = match[1];
+      navigate(`/manager/incidents?report=${reportId}&highlight=${reportId}`);
+    }
+  };
+
   return (
     <div className="space-y-6">
       <div className="rounded-2xl bg-white p-6 shadow-sm border border-slate-200">
@@ -324,7 +341,7 @@ const NotificationContent = () => {
           </div>
         </div>
 
-        <div className="mt-5 grid gap-3 sm:grid-cols-3">
+        <div className="mt-5 hidden sm:grid gap-3 sm:grid-cols-3">
           <div className="rounded-xl bg-slate-50 p-4">
             <p className="text-sm text-slate-500">Tổng thông báo</p>
             <p className="mt-1 text-2xl font-bold text-slate-800">
@@ -375,7 +392,7 @@ const NotificationContent = () => {
           </h2>
 
           <p className="mt-4 whitespace-pre-line text-sm leading-7 text-slate-700">
-            {selectedNotification.content}
+            {selectedNotification.content.replace(/\[ID:\d+\]\s*/g, '')}
           </p>
 
           <div className="mt-5 rounded-xl bg-slate-50 p-4 text-sm text-slate-600">
@@ -481,83 +498,141 @@ const NotificationContent = () => {
               Khi có thông báo mới, nội dung sẽ hiển thị tại đây.
             </p>
           </div>
-        ) : (
-          <div className="divide-y divide-slate-100">
-            {notifications.map((item) => (
-              <div
-                key={item.notificationId}
-                className={`p-5 ${
-                  item.isRead ? 'bg-white' : 'bg-blue-50/50'
-                } ${
-                  item.notificationId === selectedNotificationId
-                    ? 'ring-2 ring-blue-200'
-                    : ''
-                }`}
-              >
-                <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-                  <div className="min-w-0 flex-1">
-                    <div className="mb-2 flex flex-wrap items-center gap-2">
-                      {!item.isRead && (
-                        <span className="rounded-full bg-red-100 px-2 py-1 text-xs font-semibold text-red-600">
-                          Mới
-                        </span>
-                      )}
+        ) : (() => {
+          const totalPages = Math.max(1, Math.ceil(notifications.length / PAGE_SIZE));
+          const safePage = Math.min(currentPage, totalPages);
+          const pageStart = (safePage - 1) * PAGE_SIZE;
+          const pageItems = notifications.slice(pageStart, pageStart + PAGE_SIZE);
 
-                      <span className="rounded-full bg-slate-100 px-2 py-1 text-xs font-semibold text-slate-600">
-                        {getRoleLabel(item.targetRole)}
-                      </span>
+          return (
+            <>
+              <div className="divide-y divide-slate-100">
+                {pageItems.map((item) => (
+                  <div
+                    key={item.notificationId}
+                    className={`p-5 ${
+                      item.isRead ? 'bg-white' : 'bg-blue-50/50'
+                    } ${
+                      item.notificationId === selectedNotificationId
+                        ? 'ring-2 ring-blue-200'
+                        : ''
+                    }`}
+                  >
+                    <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                      <div
+                        className="min-w-0 flex-1 cursor-pointer hover:bg-slate-50/50 p-2 -m-2 rounded-xl transition-colors"
+                        onClick={() => handleNavigateToReport(item)}
+                      >
+                        <div className="mb-2 flex flex-wrap items-center gap-2">
+                          {!item.isRead && (
+                            <span className="rounded-full bg-red-100 px-2 py-1 text-xs font-semibold text-red-600">
+                              Mới
+                            </span>
+                          )}
 
-                      <span className="text-xs text-slate-400">
-                        {formatDateTime(item.createdAt)}
-                      </span>
+                          <span className="rounded-full bg-slate-100 px-2 py-1 text-xs font-semibold text-slate-600">
+                            {getRoleLabel(item.targetRole)}
+                          </span>
+
+                          <span className="text-xs text-slate-400">
+                            {formatDateTime(item.createdAt)}
+                          </span>
+                        </div>
+
+                        <h3 className="text-base font-bold text-slate-800">
+                          {item.title}
+                        </h3>
+
+                        <p className="mt-2 whitespace-pre-line text-sm leading-6 text-slate-600">
+                          {item.content.replace(/\[ID:\d+\]\s*/g, '')}
+                        </p>
+
+                        <p className="mt-3 text-xs text-slate-400">
+                          Người gửi:{' '}
+                          {item.sender.fullName ||
+                            item.sender.username ||
+                            item.sender.email}
+                        </p>
+                      </div>
+
+                      <div className="flex shrink-0 flex-wrap gap-2">
+                        {!item.isRead && (
+                          <button
+                            type="button"
+                            onClick={() => handleMarkAsRead(item.notificationId)}
+                            className="inline-flex items-center gap-2 rounded-xl border border-slate-200 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-white"
+                          >
+                            <FiCheck />
+                            Đã đọc
+                          </button>
+                        )}
+
+                        {isManager && (
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteNotification(item.notificationId)}
+                            className="inline-flex items-center gap-2 rounded-xl border border-red-200 px-3 py-2 text-sm font-medium text-red-600 hover:bg-red-50"
+                          >
+                            <FiTrash2 />
+                            Xóa
+                          </button>
+                        )}
+                      </div>
                     </div>
-
-                    <h3 className="text-base font-bold text-slate-800">
-                      {item.title}
-                    </h3>
-
-                    <p className="mt-2 whitespace-pre-line text-sm leading-6 text-slate-600">
-                      {item.content}
-                    </p>
-
-                    <p className="mt-3 text-xs text-slate-400">
-                      Người gửi:{' '}
-                      {item.sender.fullName ||
-                        item.sender.username ||
-                        item.sender.email}
-                    </p>
                   </div>
+                ))}
+              </div>
 
-                  <div className="flex shrink-0 flex-wrap gap-2">
-                    {!item.isRead && (
-                      <button
-                        type="button"
-                        onClick={() => handleMarkAsRead(item.notificationId)}
-                        className="inline-flex items-center gap-2 rounded-xl border border-slate-200 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-white"
-                      >
-                        <FiCheck />
-                        Đã đọc
-                      </button>
-                    )}
+              {/* Pagination */}
+              {totalPages > 1 && (
+                <div className="flex items-center justify-between border-t border-slate-100 px-5 py-3">
+                  <span className="text-sm text-slate-500">
+                    Hiển thị{' '}
+                    <span className="font-semibold text-slate-700">
+                      {pageStart + 1}–{Math.min(safePage * PAGE_SIZE, notifications.length)}
+                    </span>
+                    {' '}/ <span className="font-semibold text-slate-700">{notifications.length}</span> thông báo
+                  </span>
 
-                    {canManage && (
+                  <div className="flex items-center gap-1">
+                    <button
+                      type="button"
+                      onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                      disabled={safePage === 1}
+                      className="rounded-xl border border-slate-200 px-3 py-1.5 text-sm font-medium text-slate-600 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
+                    >
+                      ← Trước
+                    </button>
+
+                    {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
                       <button
+                        key={page}
                         type="button"
-                        onClick={() =>
-                          handleDeleteNotification(item.notificationId)
-                        }
-                        className="inline-flex items-center gap-2 rounded-xl border border-red-200 px-3 py-2 text-sm font-medium text-red-600 hover:bg-red-50"
+                        onClick={() => setCurrentPage(page)}
+                        className={`h-8 w-8 rounded-xl border text-sm font-medium ${
+                          page === safePage
+                            ? 'border-blue-600 bg-blue-600 text-white'
+                            : 'border-slate-200 text-slate-600 hover:bg-slate-50'
+                        }`}
                       >
-                        <FiTrash2 />
-                        Xóa
+                        {page}
                       </button>
-                    )}
+                    ))}
+
+                    <button
+                      type="button"
+                      onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                      disabled={safePage === totalPages}
+                      className="rounded-xl border border-slate-200 px-3 py-1.5 text-sm font-medium text-slate-600 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
+                    >
+                      Sau →
+                    </button>
                   </div>
                 </div>
-              </div>
-            ))}
-          </div>
-        )}
+              )}
+            </>
+          );
+        })()}
       </div>
     </div>
   );

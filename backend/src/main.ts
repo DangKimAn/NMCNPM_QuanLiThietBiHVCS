@@ -15,13 +15,38 @@ async function bootstrap() {
   // Dùng Winston làm logger chính của NestJS
   app.useLogger(app.get(WINSTON_MODULE_NEST_PROVIDER));
 
+  // Cấu hình WebSocket Adapter (Socket.IO)
+  const { IoAdapter } = require('@nestjs/platform-socket.io');
+  app.useWebSocketAdapter(new IoAdapter(app));
+
   // Đặt prefix /api cho tất cả các route
   app.setGlobalPrefix('api');
 
   // Cho phép frontend React/Vite gọi API backend
-  // Frontend thường chạy ở http://localhost:5173
+  // Bao gồm: localhost (dev) và domain trong biến FRONTEND_URL (production)
+  const envFrontendUrls = (process.env.FRONTEND_URL ?? '')
+    .split(',')
+    .map((u) => u.trim())
+    .filter(Boolean);
+
+  const allowedOrigins: (string | RegExp)[] = [
+    'http://localhost:5173',
+    'http://localhost:4173',
+    // Cho phép mọi subdomain của vercel.app (deploy preview + production)
+    /https:\/\/.*\.vercel\.app$/,
+    // Thêm domain từ biến môi trường FRONTEND_URL
+    ...envFrontendUrls,
+  ];
+
   app.enableCors({
-    origin: ['http://localhost:5173'],
+    origin: (origin, callback) => {
+      // Cho phép request không có origin (Postman, cron ping, ...)
+      if (!origin) return callback(null, true);
+      const isAllowed = allowedOrigins.some((o) =>
+        typeof o === 'string' ? o === origin : o.test(origin),
+      );
+      callback(null, isAllowed);
+    },
     credentials: true,
   });
 

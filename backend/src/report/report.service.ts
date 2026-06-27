@@ -1,14 +1,36 @@
 // src/report/report.service.ts
 import { BadRequestException, Injectable, NotFoundException, ForbiddenException } from '@nestjs/common';
-import { Prisma, ReportStatus } from '@prisma/client';
-
+import { Prisma, ReportStatus, EquipmentStatus, NotificationTargetRole } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateReportDto } from './dto/create-report.dto';
 import { HandleReportDto } from './dto/handle-report.dto';
+import { RoomService } from '../room/room.service';
+import { EventsGateway } from '../events/events.gateway';
 
 @Injectable()
 export class ReportService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly roomService: RoomService,
+    private readonly eventsGateway: EventsGateway,
+  ) {}
+
+  private async populateRoomsForReports(reports: any[]) {
+    if (!reports.length) return reports;
+    const rooms = await this.roomService.findAll({});
+    const roomMap = new Map(rooms.map((r: any) => [r.roomId, r]));
+
+    return reports.map(report => ({
+      ...report,
+      room: roomMap.get(report.roomId) || null
+    }));
+  }
+
+  private async populateRoomForSingleReport(report: any) {
+    if (!report) return null;
+    const room = await this.roomService.findOne(report.roomId);
+    return { ...report, room };
+  }
 
   // Lấy danh sách phản ánh
   async findAll(query: {
@@ -42,11 +64,6 @@ export class ReportService {
         { resolutionContent: { contains: query.search, mode: 'insensitive' } },
         { result: { contains: query.search, mode: 'insensitive' } },
         {
-          room: {
-            code: { contains: query.search, mode: 'insensitive' },
-          },
-        },
-        {
           equipment: {
             name: { contains: query.search, mode: 'insensitive' },
           },
@@ -59,7 +76,7 @@ export class ReportService {
       ];
     }
 
-    return this.prisma.report.findMany({
+    const reports = await this.prisma.report.findMany({
       where,
       orderBy: {
         reportedAt: 'desc',
@@ -75,7 +92,6 @@ export class ReportService {
             role: true,
           },
         },
-        room: true,
         equipment: {
           include: {
             category: true,
@@ -83,6 +99,8 @@ export class ReportService {
         },
       },
     });
+
+    return this.populateRoomsForReports(reports);
   }
 
   // Lấy chi tiết một phản ánh - ĐÃ TÍCH HỢP KIỂM TRA CHÍNH CHỦ
@@ -100,7 +118,6 @@ export class ReportService {
             role: true,
           },
         },
-        room: true,
         equipment: {
           include: {
             category: true,
@@ -119,7 +136,7 @@ export class ReportService {
       throw new ForbiddenException('Bạn không có quyền xem chi tiết phản ánh của tài khoản khác');
     }
 
-    return report;
+    return this.populateRoomForSingleReport(report);
   }
 
   // Gửi phản ánh báo hỏng lên hệ thống (STUDENT & TEACHER)
@@ -132,12 +149,9 @@ export class ReportService {
       throw new BadRequestException('Người gửi phản ánh không tồn tại hoặc chưa đăng nhập');
     }
 
-    const room = await this.prisma.room.findUnique({
-      where: { roomId: dto.roomId },
-    });
-
+    const room = await this.roomService.findOne(dto.roomId);
     if (!room) {
-      throw new BadRequestException('Phòng học không tồn tại');
+      throw new BadRequestException('Phòng học không tồn tại trên hệ thống ROOM_API');
     }
 
     if (dto.equipmentId) {
@@ -148,9 +162,14 @@ export class ReportService {
       if (!equipment) {
         throw new BadRequestException('Thiết bị không tồn tại');
       }
+
+      await this.prisma.equipment.update({
+        where: { equipmentId: dto.equipmentId },
+        data: { status: EquipmentStatus.BROKEN },
+      });
     }
 
-    return this.prisma.report.create({
+    const result = await this.prisma.report.create({
       data: {
         reporterId: userId, 
         roomId: dto.roomId,
@@ -160,16 +179,33 @@ export class ReportService {
       },
       include: {
         reporter: true,
-        room: true,
         equipment: true,
       },
     });
+
+    // Tạo thông báo cho Manager
+    const notification = await this.prisma.notification.create({
+      data: {
+        title: `Phản ánh mới từ ${reporter.fullName || reporter.username}`,
+        content: `[ID:${result.reportId}] Phòng ${room.name}: ${dto.reportContent}`,
+        targetRole: 'MANAGER',
+        senderId: userId,
+      },
+    });
+
+    const populatedResult = await this.populateRoomForSingleReport(result);
+
+    // Phát sự kiện realtime
+    this.eventsGateway.emitReportCreated(populatedResult);
+    this.eventsGateway.emitNotification(notification);
+
+    return populatedResult;
   }
 
   // Xử lý phản ánh dành riêng cho MANAGER
   async handle(reportId: number, dto: HandleReportDto, handlerId: number) {
     // Truyền đầy đủ tham số nội bộ để hàm findOne không bị lỗi biên dịch
-    await this.findOne(reportId, handlerId, 'MANAGER');
+    const report = await this.findOne(reportId, handlerId, 'MANAGER');
 
     const handler = await this.prisma.user.findUnique({
       where: { userId: handlerId },
@@ -182,7 +218,7 @@ export class ReportService {
     const shouldSetResolvedAt =
       dto.status === ReportStatus.RESOLVED || dto.status === ReportStatus.REJECTED;
 
-    return this.prisma.report.update({
+    const result = await this.prisma.report.update({
       where: { reportId },
       data: {
         status: dto.status,
@@ -194,9 +230,55 @@ export class ReportService {
       include: {
         reporter: true,
         handler: true,
-        room: true,
         equipment: true,
       },
     });
+
+    if (report.equipmentId) {
+      let equipmentStatus: EquipmentStatus;
+      switch (dto.status) {
+        case ReportStatus.PROCESSING:
+          equipmentStatus = EquipmentStatus.UNDER_REPAIR;
+          break;
+        case ReportStatus.RESOLVED:
+        case ReportStatus.REJECTED:
+          equipmentStatus = EquipmentStatus.GOOD;
+          break;
+        case ReportStatus.PENDING:
+        default:
+          equipmentStatus = EquipmentStatus.BROKEN;
+          break;
+      }
+
+      await this.prisma.equipment.update({
+        where: { equipmentId: report.equipmentId },
+        data: { status: equipmentStatus },
+      });
+    }
+
+    const statusTextMap = {
+      [ReportStatus.PROCESSING]: 'Đang xử lý',
+      [ReportStatus.RESOLVED]: 'Đã xử lý',
+      [ReportStatus.REJECTED]: 'Từ chối',
+      [ReportStatus.PENDING]: 'Mới tiếp nhận',
+    };
+
+    const notification = await this.prisma.notification.create({
+      data: {
+        title: `Phản ánh của bạn đã được cập nhật: ${statusTextMap[dto.status]}`,
+        content: `Phản ánh thiết bị ${report.equipment?.name || 'Không xác định'} tại phòng ${report.room?.name || 'Không xác định'} đã được chuyển sang trạng thái ${statusTextMap[dto.status]}.${dto.resolutionContent ? `\n\nGhi chú: ${dto.resolutionContent}` : ''}`,
+        targetRole: report.reporter.role.roleName as NotificationTargetRole,
+        targetUserId: report.reporterId,
+        senderId: handlerId,
+      },
+    });
+
+    const populatedResult = await this.populateRoomForSingleReport(result);
+
+    // Phát sự kiện realtime
+    this.eventsGateway.emitReportUpdated(populatedResult);
+    this.eventsGateway.emitNotification(notification);
+
+    return populatedResult;
   }
 }

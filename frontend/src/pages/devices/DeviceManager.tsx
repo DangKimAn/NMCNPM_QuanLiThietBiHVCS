@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, useCallback } from 'react';
 import type { FormEvent } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import {
@@ -11,6 +11,8 @@ import {
   FiTool,
   FiXCircle,
   FiUpload,
+  FiChevronRight,
+  FiArrowLeft,
 } from 'react-icons/fi';
 
 import { ManagerLayout } from '../../components/layout/ManagerLayout';
@@ -26,6 +28,7 @@ import {
   DeviceTransferModal,
 } from '../../components/manager/devices/DeviceModals';
 import { DeviceImportExcelModal } from '../../components/manager/devices/DeviceImportExcelModal';
+import { EquipmentTransferImportModal } from '../../components/manager/devices/EquipmentTransferImportModal';
 import { DeviceRoomCards } from '../../components/manager/devices/DeviceRoomCards';
 import { DeviceTable } from '../../components/manager/devices/DeviceTable';
 import { TransferHistory } from '../../components/manager/devices/TransferHistory';
@@ -93,8 +96,12 @@ export const DeviceManager = () => {
 
   const [roomSearchTerm, setRoomSearchTerm] = useState('');
 
+  // Drill-down: null = hiển danh sách nhóm, string = hiển thiết bị của nhóm đó
+  const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
+
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
   const [isGeneralTransferOpen, setIsGeneralTransferOpen] = useState(false);
+  const [isTransferImportOpen, setIsTransferImportOpen] = useState(false);
 
   const [isDeviceModalOpen, setIsDeviceModalOpen] = useState(false);
   const [editingDevice, setEditingDevice] = useState<Device | null>(null);
@@ -116,6 +123,47 @@ export const DeviceManager = () => {
     handler: 'Cán bộ QLTB',
     reason: '',
   });
+  const [isSubmittingTransfer, setIsSubmittingTransfer] = useState(false);
+
+  // ──── Pagination ────────────────────────────────────────────
+  const PAGE_DEVICES  = 15;
+  const PAGE_ROOMS    = 9;
+  const PAGE_TRANSFER = 15;
+
+  const [devicePage,   setDevicePage]   = useState(1);
+  const [roomPage,     setRoomPage]     = useState(1);
+  const [transferPage, setTransferPage] = useState(1);
+
+  const buildPageWindow = useCallback((current: number, total: number): (number | '...')[] => {
+    const pages: (number | '...')[] = [];
+    const delta = 2;
+    const left  = current - delta;
+    const right = current + delta;
+    if (left > 2) { pages.push(1, '...'); } else { for (let i = 1; i < left; i++) pages.push(i); }
+    for (let i = Math.max(1, left); i <= Math.min(total, right); i++) pages.push(i);
+    if (right < total - 1) { pages.push('...', total); } else { for (let i = right + 1; i <= total; i++) pages.push(i); }
+    return pages;
+  }, []);
+
+  const Pagination = ({ current, total, onChange, prefix = '' }: { current: number; total: number; onChange: (p: number) => void; prefix?: string }) => {
+    if (total <= 1) return null;
+    const window = buildPageWindow(current, total);
+    return (
+      <div className="flex items-center justify-end gap-1">
+        <button type="button" onClick={() => onChange(Math.max(1, current - 1))} disabled={current === 1}
+          className="rounded-lg border border-slate-200 px-3 py-1.5 text-sm font-medium text-slate-600 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40">← Trước</button>
+        {window.map((p, i) => p === '...' ? (
+          <span key={`${prefix}d${i}`} className="px-1 text-slate-400 select-none">...</span>
+        ) : (
+          <button key={`${prefix}${p}`} type="button" onClick={() => onChange(p as number)}
+            className={`h-8 w-8 rounded-lg border text-sm font-medium ${p === current ? 'border-indigo-600 bg-indigo-600 text-white' : 'border-slate-200 text-slate-600 hover:bg-slate-50'}`}>{p}</button>
+        ))}
+        <button type="button" onClick={() => onChange(Math.min(total, current + 1))} disabled={current === total}
+          className="rounded-lg border border-slate-200 px-3 py-1.5 text-sm font-medium text-slate-600 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40">Sau →</button>
+      </div>
+    );
+  };
+  // ────────────────────────────────────────────────────────────
 
   const roomOptions = useMemo(() => {
     const codes = rooms.map((room) => room.code);
@@ -199,7 +247,10 @@ export const DeviceManager = () => {
     setFilterType(params.get('type') || 'All');
     setFilterStatus(params.get('status') || 'All');
 
-    if (searchKey) {
+    const tabParam = params.get('tab');
+    if (tabParam === 'byRoom' || tabParam === 'transfer' || tabParam === 'all') {
+      setActiveTab(tabParam);
+    } else if (searchKey && !tabParam) {
       setActiveTab('all');
     }
   }, [searchKey]);
@@ -227,6 +278,29 @@ export const DeviceManager = () => {
       return matchKeyword && matchRoom && matchType && matchStatus;
     });
   }, [devices, keyword, filterRoom, filterType, filterStatus]);
+
+  // Reset device page khi filter thay đổi
+  useEffect(() => { setDevicePage(1); }, [keyword, filterRoom, filterType, filterStatus, selectedCategory]);
+
+  // Paged data
+  const deviceTotalPages   = Math.max(1, Math.ceil(filteredDevices.length / PAGE_DEVICES));
+  const deviceSafePage     = Math.min(devicePage, deviceTotalPages);
+  const pagedDevices       = filteredDevices.slice((deviceSafePage - 1) * PAGE_DEVICES, deviceSafePage * PAGE_DEVICES);
+
+  // Thống kê theo nhóm loại
+  const categoryStats = useMemo(() => {
+    return categories.map((cat) => {
+      const catDevices = devices.filter((d) => d.type === cat.name);
+      return {
+        name: cat.name,
+        total: catDevices.length,
+        active: catDevices.filter((d) => d.status === 'Hoạt động').length,
+        needFix: catDevices.filter((d) => ['Báo hỏng', 'Đang sửa', 'Bảo trì'].includes(d.status)).length,
+        discarded: catDevices.filter((d) => d.status === 'Thanh lý').length,
+      };
+    });
+  }, [categories, devices]);
+
 
   const stats = useMemo(() => {
     return {
@@ -412,6 +486,7 @@ export const DeviceManager = () => {
     }
 
     try {
+      setIsSubmittingTransfer(true);
       await managerApi.createTransfer({
         equipmentId: eqId,
         fromRoomId,
@@ -433,6 +508,8 @@ export const DeviceManager = () => {
       alert(
         'Không thể điều chuyển thiết bị. Kiểm tra dữ liệu phòng, thiết bị hoặc người thực hiện.',
       );
+    } finally {
+      setIsSubmittingTransfer(false);
     }
   };
 
@@ -451,14 +528,9 @@ export const DeviceManager = () => {
         </div>
 
         <div className="flex gap-2">
-          <button
-            type="button"
-            onClick={() => setIsImportModalOpen(true)}
-            className="flex items-center justify-center px-4 py-2 bg-gradient-to-r from-cyan-400 via-blue-500 to-purple-500 text-white text-sm font-medium rounded-lg hover:opacity-90 transition shadow-sm"
-          >
-            <FiUpload className="mr-2 text-lg" />
-            Import Excel
-          </button>
+
+
+
 
           <button
             type="button"
@@ -470,14 +542,8 @@ export const DeviceManager = () => {
           </button>
         </div>
       </div>
-
-      {errorMessage && (
-        <div className="mb-4 bg-rose-50 border border-rose-200 text-rose-700 rounded-xl p-4">
-          {errorMessage}
-        </div>
-      )}
-
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+      
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mb-6">
         <SummaryCard icon={<FiBox />} label="Tổng thiết bị" value={stats.total} />
         <SummaryCard
           icon={<FiCheckCircle />}
@@ -525,57 +591,136 @@ export const DeviceManager = () => {
 
       {!loading && activeTab === 'all' && (
         <div className="space-y-4">
-          <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4 grid grid-cols-1 md:grid-cols-4 gap-3">
-            <div className="relative">
-              <FiSearch className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+          {/* ── MÀN HÌNH 1: DANH SÁCH NHÓM ── */}
+          {selectedCategory === null && (
+            <>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                {categoryStats.map((cat) => (
+                  <button
+                    key={cat.name}
+                    type="button"
+                    onClick={() => {
+                      setSelectedCategory(cat.name);
+                      setFilterType(cat.name);
+                      setKeyword('');
+                      setFilterRoom('All');
+                      setFilterStatus('All');
+                    }}
+                    className="text-left bg-white rounded-xl border border-slate-200 shadow-sm hover:border-indigo-400 hover:shadow-md transition-all p-5 group"
+                  >
+                    {/* Header */}
+                    <div className="flex items-center justify-between mb-3">
+                      <div className="p-2 bg-indigo-50 rounded-lg group-hover:bg-indigo-100 transition-colors">
+                        <FiBox className="text-indigo-600 text-lg" />
+                      </div>
+                      <FiChevronRight className="text-slate-300 group-hover:text-indigo-500 transition-colors text-lg" />
+                    </div>
 
-              <input
-                value={keyword}
-                onChange={(e) => setKeyword(e.target.value)}
-                placeholder="Tìm mã, tên, loại, phòng..."
-                className="w-full pl-9 pr-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:border-blue-500"
+                    {/* Category name */}
+                    <p className="font-bold text-slate-800 text-base mb-1 truncate">{cat.name}</p>
+                    <p className="text-2xl font-black text-indigo-600 mb-3">{cat.total}</p>
+
+                    {/* Sub-stats */}
+                    <div className="grid grid-cols-3 gap-1 text-xs text-center">
+                      <div className="bg-emerald-50 rounded-lg py-1.5">
+                        <p className="font-bold text-emerald-700">{cat.active}</p>
+                        <p className="text-emerald-500">Hoạt động</p>
+                      </div>
+                      <div className="bg-amber-50 rounded-lg py-1.5">
+                        <p className="font-bold text-amber-700">{cat.needFix}</p>
+                        <p className="text-amber-500">Cần xử lý</p>
+                      </div>
+                      <div className="bg-slate-100 rounded-lg py-1.5">
+                        <p className="font-bold text-slate-600">{cat.discarded}</p>
+                        <p className="text-slate-400">Thanh lý</p>
+                      </div>
+                    </div>
+                  </button>
+                ))}
+
+                {categoryStats.length === 0 && (
+                  <div className="col-span-4 py-12 text-center text-slate-500">
+                    Chưa có danh mục thiết bị nào.
+                  </div>
+                )}
+              </div>
+            </>
+          )}
+
+          {/* ── MÀN HÌNH 2: THIẾT BỊ TRONG NHÓM ── */}
+          {selectedCategory !== null && (
+            <div className="space-y-4">
+              {/* Breadcrumb + nút quay lại */}
+              <div className="flex items-center gap-3">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSelectedCategory(null);
+                    setFilterType('All');
+                    setKeyword('');
+                    setFilterRoom('All');
+                    setFilterStatus('All');
+                  }}
+                  className="flex items-center gap-1.5 text-sm font-medium text-slate-500 hover:text-indigo-600 transition-colors"
+                >
+                  <FiArrowLeft />
+                  Danh mục thiết bị
+                </button>
+                <span className="text-slate-300">/</span>
+                <span className="text-sm font-semibold text-indigo-600">{selectedCategory}</span>
+              </div>
+
+              {/* Filter bar */}
+              <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4 grid grid-cols-1 md:grid-cols-3 gap-3">
+                <div className="relative">
+                  <FiSearch className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                  <input
+                    value={keyword}
+                    onChange={(e) => setKeyword(e.target.value)}
+                    placeholder="Tìm mã, tên, phòng..."
+                    className="w-full pl-9 pr-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:border-blue-500"
+                  />
+                </div>
+
+                <FilterSelect
+                  value={filterRoom}
+                  onChange={setFilterRoom}
+                  options={roomOptions}
+                  label="Tất cả phòng"
+                />
+
+                <select
+                  value={filterStatus}
+                  onChange={(e) => setFilterStatus(e.target.value)}
+                  className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:border-blue-500"
+                >
+                  <option value="All">Tất cả trạng thái</option>
+                  <option value="need-handle">Cần xử lý</option>
+                  {deviceStatuses.map((status) => (
+                    <option key={status} value={status}>{status}</option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Pagination trên */}
+              <Pagination current={deviceSafePage} total={deviceTotalPages} onChange={setDevicePage} prefix="dev-top-" />
+
+              {/* Bảng thiết bị */}
+              <DeviceTable
+                devices={pagedDevices}
+                onEdit={openEditModal}
+                onDelete={deleteDevice}
+                onStatus={openStatusModal}
+                onTransfer={openTransferModal}
               />
+
+              {/* Pagination dưới */}
+              <Pagination current={deviceSafePage} total={deviceTotalPages} onChange={setDevicePage} prefix="dev-bot-" />
             </div>
-
-            <FilterSelect
-              value={filterRoom}
-              onChange={setFilterRoom}
-              options={roomOptions}
-              label="Tất cả phòng"
-            />
-
-            <FilterSelect
-              value={filterType}
-              onChange={setFilterType}
-              options={typeOptions}
-              label="Tất cả loại"
-            />
-
-            <select
-              value={filterStatus}
-              onChange={(e) => setFilterStatus(e.target.value)}
-              className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:border-blue-500"
-            >
-              <option value="All">Tất cả trạng thái</option>
-              <option value="need-handle">Cần xử lý</option>
-
-              {deviceStatuses.map((status) => (
-                <option key={status} value={status}>
-                  {status}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <DeviceTable
-            devices={filteredDevices}
-            onEdit={openEditModal}
-            onDelete={deleteDevice}
-            onStatus={openStatusModal}
-            onTransfer={openTransferModal}
-          />
+          )}
         </div>
       )}
+
 
       {!loading && activeTab === 'byRoom' && (
         <div className="space-y-4">
@@ -593,36 +738,55 @@ export const DeviceManager = () => {
             </div>
           </div>
 
-          <DeviceRoomCards
-            rooms={roomOptions
+          {/* Thiết bị theo phòng - Pagination */}
+          {(() => {
+            const allRooms = roomOptions
               .filter((room) => room !== 'Kho')
-              .filter((room) =>
-                room.toLowerCase().includes(roomSearchTerm.toLowerCase()),
-              )}
-            devices={devices}
-            onStatus={openStatusModal}
-            onTransfer={openTransferModal}
-          />
+              .filter((room) => room.toLowerCase().includes(roomSearchTerm.toLowerCase()))
+              .filter((room) => devices.some((device) => device.room === room))
+              .sort((a, b) => a.localeCompare(b, 'vi', { numeric: true }));
+            const roomTotalPages = Math.max(1, Math.ceil(allRooms.length / PAGE_ROOMS));
+            const roomSafePage   = Math.min(roomPage, roomTotalPages);
+            const pagedRooms     = allRooms.slice((roomSafePage - 1) * PAGE_ROOMS, roomSafePage * PAGE_ROOMS);
+            return (
+              <>
+                <DeviceRoomCards
+                  rooms={pagedRooms}
+                  devices={devices}
+                  onStatus={openStatusModal}
+                  onTransfer={openTransferModal}
+                />
+                <div className="mt-4">
+                  <Pagination current={roomSafePage} total={roomTotalPages} onChange={setRoomPage} prefix="room-" />
+                </div>
+              </>
+            );
+          })()}
         </div>
       )}
 
-      {!loading && activeTab === 'transfer' && (
-        <TransferHistory
-          transfers={transfers}
-          onOpenTransfer={() => {
-            setTransferForm({
-              fromRoom: '',
-              equipmentId: '',
-              toRoom: '',
-              quantity: 1,
-              date: getToday(),
-              handler: 'Cán bộ QLTB',
-              reason: '',
-            });
-            setIsGeneralTransferOpen(true);
-          }}
-        />
-      )}
+      {!loading && activeTab === 'transfer' && (() => {
+        const transferTotalPages = Math.max(1, Math.ceil(transfers.length / PAGE_TRANSFER));
+        const transferSafePage   = Math.min(transferPage, transferTotalPages);
+        const pagedTransfers     = transfers.slice((transferSafePage - 1) * PAGE_TRANSFER, transferSafePage * PAGE_TRANSFER);
+        return (
+          <div className="space-y-3">
+            <div className="flex justify-end">
+              <Pagination current={transferSafePage} total={transferTotalPages} onChange={setTransferPage} prefix="tr-" />
+            </div>
+            <TransferHistory
+              transfers={pagedTransfers}
+              onOpenTransfer={() => {
+                setTransferForm({ fromRoom: '', equipmentId: '', toRoom: '', quantity: 1, date: getToday(), handler: 'Cán bộ QLTB', reason: '' });
+                setIsGeneralTransferOpen(true);
+              }}
+            />
+            <div className="flex justify-end">
+              <Pagination current={transferSafePage} total={transferTotalPages} onChange={setTransferPage} prefix="tr2-" />
+            </div>
+          </div>
+        );
+      })()}
 
       {isDeviceModalOpen && (
         <DeviceFormModal
@@ -633,6 +797,7 @@ export const DeviceManager = () => {
           typeOptions={typeOptions}
           onClose={() => setIsDeviceModalOpen(false)}
           onSubmit={saveDevice}
+          onImportExcel={() => setIsImportModalOpen(true)}
         />
       )}
 
@@ -658,6 +823,8 @@ export const DeviceManager = () => {
             setIsGeneralTransferOpen(false);
           }}
           onSubmit={saveTransfer}
+          onTransferImport={() => setIsTransferImportOpen(true)}
+          isSubmitting={isSubmittingTransfer}
         />
       )}
 
@@ -665,6 +832,15 @@ export const DeviceManager = () => {
         isOpen={isImportModalOpen}
         onClose={() => setIsImportModalOpen(false)}
         onSuccess={() => fetchAllData()}
+      />
+
+      <EquipmentTransferImportModal
+        isOpen={isTransferImportOpen}
+        onClose={() => setIsTransferImportOpen(false)}
+        onSuccess={() => {
+          setIsTransferImportOpen(false);
+          fetchAllData();
+        }}
       />
     </ManagerLayout>
   );

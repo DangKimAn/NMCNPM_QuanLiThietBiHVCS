@@ -4,8 +4,7 @@ import { useNavigate, useSearchParams, Link } from 'react-router-dom';
 import axios from 'axios';
 import { AuthLayout } from '../../components/layout/AuthLayout';
 import { InputGroup } from '../../components/ui/InputGroup';
-
-const API_BASE_URL = 'http://localhost:3000/api';
+import { API_BASE_URL } from '../../config/env';
 
 export const Login = () => {
   const [username, setUsername] = useState('');
@@ -196,7 +195,7 @@ export const Login = () => {
       subtitle="Hệ thống Quản lý Thiết bị Phòng học"
       ssoText="Đăng nhập bằng Email Học viện"
       onSsoClick={() =>
-        (window.location.href = 'http://localhost:3000/api/auth/google')
+        (window.location.href = `${API_BASE_URL}/auth/google`)
       }
       footerText="Tài khoản do Quản trị viên cấp. Nếu chưa có tài khoản, vui lòng liên hệ Admin."
     >

@@ -16,7 +16,7 @@ export interface FormField {
 interface DynamicFormModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onSave: (data: any) => void;
+  onSave: (data: any) => Promise<void>;
   titleAdd: string;
   titleEdit: string;
   fields: FormField[];
@@ -30,6 +30,7 @@ export const DynamicFormModal = ({
   
   const isEditMode = !!initialData;
   const [formData, setFormData] = useState<any>({});
+  const [isSubmitting, setIsSubmitting] = useState(false);
   
   // --- LOGIC EXCEL ĐƯỢC ĐÓNG GÓI TẠI ĐÂY ---
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -69,9 +70,22 @@ export const DynamicFormModal = ({
     setFormData((prev: any) => ({ ...prev, [name]: value }));
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    onSave(formData);
+    setIsSubmitting(true);
+    try {
+      await onSave(formData);
+      // Nếu không phải edit mode, xóa form để tiếp tục nhập
+      if (!isEditMode) {
+        const defaultData: any = {};
+        fields.forEach(f => { defaultData[f.name] = f.defaultValue || ''; });
+        setFormData(defaultData);
+      }
+    } catch (error) {
+      // Bỏ qua lỗi vì component cha đã handle (ví dụ: alert)
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   if (!isOpen) return null;
@@ -84,6 +98,7 @@ export const DynamicFormModal = ({
       onSubmit={handleSubmit}
       submitText={isEditMode ? 'Cập nhật' : 'Lưu lại'}
       submitIcon={<FiSave />}
+      isSubmitting={isSubmitting}
       extraActions={
         <div className="flex items-center space-x-3">
           {renderExcelButton()} 

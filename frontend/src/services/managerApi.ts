@@ -6,7 +6,7 @@ import type {
   TransferLog,
 } from '../types/manager';
 
-const API_BASE_URL = 'http://localhost:3000/api';
+import { API_BASE_URL } from '../config/env';
 
 // =======================
 // Mapping trạng thái thiết bị
@@ -219,9 +219,7 @@ export interface DashboardOverview {
 // =======================
 
 export const mapEquipmentToDevice = (equipment: BackendEquipment): Device => {
-  const firstAllocation = equipment.allocations?.find(
-    (item) => item.quantity > 0,
-  );
+  const firstAllocation = equipment.allocations?.[0];
 
   return {
     // ID thật trong database, dùng để gọi API sửa/xóa
@@ -238,7 +236,7 @@ export const mapEquipmentToDevice = (equipment: BackendEquipment): Device => {
 
     // Tạm giữ quantity để không lỗi giao diện cũ.
     // Sau bước sửa bảng thiết bị sẽ bỏ cột số lượng.
-    quantity: firstAllocation?.quantity || equipment.quantity || 1,
+    quantity: 1,
 
     status: deviceStatusMap[equipment.status] || 'Hoạt động',
     importDate: '',
@@ -263,7 +261,9 @@ export const mapReportToIncident = (report: BackendReport): IncidentReport => {
     id: String(report.reportId),
     sender: reporterName,
     room: report.room?.code || '',
-    device: report.equipment?.name || 'Không xác định',
+    device: report.equipment 
+      ? `${report.equipment.name} - ${report.equipment.equipmentCode || `TB${String(report.equipment.equipmentId).padStart(6, '0')}`}` 
+      : 'Không xác định',
     issue: report.reportContent,
     date: report.reportedAt
       ? report.reportedAt.replace('T', ' ').slice(0, 16)
@@ -450,6 +450,22 @@ export const managerApi = {
     return request<BackendTransfer>('/equipment-transfers', {
       method: 'POST',
       body: JSON.stringify(payload),
+    });
+  },
+
+  importTransfers(file: File) {
+    const formData = new FormData();
+    formData.append('file', file);
+
+    // Endpoint giả định là '/equipment-transfers/import' 
+    // Bạn có thể sửa lại route này nếu Backend quy định khác đi một chút
+    return request<{
+      successCount: number;
+      failedCount: number;
+      errors: { row: number; reason: string }[];
+    }>('/equipment-transfers/import', {
+      method: 'POST',
+      body: formData,
     });
   },
 

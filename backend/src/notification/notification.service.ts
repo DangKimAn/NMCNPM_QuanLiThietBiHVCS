@@ -9,9 +9,14 @@ import { NotificationTargetRole } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateNotificationDto } from './dto/create-notification.dto';
 
+import { EventsGateway } from '../events/events.gateway';
+
 @Injectable()
 export class NotificationService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly eventsGateway: EventsGateway,
+  ) {}
 
   private async getUserRoleName(userId: number): Promise<string> {
     const user = await this.prisma.user.findUnique({
@@ -50,7 +55,7 @@ export class NotificationService {
       throw new BadRequestException('Nội dung thông báo không được để trống');
     }
 
-    return this.prisma.notification.create({
+    const notification = await this.prisma.notification.create({
       data: {
         title: dto.title.trim(),
         content: dto.content.trim(),
@@ -68,6 +73,11 @@ export class NotificationService {
         },
       },
     });
+
+    // Phát sự kiện qua Socket.IO
+    this.eventsGateway.emitNotification(notification);
+
+    return notification;
   }
 
   async getMyNotifications(userId: number) {
@@ -78,6 +88,7 @@ export class NotificationService {
         OR: [
           { targetRole: NotificationTargetRole.ALL },
           { targetRole: roleName as NotificationTargetRole },
+          { targetUserId: userId },
         ],
       },
       orderBy: {

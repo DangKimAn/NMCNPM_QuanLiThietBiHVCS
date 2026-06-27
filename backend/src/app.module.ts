@@ -25,8 +25,9 @@ import { EquipmentModule } from './equipment/equipment.module';
 import { ReportModule } from './report/report.module';
 import { AuthModule } from './auth/auth.module';
 
-// Thêm module thông báo
 import { NotificationModule } from './notification/notification.module';
+import { HealthModule } from './health/health.module';
+import { EventsModule } from './events/events.module';
 
 import { FormConfigModule } from './form-config/form-config.module';
 
@@ -60,8 +61,9 @@ import { GlobalExceptionFilter } from './common/filters/global-exception.filter'
     // Tất cả role xem được thông báo
     // Chỉ MANAGER được viết thông báo
     NotificationModule,
-
     FormConfigModule,
+    HealthModule,
+    EventsModule,
   ],
 
   // AuditLogController & FormConfigController đăng ký ở AppModule để dùng JwtAuthGuard/RolesGuard từ AuthModule

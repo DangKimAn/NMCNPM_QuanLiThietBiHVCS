@@ -40,6 +40,36 @@ export class UserService {
     }
   }
 
+  async searchUsers(keyword: string): Promise<UserDto[]> {
+    try {
+      const users = await this.prismaService.user.findMany({
+        where: {
+          OR: [
+            { username: { contains: keyword, mode: 'insensitive' } },
+            { email: { contains: keyword, mode: 'insensitive' } },
+            { fullName: { contains: keyword, mode: 'insensitive' } },
+          ],
+        },
+        include: { role: true },
+      });
+
+      const formattedUsers = users.map((user) => ({
+        ...user,
+        role: user.role?.roleName || 'User',
+      }));
+
+      return plainToInstance(UserDto, formattedUsers, {
+        excludeExtraneousValues: true,
+      });
+    } catch (error) {
+      console.error('Lỗi tại searchUsers:', error);
+      throw new InternalServerErrorException(
+        'Lỗi hệ thống khi tìm kiếm người dùng',
+      );
+    }
+  }
+
+
   async getUserByUserId(userId: number): Promise<UserDto> {
     try {
       const user = await this.prismaService.user.findFirstOrThrow({

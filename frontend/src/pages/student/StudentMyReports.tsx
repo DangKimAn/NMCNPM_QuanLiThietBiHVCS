@@ -9,6 +9,8 @@ import {
   FiTool,
 } from 'react-icons/fi';
 
+import { socket } from '../../services/socket';
+
 import { StudentTeacherLayout } from '../../components/layout/StudentTeacherLayout';
 import {
   Modal,
@@ -41,19 +43,29 @@ export const StudentMyReports = () => {
 
   const [loading, setLoading] = useState(true);
 
+  const PAGE_SIZE = 5;
+  const [currentPage, setCurrentPage] = useState(1);
+
   useEffect(() => {
     const fetchReports = async () => {
       try {
-        setLoading(true);
         const data = await studentApi.getMyReports();
         setReports(data);
       } catch (error) {
         console.error('Lỗi khi lấy danh sách phản ánh:', error);
-      } finally {
-        setLoading(false);
       }
     };
-    fetchReports();
+
+    // Tải dữ liệu lần đầu
+    setLoading(true);
+    fetchReports().finally(() => setLoading(false));
+
+    // Lắng nghe sự kiện realtime khi có báo hỏng được xử lý
+    socket.on('report_updated', fetchReports);
+
+    return () => {
+      socket.off('report_updated', fetchReports);
+    };
   }, [currentUser.userId]);
 
   useEffect(() => {
@@ -76,7 +88,6 @@ export const StudentMyReports = () => {
 
   const filteredReports = useMemo(() => {
     const value = keyword.trim().toLowerCase();
-
     return reports.filter((report) => {
       const matchKeyword =
         !value ||
@@ -84,12 +95,22 @@ export const StudentMyReports = () => {
         report.room.toLowerCase().includes(value) ||
         report.device.toLowerCase().includes(value) ||
         report.issue.toLowerCase().includes(value);
-
       const matchStatus = filterStatus === 'All' || report.status === filterStatus;
-
       return matchKeyword && matchStatus;
     });
   }, [reports, keyword, filterStatus]);
+
+  const totalPages = Math.max(1, Math.ceil(filteredReports.length / PAGE_SIZE));
+
+  const paginatedReports = useMemo(() => {
+    const start = (currentPage - 1) * PAGE_SIZE;
+    return filteredReports.slice(start, start + PAGE_SIZE);
+  }, [filteredReports, currentPage]);
+
+  // Reset về trang 1 khi filter thay đổi
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [keyword, filterStatus]);
 
   const stats = useMemo(() => {
     return {
@@ -176,7 +197,7 @@ export const StudentMyReports = () => {
               </thead>
 
               <tbody className="divide-y divide-slate-100">
-                {filteredReports.map((report) => (
+                {paginatedReports.map((report) => (
                   <tr key={report.id} className="hover:bg-slate-50">
                     <td className="px-6 py-4 text-sm font-bold text-slate-800">
                       PA{String(report.id).padStart(3, '0')}
@@ -186,7 +207,6 @@ export const StudentMyReports = () => {
                       <p className="font-semibold text-slate-700">
                         Phòng {report.room || 'Không có'}
                       </p>
-
                       <p className="text-xs text-slate-500 mt-0.5">
                         {report.device}
                       </p>
@@ -194,7 +214,6 @@ export const StudentMyReports = () => {
 
                     <td className="px-6 py-4 text-sm text-slate-600 max-w-md">
                       <p className="line-clamp-2">{report.issue}</p>
-
                       {report.handlerNote && (
                         <p className="text-xs text-slate-400 mt-1">
                           Phản hồi: {report.handlerNote}
@@ -227,10 +246,7 @@ export const StudentMyReports = () => {
 
                 {filteredReports.length === 0 && (
                   <tr>
-                    <td
-                      colSpan={6}
-                      className="px-6 py-12 text-center text-sm text-slate-500"
-                    >
+                    <td colSpan={6} className="px-6 py-12 text-center text-sm text-slate-500">
                       Không tìm thấy phản ánh phù hợp.
                     </td>
                   </tr>
@@ -239,8 +255,51 @@ export const StudentMyReports = () => {
             </table>
           </div>
 
-          <div className="px-6 py-4 border-t border-slate-200 bg-slate-50 text-sm text-slate-500">
-            Hiển thị {filteredReports.length} phản ánh
+          {/* Pagination footer */}
+          <div className="px-6 py-3 border-t border-slate-200 bg-slate-50 flex items-center justify-between">
+            <span className="text-sm text-slate-500">
+              Hiển thị{' '}
+              <span className="font-semibold text-slate-700">
+                {filteredReports.length === 0 ? 0 : (currentPage - 1) * PAGE_SIZE + 1}
+                –{Math.min(currentPage * PAGE_SIZE, filteredReports.length)}
+              </span>
+              {' '}/ <span className="font-semibold text-slate-700">{filteredReports.length}</span> phản ánh
+            </span>
+
+            <div className="flex items-center gap-1">
+              <button
+                type="button"
+                onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                disabled={currentPage === 1}
+                className="px-3 py-1.5 rounded-lg text-sm font-medium border border-slate-200 text-slate-600 hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                ← Trước
+              </button>
+
+              {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
+                <button
+                  key={page}
+                  type="button"
+                  onClick={() => setCurrentPage(page)}
+                  className={`w-8 h-8 rounded-lg text-sm font-medium border ${
+                    page === currentPage
+                      ? 'bg-blue-600 text-white border-blue-600'
+                      : 'border-slate-200 text-slate-600 hover:bg-slate-100'
+                  }`}
+                >
+                  {page}
+                </button>
+              ))}
+
+              <button
+                type="button"
+                onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                disabled={currentPage === totalPages}
+                className="px-3 py-1.5 rounded-lg text-sm font-medium border border-slate-200 text-slate-600 hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                Sau →
+              </button>
+            </div>
           </div>
         </div>
       )}

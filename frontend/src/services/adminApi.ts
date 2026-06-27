@@ -1,4 +1,4 @@
-const API_BASE_URL = 'http://localhost:3000/api';
+import { API_BASE_URL } from '../config/env';
 
 // =======================
 // Helper: lấy access token từ localStorage
@@ -57,6 +57,8 @@ export interface BackendUser {
   roleId: number;
   role: string;
   status: string;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 export interface BackendRole {
@@ -131,6 +133,8 @@ export interface AdminUser {
   phoneNumber?: string | null;
   userId: number;
   roleId: number;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 export const mapBackendUser = (u: BackendUser): AdminUser => ({
@@ -143,6 +147,8 @@ export const mapBackendUser = (u: BackendUser): AdminUser => ({
   phoneNumber: u.phoneNumber,
   userId: u.userId,
   roleId: u.roleId,
+  createdAt: u.createdAt,
+  updatedAt: u.updatedAt,
 });
 
 // =======================
@@ -156,6 +162,14 @@ export const adminApi = {
   async getUsers(keyword?: string): Promise<AdminUser[]> {
     const query = keyword ? `?keyword=${encodeURIComponent(keyword)}` : '';
     const data = await request<BackendUser[]>(`/user${query}`);
+    return data.map(mapBackendUser);
+  },
+
+  /** Tìm kiếm user theo username / email / họ tên */
+  async searchUsers(keyword: string): Promise<AdminUser[]> {
+    const data = await request<BackendUser[]>(
+      `/user/search?keyword=${encodeURIComponent(keyword)}`,
+    );
     return data.map(mapBackendUser);
   },
 

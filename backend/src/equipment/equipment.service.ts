@@ -5,11 +5,77 @@ import { PrismaService } from '../prisma/prisma.service';
 import { CreateEquipmentDto } from './dto/create-equipment.dto';
 import { UpdateEquipmentDto } from './dto/update-equipment.dto';
 import { UpdateEquipmentStatusDto } from './dto/update-equipment-status.dto';
+import { CreateBulkEquipmentDto } from './dto/create-bulk-equipment.dto';
+import { RoomService } from '../room/room.service';
 import * as xlsx from 'xlsx';
 
 @Injectable()
 export class EquipmentService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly roomService: RoomService,
+  ) {}
+
+  private formatEquipmentCode(categoryName: string, inputCode: string): string {
+    if (!categoryName || !inputCode) return inputCode;
+    
+    // Sinh tiền tố viết tắt từ tên danh mục (vd: "Máy chiếu" -> "MC", "Bảng từ" -> "BT")
+    const words = categoryName.split(' ').filter(w => w.trim().length > 0);
+    const acronym = words.map(w => w.charAt(0).toUpperCase()).join('');
+    const prefix = `${acronym}-PTITHCM-`;
+    
+    if (inputCode.startsWith(prefix)) {
+      return inputCode;
+    }
+    
+    // Nếu mã đã có tiền tố kiểu khác thì cắt bỏ đi để thay tiền tố mới
+    const cleanCode = inputCode.replace(/^.*?-PTITHCM-/, '');
+    return `${prefix}${cleanCode}`;
+  }
+
+  private async populateRoomsForEquipmentList(equipments: any[]) {
+    if (!equipments.length) return equipments;
+    const rooms = await this.roomService.findAll({});
+    const roomMap = new Map(rooms.map((r: any) => [r.roomId, r]));
+
+    return equipments.map(eq => {
+      if (eq.allocations) {
+        eq.allocations = eq.allocations.map((a: any) => ({
+          ...a,
+          room: roomMap.get(a.roomId) || null
+        }));
+      }
+      return eq;
+    });
+  }
+
+  private async populateRoomsForSingleEquipment(equipment: any) {
+    if (!equipment) return null;
+    const rooms = await this.roomService.findAll({});
+    const roomMap = new Map(rooms.map((r: any) => [r.roomId, r]));
+
+    if (equipment.allocations) {
+      equipment.allocations = equipment.allocations.map((a: any) => ({
+        ...a,
+        room: roomMap.get(a.roomId) || null
+      }));
+    }
+    if (equipment.transfers) {
+      equipment.transfers = equipment.transfers.map((t: any) => ({
+        ...t,
+        fromRoom: roomMap.get(t.fromRoomId) || null,
+        toRoom: roomMap.get(t.toRoomId) || null
+      }));
+    }
+    if (equipment.reports) {
+      equipment.reports = equipment.reports.map((r: any) => ({
+        ...r,
+        room: roomMap.get(r.roomId) || null
+      }));
+    }
+
+    return equipment;
+  }
 
   // Lấy danh sách thiết bị
   async findAll(query: {
@@ -20,7 +86,6 @@ export class EquipmentService {
   }) {
     const where: Prisma.EquipmentWhereInput = {};
 
-    // Tìm kiếm theo mã thiết bị, tên thiết bị, mô tả hoặc tên loại thiết bị
     if (query.search) {
       where.OR = [
         { equipmentCode: { contains: query.search, mode: 'insensitive' } },
@@ -34,13 +99,10 @@ export class EquipmentService {
       ];
     }
 
-    // Lọc theo loại thiết bị
     if (query.categoryId) {
       where.categoryId = query.categoryId;
     }
 
-    // Lọc theo trạng thái
-    // need-handle nghĩa là cần xử lý: BROKEN hoặc UNDER_REPAIR
     if (query.status) {
       if (query.status === 'need-handle') {
         where.status = {
@@ -51,35 +113,26 @@ export class EquipmentService {
       }
     }
 
-    // Lọc theo phòng học thông qua bảng EquipmentAllocation
     if (query.roomId) {
       where.allocations = {
         some: {
           roomId: query.roomId,
-          quantity: {
-            gt: 0,
-          },
         },
       };
     }
 
-    return this.prisma.equipment.findMany({
+    const equipments = await this.prisma.equipment.findMany({
       where,
       orderBy: { equipmentId: 'asc' },
       include: {
         category: true,
         allocations: {
-          where: {
-            quantity: {
-              gt: 0,
-            },
-          },
-          include: {
-            room: true,
-          },
+
         },
       },
     });
+
+    return this.populateRoomsForEquipmentList(equipments);
   }
 
   // Lấy chi tiết thiết bị
@@ -88,15 +141,9 @@ export class EquipmentService {
       where: { equipmentId },
       include: {
         category: true,
-        allocations: {
-          include: {
-            room: true,
-          },
-        },
+        allocations: true,
         transfers: {
           include: {
-            fromRoom: true,
-            toRoom: true,
             executor: true,
           },
           orderBy: {
@@ -105,7 +152,6 @@ export class EquipmentService {
         },
         reports: {
           include: {
-            room: true,
             reporter: true,
             handler: true,
           },
@@ -120,12 +166,10 @@ export class EquipmentService {
       throw new NotFoundException('Không tìm thấy thiết bị');
     }
 
-    return equipment;
+    return this.populateRoomsForSingleEquipment(equipment);
   }
 
   // Thêm thiết bị mới
-  // Mỗi lần thêm thủ công chỉ thêm 1 thiết bị thật.
-  // Vì vậy bắt buộc có mã thiết bị riêng và quantity luôn là 1.
   async create(dto: CreateEquipmentDto) {
     const equipmentCode = dto.equipmentCode?.trim();
 
@@ -147,8 +191,10 @@ export class EquipmentService {
       throw new BadRequestException('Loại thiết bị không tồn tại');
     }
 
+    const formattedEquipmentCode = this.formatEquipmentCode(category.name, equipmentCode);
+
     const existedCode = await this.prisma.equipment.findUnique({
-      where: { equipmentCode },
+      where: { equipmentCode: formattedEquipmentCode },
     });
 
     if (existedCode) {
@@ -157,11 +203,10 @@ export class EquipmentService {
 
     return this.prisma.equipment.create({
       data: {
-        equipmentCode,
+        equipmentCode: formattedEquipmentCode,
         name,
         categoryId: dto.categoryId,
         unit: dto.unit?.trim() || 'cái',
-        quantity: 1,
         status: dto.status ?? EquipmentStatus.GOOD,
         description: dto.description?.trim() || null,
       },
@@ -173,27 +218,30 @@ export class EquipmentService {
 
   // Cập nhật thông tin thiết bị
   async update(equipmentId: number, dto: UpdateEquipmentDto) {
-    await this.findOne(equipmentId);
+    const currentEquipment = await this.findOne(equipmentId);
 
+    let categoryToUse = currentEquipment.category;
     if (dto.categoryId) {
-      const category = await this.prisma.equipmentCategory.findUnique({
+      categoryToUse = await this.prisma.equipmentCategory.findUnique({
         where: { categoryId: dto.categoryId },
       });
 
-      if (!category) {
+      if (!categoryToUse) {
         throw new BadRequestException('Loại thiết bị không tồn tại');
       }
     }
 
     const data: Prisma.EquipmentUpdateInput = {};
 
-    if (dto.equipmentCode !== undefined) {
-      const equipmentCode = dto.equipmentCode.trim();
+    let equipmentCode = dto.equipmentCode !== undefined ? dto.equipmentCode.trim() : currentEquipment.equipmentCode;
+    
+    if (!equipmentCode) {
+      throw new BadRequestException('Mã thiết bị không được để trống');
+    }
 
-      if (!equipmentCode) {
-        throw new BadRequestException('Mã thiết bị không được để trống');
-      }
+    equipmentCode = this.formatEquipmentCode(categoryToUse.name, equipmentCode);
 
+    if (equipmentCode !== currentEquipment.equipmentCode) {
       const existedCode = await this.prisma.equipment.findFirst({
         where: {
           equipmentCode,
@@ -240,25 +288,23 @@ export class EquipmentService {
       data.description = dto.description?.trim() || null;
     }
 
-    return this.prisma.equipment.update({
+    const result = await this.prisma.equipment.update({
       where: { equipmentId },
       data,
       include: {
         category: true,
-        allocations: {
-          include: {
-            room: true,
-          },
-        },
+        allocations: true,
       },
     });
+    
+    return this.populateRoomsForSingleEquipment(result);
   }
 
   // Cập nhật trạng thái thiết bị
   async updateStatus(equipmentId: number, dto: UpdateEquipmentStatusDto) {
     await this.findOne(equipmentId);
 
-    return this.prisma.equipment.update({
+    const result = await this.prisma.equipment.update({
       where: { equipmentId },
       data: {
         status: dto.status,
@@ -266,18 +312,14 @@ export class EquipmentService {
       },
       include: {
         category: true,
-        allocations: {
-          include: {
-            room: true,
-          },
-        },
+        allocations: true,
       },
     });
+
+    return this.populateRoomsForSingleEquipment(result);
   }
 
   // Xóa thiết bị
-  // Để tránh lỗi ràng buộc dữ liệu, mình không xóa cứng.
-  // Thay vào đó chuyển thiết bị sang trạng thái DISCARDED.
   async remove(equipmentId: number) {
     await this.findOne(equipmentId);
 
@@ -289,12 +331,104 @@ export class EquipmentService {
     });
   }
 
+  // Thêm thiết bị hàng loạt
+  async createBulk(dto: CreateBulkEquipmentDto) {
+    if (!dto.equipments || dto.equipments.length === 0) {
+      throw new BadRequestException('Danh sách thiết bị không được trống.');
+    }
+
+    const roomQuantityMap = new Map<number, number>();
+    
+    // Fetch categories first to format codes
+    const categoryIds = [...new Set(dto.equipments.map(e => e.categoryId))];
+    const categories = await this.prisma.equipmentCategory.findMany({
+      where: { categoryId: { in: categoryIds } },
+    });
+    const categoryMap = new Map(categories.map(c => [c.categoryId, c]));
+
+    // Format all codes
+    for (const item of dto.equipments) {
+      const category = categoryMap.get(item.categoryId);
+      if (!category) {
+        throw new BadRequestException(`Loại thiết bị ID ${item.categoryId} không tồn tại.`);
+      }
+      item.equipmentCode = this.formatEquipmentCode(category.name, item.equipmentCode);
+    }
+
+    const equipmentCodes = dto.equipments.map(e => e.equipmentCode);
+    
+    const uniqueCodes = new Set(equipmentCodes);
+    if (uniqueCodes.size !== equipmentCodes.length) {
+      throw new BadRequestException('Danh sách thiết bị chứa các mã trùng lặp.');
+    }
+
+    const existingEquipments = await this.prisma.equipment.findMany({
+      where: { equipmentCode: { in: equipmentCodes } },
+      select: { equipmentCode: true },
+    });
+
+    if (existingEquipments.length > 0) {
+      const existingCodes = existingEquipments.map(e => e.equipmentCode).join(', ');
+      throw new BadRequestException(`Các mã thiết bị đã tồn tại trong hệ thống: ${existingCodes}`);
+    }
+
+    const rooms = await this.roomService.findAll({});
+
+    const results = await this.prisma.$transaction(async (tx) => {
+      const createdEquipments: any[] = [];
+
+      for (const item of dto.equipments) {
+        // We already validated categories above
+        const category = categoryMap.get(item.categoryId)!;
+
+        const equipment = await tx.equipment.create({
+          data: {
+            equipmentCode: item.equipmentCode,
+            name: item.name,
+            categoryId: item.categoryId,
+            unit: item.unit || 'cái',
+            status: item.status || EquipmentStatus.GOOD,
+            description: item.description || null,
+          },
+        });
+
+        if (item.roomId) {
+          const room = rooms.find((r: any) => r.roomId === item.roomId);
+          if (!room) {
+            throw new BadRequestException(`Phòng học ID ${item.roomId} không tồn tại.`);
+          }
+
+          await tx.equipmentAllocation.create({
+            data: {
+              equipmentId: equipment.equipmentId,
+              roomId: item.roomId,
+              allocatedAt: new Date(),
+              note: 'Tạo hàng loạt',
+            },
+          });
+
+          const currentQty = roomQuantityMap.get(item.roomId) || 0;
+          roomQuantityMap.set(item.roomId, currentQty + 1);
+        }
+
+        createdEquipments.push(equipment);
+      }
+
+      for (const [roomId, totalQuantity] of roomQuantityMap.entries()) {
+        await this.roomService.updateEquipmentCount(roomId, 'add', totalQuantity);
+      }
+
+      return createdEquipments;
+    }, { timeout: 30000 });
+
+    return {
+      success: true,
+      message: `Đã tạo thành công ${results.length} thiết bị.`,
+      data: results
+    };
+  }
+
   // Import danh sách thiết bị từ Excel
-  // Mẫu Excel mới:
-  // Mã thiết bị | Tên thiết bị | Loại thiết bị | Phòng học | Trạng thái | Ghi chú
-  //
-  // Mỗi dòng Excel là 1 thiết bị riêng.
-  // Không dùng cột Số lượng và không cộng dồn số lượng nữa.
   async importEquipmentsFromExcel(file: any) {
     let successCount = 0;
     let failedCount = 0;
@@ -307,140 +441,156 @@ export class EquipmentService {
       const data: any[] = xlsx.utils.sheet_to_json(sheet);
 
       let rowNum = 1;
+      const rooms = await this.roomService.findAll({});
+      const validItems: any[] = [];
 
+      // Validate phase
       for (const row of data) {
         rowNum++;
+        const equipmentCodeRaw = row['Mã thiết bị'];
+        const nameRaw = row['Tên thiết bị'];
+        const categoryNameRaw = row['Loại thiết bị'];
+        const roomCodeRaw = row['Phòng học'];
+        const statusRaw = row['Trạng thái'];
+        const descriptionRaw = row['Ghi chú'];
 
+        let equipmentCode = equipmentCodeRaw ? String(equipmentCodeRaw).trim() : '';
+        const name = nameRaw ? String(nameRaw).trim() : '';
+        const categoryName = categoryNameRaw ? String(categoryNameRaw).trim() : '';
+        const roomCode = roomCodeRaw ? String(roomCodeRaw).trim() : '';
+        const statusStr = statusRaw ? String(statusRaw).trim() : '';
+        const description = descriptionRaw ? String(descriptionRaw).trim() : null;
+
+        if (!name) {
+          failedCount++;
+          errors.push({ row: rowNum, reason: 'Thiếu Tên thiết bị' });
+          continue;
+        }
+
+        if (!categoryName) {
+          failedCount++;
+          errors.push({ row: rowNum, reason: 'Thiếu Loại thiết bị' });
+          continue;
+        }
+
+        const category = await this.prisma.equipmentCategory.findFirst({
+          where: { name: categoryName },
+        });
+
+        if (!category) {
+          failedCount++;
+          errors.push({ row: rowNum, reason: `Loại thiết bị [${categoryName}] không tồn tại trong hệ thống` });
+          continue;
+        }
+
+
+        if (!equipmentCode) {
+          failedCount++;
+          errors.push({ row: rowNum, reason: 'Thiếu Mã thiết bị' });
+          continue;
+        }
+
+        equipmentCode = this.formatEquipmentCode(category.name, equipmentCode);
+
+        const existedEquipment = await this.prisma.equipment.findUnique({
+          where: { equipmentCode },
+        });
+
+        if (existedEquipment) {
+          failedCount++;
+          errors.push({ row: rowNum, reason: `Mã thiết bị [${equipmentCode}] đã tồn tại trong hệ thống` });
+          continue;
+        }
+
+        const inMemoryDuplicate = validItems.some(item => item.equipmentCode === equipmentCode);
+        if (inMemoryDuplicate) {
+          failedCount++;
+          errors.push({ row: rowNum, reason: `Mã thiết bị [${equipmentCode}] bị trùng lặp với dòng trước đó trong file Excel` });
+          continue;
+        }
+        
+        let roomId = null;
+        if (roomCode) {
+          const room = rooms.find((r: any) => r.code === roomCode);
+          if (!room) {
+            failedCount++;
+            errors.push({ row: rowNum, reason: `Phòng học [${roomCode}] không tồn tại trên ROOM_API` });
+            continue;
+          }
+          roomId = room.roomId;
+        }
+
+        let status: EquipmentStatus = EquipmentStatus.GOOD;
+        if (statusStr === 'Báo hỏng' || statusStr === 'Hỏng') {
+          status = EquipmentStatus.BROKEN;
+        } else if (statusStr === 'Đang sửa' || statusStr === 'Bảo trì') {
+          status = EquipmentStatus.UNDER_REPAIR;
+        } else if (statusStr === 'Thanh lý') {
+          status = EquipmentStatus.DISCARDED;
+        }
+
+        validItems.push({
+          row: rowNum,
+          equipmentCode,
+          name,
+          categoryId: category.categoryId,
+          roomId,
+          status,
+          description
+        });
+      }
+
+      // Execution phase (all valid items in one transaction)
+      if (validItems.length > 0) {
+        const roomQuantityMap = new Map<number, number>();
+        
         try {
-          const equipmentCodeRaw = row['Mã thiết bị'];
-          const nameRaw = row['Tên thiết bị'];
-          const categoryNameRaw = row['Loại thiết bị'];
-          const roomCodeRaw = row['Phòng học'];
-          const statusRaw = row['Trạng thái'];
-          const descriptionRaw = row['Ghi chú'];
-
-          const equipmentCode = equipmentCodeRaw
-            ? String(equipmentCodeRaw).trim()
-            : '';
-
-          const name = nameRaw ? String(nameRaw).trim() : '';
-          const categoryName = categoryNameRaw
-            ? String(categoryNameRaw).trim()
-            : '';
-          const roomCode = roomCodeRaw ? String(roomCodeRaw).trim() : '';
-          const statusStr = statusRaw ? String(statusRaw).trim() : '';
-          const description = descriptionRaw
-            ? String(descriptionRaw).trim()
-            : null;
-
-          if (!equipmentCode) {
-            failedCount++;
-            errors.push({ row: rowNum, reason: 'Thiếu Mã thiết bị' });
-            continue;
-          }
-
-          if (!name) {
-            failedCount++;
-            errors.push({ row: rowNum, reason: 'Thiếu Tên thiết bị' });
-            continue;
-          }
-
-          if (!categoryName) {
-            failedCount++;
-            errors.push({ row: rowNum, reason: 'Thiếu Loại thiết bị' });
-            continue;
-          }
-
-          const existedEquipment = await this.prisma.equipment.findUnique({
-            where: { equipmentCode },
-          });
-
-          if (existedEquipment) {
-            failedCount++;
-            errors.push({
-              row: rowNum,
-              reason: `Mã thiết bị [${equipmentCode}] đã tồn tại`,
-            });
-            continue;
-          }
-
-          const category = await this.prisma.equipmentCategory.findFirst({
-            where: {
-              name: categoryName,
-            },
-          });
-
-          if (!category) {
-            failedCount++;
-            errors.push({
-              row: rowNum,
-              reason: `Loại thiết bị [${categoryName}] không tồn tại trong hệ thống`,
-            });
-            continue;
-          }
-
-          let status: EquipmentStatus = EquipmentStatus.GOOD;
-
-          if (statusStr === 'Báo hỏng' || statusStr === 'Hỏng') {
-            status = EquipmentStatus.BROKEN;
-          } else if (statusStr === 'Đang sửa' || statusStr === 'Bảo trì') {
-            status = EquipmentStatus.UNDER_REPAIR;
-          } else if (statusStr === 'Thanh lý') {
-            status = EquipmentStatus.DISCARDED;
-          }
-
-          const equipment = await this.prisma.equipment.create({
-            data: {
-              equipmentCode,
-              name,
-              categoryId: category.categoryId,
-              unit: 'cái',
-              quantity: 1,
-              status,
-              description,
-            },
-          });
-
-          if (roomCode) {
-            const room = await this.prisma.room.findUnique({
-              where: {
-                code: roomCode,
-              },
-            });
-
-            if (room) {
-              await this.prisma.equipmentAllocation.create({
+          await this.prisma.$transaction(async (tx) => {
+            for (const item of validItems) {
+              const equipment = await tx.equipment.create({
                 data: {
-                  equipmentId: equipment.equipmentId,
-                  roomId: room.roomId,
-                  quantity: 1,
-                  allocatedAt: new Date(),
-                  note: 'Import từ Excel',
+                  equipmentCode: item.equipmentCode,
+                  name: item.name,
+                  categoryId: item.categoryId,
+                  unit: 'cái',
+                  status: item.status,
+                  description: item.description,
                 },
               });
-            } else {
-              errors.push({
-                row: rowNum,
-                reason: `Đã thêm thiết bị nhưng phòng [${roomCode}] không tồn tại`,
-              });
+
+              if (item.roomId) {
+                await tx.equipmentAllocation.create({
+                  data: {
+                    equipmentId: equipment.equipmentId,
+                    roomId: item.roomId,
+                    allocatedAt: new Date(),
+                    note: 'Import từ Excel',
+                  },
+                });
+
+                const currentQty = roomQuantityMap.get(item.roomId) || 0;
+                roomQuantityMap.set(item.roomId, currentQty + 1);
+              }
+              successCount++;
             }
+          });
+
+          // Cập nhật ROOM_API bên ngoài transaction để tránh timeout database
+          for (const [roomId, totalQuantity] of roomQuantityMap.entries()) {
+            await this.roomService.updateEquipmentCount(roomId, 'add', totalQuantity);
           }
 
-          successCount++;
-        } catch (e: any) {
-          failedCount++;
-          errors.push({
-            row: rowNum,
-            reason: e.message || 'Lỗi hệ thống',
-          });
+        } catch (error: any) {
+          // If transaction fails, nothing is saved
+          successCount = 0;
+          failedCount += validItems.length;
+          errors.push({ row: -1, reason: `Lỗi hệ thống khi lưu dữ liệu hoặc cập nhật ROOM_API: ${error.message}` });
         }
       }
 
       return { successCount, failedCount, errors };
     } catch (error) {
-      throw new BadRequestException(
-        'Lỗi đọc file Excel. Vui lòng kiểm tra định dạng file.',
-      );
+      throw new BadRequestException('Lỗi đọc file Excel. Vui lòng kiểm tra định dạng file.');
     }
   }
 }

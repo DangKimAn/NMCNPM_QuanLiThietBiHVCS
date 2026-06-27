@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { FiX, FiUser, FiLock, FiCheckCircle } from 'react-icons/fi';
 
-const API_BASE_URL = 'http://localhost:3000/api';
+import { API_BASE_URL } from '../../config/env';
 
 async function authRequest<T>(url: string, options?: RequestInit): Promise<T> {
   const token = localStorage.getItem('accessToken');
