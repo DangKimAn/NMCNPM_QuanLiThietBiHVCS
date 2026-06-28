@@ -62,16 +62,17 @@ export class EventsGateway implements OnGatewayConnection, OnGatewayDisconnect {
   }
 
   emitNotification(data: any) {
-    const targetRole = data.targetRole;
-
-    if (targetRole === 'ALL') {
-      this.server.to('role:ALL').emit('notification_created', data);
-    } else {
-      this.server.to(`role:${targetRole}`).emit('notification_created', data);
-    }
-
+    // Nếu có targetUserId cụ thể → chỉ gửi cho user đó
     if (data.targetUserId) {
       this.server.to(`user:${data.targetUserId}`).emit('notification_created', data);
+      return;
+    }
+
+    // Ngược lại: gửi theo targetRole
+    if (data.targetRole === 'ALL') {
+      this.server.to('role:ALL').emit('notification_created', data);
+    } else {
+      this.server.to(`role:${data.targetRole}`).emit('notification_created', data);
     }
   }
 

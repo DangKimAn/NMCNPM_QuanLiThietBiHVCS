@@ -1,9 +1,12 @@
 import { Injectable, InternalServerErrorException, NotFoundException } from '@nestjs/common';
 import { CreateRoomDto } from './dto/create-room.dto';
 import { UpdateRoomDto } from './dto/update-room.dto';
+import { PrismaService } from 'src/prisma/prisma.service';
 
 @Injectable()
 export class RoomService {
+  constructor(private prisma: PrismaService) {}
+
   private get baseUrl() {
     return process.env.ROOM_API ? `${process.env.ROOM_API}/api/rooms` : 'http://localhost:3000/api/rooms';
   }
@@ -45,9 +48,38 @@ export class RoomService {
     }
   }
 
-  // Lấy danh sách phòng học, có hỗ trợ tìm kiếm
+  // Lấy danh sách phòng học kèm thiết bị, có hỗ trợ tìm kiếm
   async findAll(query: { search?: string }) {
-    const rooms = await this.fetchRoomsFromApi();
+    let rooms = await this.fetchRoomsFromApi();
+
+    // Lấy tất cả allocation kèm equipment + category từ DB
+    const allocations = await this.prisma.equipmentAllocation.findMany({
+      include: {
+        equipment: {
+          include: { category: true },
+        },
+      },
+    });
+
+    // Gộp allocations vào từng phòng
+    rooms = rooms.map((room: any) => ({
+      ...room,
+      allocations: allocations
+        .filter((a) => a.roomId === room.roomId)
+        .map((a) => ({
+          allocationId: a.allocationId,
+          quantity: 1,
+          equipment: {
+            equipmentId: a.equipment.equipmentId,
+            equipmentCode: a.equipment.equipmentCode,
+            name: a.equipment.name,
+            status: a.equipment.status,
+            category: a.equipment.category
+              ? { categoryId: a.equipment.category.categoryId, name: a.equipment.category.name }
+              : null,
+          },
+        })),
+    }));
 
     if (query.search) {
       const lowerSearch = query.search.toLowerCase();

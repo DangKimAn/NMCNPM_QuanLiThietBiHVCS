@@ -185,6 +185,12 @@ export class NotificationService {
     };
   }
 
+  async clearAllNotifications() {
+    await this.prisma.notificationRead.deleteMany();
+    await this.prisma.notification.deleteMany();
+    return { message: 'Đã xóa tất cả thông báo' };
+  }
+
   async deleteNotification(userId: number, notificationId: number) {
     const roleName = await this.getUserRoleName(userId);
 
