@@ -10,6 +10,7 @@ export const GetUser = createParamDecorator(
     
     return {
       userId: user.userId || user.sub,
+      username: user.username,
       role: user.role,
     };
   },

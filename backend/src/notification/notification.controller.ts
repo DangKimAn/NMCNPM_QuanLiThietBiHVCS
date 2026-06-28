@@ -100,4 +100,12 @@ export class NotificationController {
     const userId = this.getCurrentUserId(req);
     return this.notificationService.deleteNotification(userId, notificationId);
   }
+
+  // ADMIN: Xóa tất cả thông báo (dọn dẹp)
+  // DELETE /notifications/clear-all
+  @Delete('clear-all')
+  @Roles(Role.ADMIN)
+  async clearAllNotifications() {
+    return this.notificationService.clearAllNotifications();
+  }
 }

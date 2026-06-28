@@ -96,9 +96,18 @@ export class UserController {
   }
 
   //ADMIN & MANAGER: Tìm kiếm bằng username
+  //STUDENT & TEACHER: Chỉ xem được thông tin của chính mình
   @Get('getUserbyUsername/:username')
-  @Roles(Role.ADMIN, Role.MANAGER)
-  async findByUsername(@Param('username') username: string) {
+  async findByUsername(
+    @Param('username') username: string,
+    @GetUser() currentUser: { userId: number; role: string; username: string }
+  ) {
+    const isAdminOrManager = currentUser.role === Role.ADMIN || currentUser.role === Role.MANAGER;
+    const isSelf = currentUser.username === username;
+
+    if (!isAdminOrManager && !isSelf) {
+      throw new ForbiddenException('Bạn không có quyền xem thông tin của người dùng khác!');
+    }
     return await this.userService.getUserByUsername(username);
   }
 
