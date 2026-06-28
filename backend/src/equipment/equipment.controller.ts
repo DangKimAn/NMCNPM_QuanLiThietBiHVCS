@@ -62,6 +62,12 @@ export class EquipmentController {
     });
   }
 
+  @Public()
+  @Get('stats')
+  getStats() {
+    return this.equipmentService.getStats();
+  }
+
   // Xem chi tiết thiết bị
   @Public()
   @Get(':equipmentId')

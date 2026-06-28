@@ -22,6 +22,7 @@ interface DeviceFormModalProps {
   onClose: () => void;
   onSubmit: (e: FormEvent<HTMLFormElement>) => void;
   onImportExcel?: () => void;
+  isSubmitting?: boolean;
 }
 
 export const DeviceFormModal = ({
@@ -33,6 +34,7 @@ export const DeviceFormModal = ({
   onClose,
   onSubmit,
   onImportExcel,
+  isSubmitting = false,
 }: DeviceFormModalProps) => {
   const { fields: configFields } = useFormConfig('equipment');
 
@@ -54,6 +56,7 @@ export const DeviceFormModal = ({
       onClose={onClose}
       onSubmit={onSubmit}
       submitText={editingDevice ? 'Cập nhật' : 'Thêm mới'}
+      isSubmitting={isSubmitting}
       extraActions={
         !editingDevice && onImportExcel ? (
           <button
@@ -72,7 +75,8 @@ export const DeviceFormModal = ({
           <FieldInput
             label="Mã thiết bị"
             value={deviceForm.id}
-            required
+            required={!!editingDevice}
+            placeholder={editingDevice ? '' : 'Để trống để tự động sinh mã'}
             onChange={(value) => setDeviceForm({ ...deviceForm, id: value })}
           />
         )}

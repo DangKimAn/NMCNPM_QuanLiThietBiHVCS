@@ -14,7 +14,7 @@ export class RoomService {
   // Simple in-memory cache
   private cachedRooms: any[] = [];
   private cacheTimestamp: number = 0;
-  private readonly CACHE_TTL = 30000; // 30 seconds
+  private readonly CACHE_TTL = 300000; // 5 minutes
 
   private async fetchRoomsFromApi(): Promise<any[]> {
     const now = Date.now();

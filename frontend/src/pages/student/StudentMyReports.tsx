@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, useRef } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import {
   FiAlertTriangle,
@@ -38,8 +38,12 @@ export const StudentMyReports = () => {
   const [reports, setReports] = useState<StudentReportItem[]>([]);
   const [selectedReport, setSelectedReport] = useState<StudentReportItem | null>(null);
 
-  const [keyword, setKeyword] = useState(searchParams.get('keyword') || '');
-  const keywordTimeoutRef = useRef<ReturnType<typeof setTimeout>>();
+  const [keywordInput, setKeywordInput] = useState(searchParams.get('keyword') || '');
+  const [keyword, setKeyword] = useState(keywordInput);
+  useEffect(() => {
+    const timer = setTimeout(() => setKeyword(keywordInput), 300);
+    return () => clearTimeout(timer);
+  }, [keywordInput]);
   const [filterStatus, setFilterStatus] = useState(searchParams.get('status') || 'All');
 
   const [loading, setLoading] = useState(true);
@@ -143,10 +147,34 @@ export const StudentMyReports = () => {
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-        <SummaryCard icon={<FiClock />} label="Tổng phản ánh" value={stats.total} />
-        <SummaryCard icon={<FiAlertTriangle />} label="Mới tiếp nhận" value={stats.pending} />
-        <SummaryCard icon={<FiTool />} label="Đang xử lý" value={stats.processing} />
-        <SummaryCard icon={<FiCheckCircle />} label="Đã xử lý" value={stats.resolved} />
+        <SummaryCard
+          icon={<FiClock />}
+          label="Tổng phản ánh"
+          value={stats.total}
+          onClick={() => setFilterStatus('All')}
+          active={filterStatus === 'All'}
+        />
+        <SummaryCard
+          icon={<FiAlertTriangle />}
+          label="Mới tiếp nhận"
+          value={stats.pending}
+          onClick={() => setFilterStatus('Mới tiếp nhận')}
+          active={filterStatus === 'Mới tiếp nhận'}
+        />
+        <SummaryCard
+          icon={<FiTool />}
+          label="Đang xử lý"
+          value={stats.processing}
+          onClick={() => setFilterStatus('Đang xử lý')}
+          active={filterStatus === 'Đang xử lý'}
+        />
+        <SummaryCard
+          icon={<FiCheckCircle />}
+          label="Đã xử lý"
+          value={stats.resolved}
+          onClick={() => setFilterStatus('Đã xử lý')}
+          active={filterStatus === 'Đã xử lý'}
+        />
       </div>
 
       <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4 grid grid-cols-1 md:grid-cols-2 gap-3 mb-4">
@@ -154,11 +182,8 @@ export const StudentMyReports = () => {
           <FiSearch className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
 
           <input
-            value={keyword}
-            onChange={(e) => {
-              if (keywordTimeoutRef.current) clearTimeout(keywordTimeoutRef.current);
-              keywordTimeoutRef.current = setTimeout(() => setKeyword(e.target.value), 300);
-            }}
+            value={keywordInput}
+            onChange={(e) => setKeywordInput(e.target.value)}
             placeholder="Tìm mã phản ánh, phòng, thiết bị, nội dung..."
             className="w-full pl-9 pr-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:border-blue-500"
           />

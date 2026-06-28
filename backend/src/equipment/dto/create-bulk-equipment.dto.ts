@@ -3,9 +3,10 @@ import { IsArray, IsEnum, IsInt, IsNotEmpty, IsOptional, IsString, ValidateNeste
 import { EquipmentStatus } from '@prisma/client';
 
 export class BulkEquipmentItemDto {
+  @IsOptional()
   @IsString()
   @IsNotEmpty()
-  equipmentCode!: string;
+  equipmentCode?: string;
 
   @IsString()
   @IsNotEmpty()
