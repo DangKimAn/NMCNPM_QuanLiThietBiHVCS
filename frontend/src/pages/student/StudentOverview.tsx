@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import {
   FiAlertTriangle,
   FiCheckCircle,
@@ -32,6 +32,7 @@ const getCurrentUserFromStorage = () => {
 };
 
 export const StudentOverview = () => {
+  const navigate = useNavigate();
   const currentUser = getCurrentUserFromStorage();
 
   const [reports, setReports] = useState<StudentReportItem[]>([]);
@@ -90,24 +91,25 @@ export const StudentOverview = () => {
           icon={<FiFileText />}
           label="Tổng phản ánh"
           value={stats.total}
+          onClick={() => navigate('/student/my-reports')}
         />
-
         <SummaryCard
           icon={<FiAlertTriangle />}
           label="Mới tiếp nhận"
           value={stats.pending}
+          onClick={() => navigate('/student/my-reports?status=' + encodeURIComponent('Mới tiếp nhận'))}
         />
-
         <SummaryCard
           icon={<FiTool />}
           label="Đang xử lý"
           value={stats.processing}
+          onClick={() => navigate('/student/my-reports?status=' + encodeURIComponent('Đang xử lý'))}
         />
-
         <SummaryCard
           icon={<FiCheckCircle />}
           label="Đã xử lý"
           value={stats.resolved}
+          onClick={() => navigate('/student/my-reports?status=' + encodeURIComponent('Đã xử lý'))}
         />
       </div>
 

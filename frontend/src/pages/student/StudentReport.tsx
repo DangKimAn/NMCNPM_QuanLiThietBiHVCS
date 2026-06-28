@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, useCallback } from 'react';
 import type { FormEvent } from 'react';
 import { Link } from 'react-router-dom';
 import {
@@ -17,6 +17,7 @@ import {
   type StudentEquipmentOption,
   type StudentRoomOption,
 } from '../../services/studentApi';
+import { socket } from '../../services/socket';
 import { useFormConfig } from '../../hooks/useFormConfig';
 
 interface ReportForm {
@@ -53,7 +54,7 @@ export const StudentReport = () => {
   const [errorMessage, setErrorMessage] = useState('');
   const [successMessage, setSuccessMessage] = useState('');
 
-  const fetchData = async () => {
+  const fetchData = useCallback(async () => {
     try {
       setLoading(true);
       setErrorMessage('');
@@ -63,18 +64,24 @@ export const StudentReport = () => {
         studentApi.getEquipments(),
       ]);
 
-      const activeEquipments = fetchedEquipments.filter(e => e.status === 'Hoạt động');
-      
-      const activeRoomIds = new Set(activeEquipments.map(e => e.roomId));
-      const filteredRooms = fetchedRooms.filter(room => room.building !== 'Kho' && activeRoomIds.has(room.roomId));
-      
+      const sortedEquipments = [...fetchedEquipments].sort((a, b) =>
+        a.name.localeCompare(b.name, 'vi'),
+      );
+
+      const roomIdsWithEquipment = new Set(
+        sortedEquipments.map(e => e.roomId).filter(Boolean),
+      );
+      const filteredRooms = fetchedRooms
+        .filter(room => room.building !== 'Kho' && roomIdsWithEquipment.has(room.roomId))
+        .sort((a, b) => a.code.localeCompare(b.code, 'vi', { numeric: true }));
+
       setRooms(filteredRooms);
-      setEquipments(activeEquipments);
+      setEquipments(sortedEquipments);
 
       setForm((current) => ({
         ...current,
         roomId: current.roomId || String(filteredRooms[0]?.roomId || ''),
-        equipmentId: current.equipmentId || String(activeEquipments.find(e => e.roomId === filteredRooms[0]?.roomId)?.equipmentId || ''),
+        equipmentId: current.equipmentId || String(sortedEquipments.find(e => e.roomId === filteredRooms[0]?.roomId)?.equipmentId || ''),
       }));
     } catch (error) {
       console.error(error);
@@ -82,7 +89,7 @@ export const StudentReport = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
     if (configFields.length > 0) {
@@ -92,7 +99,12 @@ export const StudentReport = () => {
 
   useEffect(() => {
     fetchData();
-  }, []);
+  }, [fetchData]);
+
+  useEffect(() => {
+    socket.on('equipment_transferred', fetchData);
+    return () => { socket.off('equipment_transferred', fetchData); };
+  }, [fetchData]);
 
   const filteredEquipments = useMemo(() => {
     const selectedRoomId = Number(form.roomId);

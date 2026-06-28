@@ -178,7 +178,7 @@ export const studentApi = {
 
   /** Lấy danh sách thiết bị (có allocation theo phòng) */
   async getEquipments(): Promise<StudentEquipmentOption[]> {
-    const data = await request<BackendEquipment[]>('/equipments');
+    const data = await request<BackendEquipment[]>('/equipments?limit=1000');
     const result: StudentEquipmentOption[] = [];
 
     for (const eq of data) {

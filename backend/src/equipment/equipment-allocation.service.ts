@@ -10,12 +10,14 @@ import { UpdateEquipmentAllocationDto } from './dto/update-equipment-allocation.
 import { CreateBulkEquipmentAllocationDto } from './dto/create-bulk-equipment-allocation.dto';
 import { BulkDeleteEquipmentAllocationDto } from './dto/bulk-delete-equipment-allocation.dto';
 import { RoomService } from '../room/room.service';
+import { EventsGateway } from '../events/events.gateway';
 
 @Injectable()
 export class EquipmentAllocationService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly roomService: RoomService,
+    private readonly eventsGateway: EventsGateway,
   ) {}
 
   private async populateRoom(allocation: any) {
@@ -84,7 +86,9 @@ export class EquipmentAllocationService {
       return allocResult;
     });
 
-    return this.populateRoom(result);
+    const populated = await this.populateRoom(result);
+    this.eventsGateway.emitEquipmentTransferred({ type: 'allocation', allocationId: populated.allocationId });
+    return populated;
   }
 
   async createBulk(bulkDto: CreateBulkEquipmentAllocationDto) {
@@ -162,7 +166,9 @@ export class EquipmentAllocationService {
       return createdAllocations;
     });
 
-    return Promise.all(results.map(a => this.populateRoom(a)));
+    const populated = await Promise.all(results.map(a => this.populateRoom(a)));
+    this.eventsGateway.emitEquipmentTransferred({ type: 'allocation_bulk', count: populated.length });
+    return populated;
   }
 
   async findAll() {

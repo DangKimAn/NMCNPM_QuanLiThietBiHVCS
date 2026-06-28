@@ -66,8 +66,7 @@ import { GlobalExceptionFilter } from './common/filters/global-exception.filter'
     EventsModule,
   ],
 
-  // AuditLogController & FormConfigController đăng ký ở AppModule để dùng JwtAuthGuard/RolesGuard từ AuthModule
-  controllers: [AppController, AuditLogController, FormConfigController],
+  controllers: [AppController, AuditLogController],
   providers: [AppService, GlobalExceptionFilter],
 })
 export class AppModule implements NestModule {

@@ -55,21 +55,41 @@ interface SummaryCardProps {
   icon: ReactNode;
   label: string;
   value: number;
+  onClick?: () => void;
+  active?: boolean;
 }
 
 // Card thống kê dùng ở đầu trang
-export const SummaryCard = memo(({ icon, label, value }: SummaryCardProps) => (
-  <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-3 sm:p-4 flex items-center gap-2 sm:gap-3">
-    <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center text-lg sm:text-xl shrink-0">
-      {icon}
-    </div>
+export const SummaryCard = memo(({ icon, label, value, onClick, active }: SummaryCardProps) => {
+  const base = "rounded-xl border shadow-sm p-3 sm:p-4 flex items-center gap-2 sm:gap-3 transition";
+  const style = onClick
+    ? active
+      ? "bg-blue-50 border-blue-300 cursor-pointer"
+      : "bg-white border-slate-200 hover:border-blue-300 hover:shadow-md cursor-pointer"
+    : "bg-white border-slate-200 shadow-sm";
 
-    <div className="min-w-0 flex-1">
-      <p className="text-[10px] sm:text-xs font-medium text-slate-500 uppercase tracking-wide truncate">{label}</p>
-      <p className="text-lg sm:text-xl font-bold text-slate-800 truncate">{value}</p>
+  return onClick ? (
+    <button type="button" onClick={onClick} className={base + " " + style + " w-full text-left"}>
+      <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center text-lg sm:text-xl shrink-0">
+        {icon}
+      </div>
+      <div className="min-w-0 flex-1">
+        <p className="text-[10px] sm:text-xs font-medium text-slate-500 uppercase tracking-wide truncate">{label}</p>
+        <p className="text-lg sm:text-xl font-bold text-slate-800 truncate">{value}</p>
+      </div>
+    </button>
+  ) : (
+    <div className={base + " " + style}>
+      <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center text-lg sm:text-xl shrink-0">
+        {icon}
+      </div>
+      <div className="min-w-0 flex-1">
+        <p className="text-[10px] sm:text-xs font-medium text-slate-500 uppercase tracking-wide truncate">{label}</p>
+        <p className="text-lg sm:text-xl font-bold text-slate-800 truncate">{value}</p>
+      </div>
     </div>
-  </div>
-));
+  );
+});
 
 interface TabButtonProps {
   active: boolean;
@@ -237,6 +257,7 @@ interface FieldInputProps {
   type?: string;
   disabled?: boolean;
   required?: boolean;
+  placeholder?: string;
 }
 
 // Input dùng chung cho các form
@@ -247,6 +268,7 @@ export const FieldInput = ({
   type = 'text',
   disabled = false,
   required = true,
+  placeholder,
 }: FieldInputProps) => (
   <div>
     <label className="block text-sm font-medium text-slate-700 mb-1.5">{label}</label>
@@ -256,6 +278,7 @@ export const FieldInput = ({
       value={value}
       disabled={disabled}
       required={required}
+      placeholder={placeholder}
       onChange={(e) => onChange(e.target.value)}
       className={`w-full border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-1 ${
         disabled
