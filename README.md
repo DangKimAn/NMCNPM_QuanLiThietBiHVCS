@@ -22,17 +22,21 @@ Hệ thống quản lý thiết bị, phản ánh báo hỏng và thông báo d�
 ├── backend/            # NestJS REST API
 │   ├── src/
 │   │   ├── auth/       # JWT authentication (access + refresh token)
+│   │   ├── auth/       # JWT authentication (access + refresh token)
+│   │   ├── user/       # Người dùng + roles + permissions
+│   │   ├── role/       # Quản lý vai trò
+│   │   ├── permission/ # Quản lý quyền hạn
 │   │   ├── equipment/  # Thiết bị + allocation + transfer
+│   │   ├── room/       # Proxy Room API (external service)
 │   │   ├── report/     # Phản ánh báo hỏng
 │   │   ├── notification/ # Thông báo (realtime qua Socket.IO)
-│   │   ├── user/       # Người dùng + roles + permissions
 │   │   ├── form-config/ # Cấu hình form động (Admin)
 │   │   ├── events/     # WebSocket gateway
 │   │   ├── audit-log/  # Ghi lại hoạt động
+│   │   ├── health/     # Health check
 │   │   └── prisma/     # Database schema + service
 │   └── prisma/
 │       └── schema.prisma
-└── doc/                # Tài liệu (docx + database.png)
 ```
 
 ## Role trong hệ thống
@@ -70,8 +74,8 @@ npm install
 cp .env.example .env
 # Sửa .env: JWT_ACCESS_SECRET, JWT_REFRESH_SECRET, DATABASE_URL
 
-# Đồng bộ database
-npx prisma db push
+# Áp dụng migration & generate Prisma Client
+npx prisma migrate deploy
 npx prisma generate
 
 # Seed dữ liệu mẫu
@@ -95,6 +99,9 @@ Mở trình duyệt tại `http://localhost:5173`
 
 Backend chạy tại `http://localhost:3000`.  
 Swagger docs: `http://localhost:3000/api`
+
+> **Room API:** Phòng học được quản lý bởi external service (`ROOM_API`).  
+> **Lưu ý:** `POST /api/auth/register` hiện đã bị DISABLE (chỉ Admin tạo user qua dashboard).
 
 ### API chính
 
