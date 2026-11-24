@@ -4,9 +4,9 @@ import { PrismaController } from './prisma.controller';
 import { ConfigModule } from '@nestjs/config';
 
 @Module({
-  imports :[ConfigModule],
+  imports: [ConfigModule],
   controllers: [PrismaController],
   providers: [PrismaService],
-  exports:[PrismaService]
+  exports: [PrismaService],
 })
 export class PrismaModule {}

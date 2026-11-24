@@ -12,19 +12,29 @@ describe('RoleController', () => {
         { roleId: 1, roleName: 'ADMIN' },
         { roleId: 2, roleName: 'MANAGER' },
       ] as any),
-      getRoleByRoleName: jest.fn().mockResolvedValue({ roleId: 1, roleName: 'ADMIN' } as any),
-      getRoleByRoleID: jest.fn().mockResolvedValue({ roleId: 1, roleName: 'ADMIN' } as any),
-      createRole: jest.fn().mockResolvedValue({ roleId: 3, roleName: 'AUDITOR' } as any),
-      updateRole: jest.fn().mockResolvedValue({ roleId: 3, roleName: 'AUDITOR_UPDATED' } as any),
-      deleteRole: jest.fn().mockResolvedValue({ message: 'Xóa vai trò thành công' } as any),
-      createPermission: jest.fn().mockResolvedValue({ message: 'Gán quyền thành công' } as any),
+      getRoleByRoleName: jest
+        .fn()
+        .mockResolvedValue({ roleId: 1, roleName: 'ADMIN' } as any),
+      getRoleByRoleID: jest
+        .fn()
+        .mockResolvedValue({ roleId: 1, roleName: 'ADMIN' } as any),
+      createRole: jest
+        .fn()
+        .mockResolvedValue({ roleId: 3, roleName: 'AUDITOR' } as any),
+      updateRole: jest
+        .fn()
+        .mockResolvedValue({ roleId: 3, roleName: 'AUDITOR_UPDATED' } as any),
+      deleteRole: jest
+        .fn()
+        .mockResolvedValue({ message: 'Xóa vai trò thành công' } as any),
+      createPermission: jest
+        .fn()
+        .mockResolvedValue({ message: 'Gán quyền thành công' } as any),
     };
 
     const module: TestingModule = await Test.createTestingModule({
       controllers: [RoleController],
-      providers: [
-        { provide: RoleService, useValue: service },
-      ],
+      providers: [{ provide: RoleService, useValue: service }],
     }).compile();
 
     controller = module.get<RoleController>(RoleController);
@@ -70,7 +80,7 @@ describe('RoleController', () => {
 
   it('TC-ROLE-07: Gán quyền cho vai trò', async () => {
     const dto = { permissionId: 1 };
-    const result = await controller.createRolePermission(1, dto as any);
+    const result = await controller.createRolePermission(1, dto);
     expect(result).toHaveProperty('message');
     expect(service.createPermission).toHaveBeenCalledWith(1, dto);
   });

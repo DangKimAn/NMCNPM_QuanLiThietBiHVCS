@@ -16,7 +16,9 @@ describe('ReportService', () => {
     prisma = createMockPrismaService();
     roomService = {
       findOne: jest.fn().mockResolvedValue({ roomId: 1, name: 'A201' } as any),
-      findAll: jest.fn().mockResolvedValue([{ roomId: 1, name: 'A201' }] as any),
+      findAll: jest
+        .fn()
+        .mockResolvedValue([{ roomId: 1, name: 'A201' }] as any),
     };
     eventsGateway = {
       emitNotification: jest.fn(),

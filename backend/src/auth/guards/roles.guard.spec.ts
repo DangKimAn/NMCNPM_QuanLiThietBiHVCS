@@ -1,4 +1,8 @@
-import { ExecutionContext, ForbiddenException, UnauthorizedException } from '@nestjs/common';
+import {
+  ExecutionContext,
+  ForbiddenException,
+  UnauthorizedException,
+} from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { RolesGuard } from './roles.guard';
 import { Role } from '../decorators/role.enum';
@@ -45,7 +49,9 @@ describe('RolesGuard', () => {
     const context = createMockContext({ role: Role.STUDENT });
 
     expect(() => guard.canActivate(context)).toThrow(ForbiddenException);
-    expect(() => guard.canActivate(context)).toThrow('Tài khoản của bạn không đủ thẩm quyền');
+    expect(() => guard.canActivate(context)).toThrow(
+      'Tài khoản của bạn không đủ thẩm quyền',
+    );
   });
 
   it('TC-GUARD-04: Ném lỗi UnauthorizedException nếu chưa đăng nhập (user is null/undefined)', () => {
@@ -60,6 +66,8 @@ describe('RolesGuard', () => {
     const context = createMockContext({ role: null });
 
     expect(() => guard.canActivate(context)).toThrow(ForbiddenException);
-    expect(() => guard.canActivate(context)).toThrow('Bạn không có quyền truy cập tài nguyên này');
+    expect(() => guard.canActivate(context)).toThrow(
+      'Bạn không có quyền truy cập tài nguyên này',
+    );
   });
 });

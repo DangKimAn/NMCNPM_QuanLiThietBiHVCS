@@ -12,22 +12,33 @@ describe('NotificationController', () => {
 
   beforeEach(async () => {
     service = {
-      getMyNotifications: jest.fn().mockResolvedValue([
-        { notificationId: 1, title: 'Bảo trì phòng A201', isRead: false },
-      ] as any),
-      createNotification: jest.fn().mockResolvedValue({ notificationId: 2, title: 'Thông báo mới' } as any),
+      getMyNotifications: jest
+        .fn()
+        .mockResolvedValue([
+          { notificationId: 1, title: 'Bảo trì phòng A201', isRead: false },
+        ] as any),
+      createNotification: jest.fn().mockResolvedValue({
+        notificationId: 2,
+        title: 'Thông báo mới',
+      } as any),
       countUnread: jest.fn().mockResolvedValue({ unreadCount: 3 } as any),
-      markAsRead: jest.fn().mockResolvedValue({ message: 'Đã đánh dấu đã đọc' } as any),
-      markAllAsRead: jest.fn().mockResolvedValue({ message: 'Đã đọc tất cả' } as any),
-      clearAllNotifications: jest.fn().mockResolvedValue({ message: 'Đã xóa tất cả thông báo' } as any),
-      deleteNotification: jest.fn().mockResolvedValue({ message: 'Đã xóa thông báo' } as any),
+      markAsRead: jest
+        .fn()
+        .mockResolvedValue({ message: 'Đã đánh dấu đã đọc' } as any),
+      markAllAsRead: jest
+        .fn()
+        .mockResolvedValue({ message: 'Đã đọc tất cả' } as any),
+      clearAllNotifications: jest
+        .fn()
+        .mockResolvedValue({ message: 'Đã xóa tất cả thông báo' } as any),
+      deleteNotification: jest
+        .fn()
+        .mockResolvedValue({ message: 'Đã xóa thông báo' } as any),
     };
 
     const module: TestingModule = await Test.createTestingModule({
       controllers: [NotificationController],
-      providers: [
-        { provide: NotificationService, useValue: service },
-      ],
+      providers: [{ provide: NotificationService, useValue: service }],
     }).compile();
 
     controller = module.get<NotificationController>(NotificationController);
@@ -40,7 +51,11 @@ describe('NotificationController', () => {
   });
 
   it('TC-NOTI-02: Manager tạo thông báo mới', async () => {
-    const dto = { title: 'Thông báo mới', message: 'Nội dung', targetRole: 'ALL' as any };
+    const dto = {
+      title: 'Thông báo mới',
+      message: 'Nội dung',
+      targetRole: 'ALL' as any,
+    };
     const result = await controller.createNotification(mockReq, dto);
     expect(result.notificationId).toBe(2);
     expect(service.createNotification).toHaveBeenCalledWith(5, dto);

@@ -8,27 +8,40 @@ describe('EquipmentTransferController', () => {
 
   beforeEach(async () => {
     service = {
-      findAll: jest.fn().mockResolvedValue([
-        { transferId: 1, equipmentId: 5, fromRoomId: 1, toRoomId: 2 },
-      ] as any),
-      findOne: jest.fn().mockResolvedValue({ transferId: 1, equipmentId: 5 } as any),
-      create: jest.fn().mockResolvedValue({ transferId: 2, equipmentId: 6 } as any),
+      findAll: jest
+        .fn()
+        .mockResolvedValue([
+          { transferId: 1, equipmentId: 5, fromRoomId: 1, toRoomId: 2 },
+        ] as any),
+      findOne: jest
+        .fn()
+        .mockResolvedValue({ transferId: 1, equipmentId: 5 } as any),
+      create: jest
+        .fn()
+        .mockResolvedValue({ transferId: 2, equipmentId: 6 } as any),
       createBulk: jest.fn().mockResolvedValue({ count: 4 } as any),
-      importFromExcel: jest.fn().mockResolvedValue({ total: 10, success: 10, failed: 0 } as any),
+      importFromExcel: jest
+        .fn()
+        .mockResolvedValue({ total: 10, success: 10, failed: 0 } as any),
     };
 
     const module: TestingModule = await Test.createTestingModule({
       controllers: [EquipmentTransferController],
-      providers: [
-        { provide: EquipmentTransferService, useValue: service },
-      ],
+      providers: [{ provide: EquipmentTransferService, useValue: service }],
     }).compile();
 
-    controller = module.get<EquipmentTransferController>(EquipmentTransferController);
+    controller = module.get<EquipmentTransferController>(
+      EquipmentTransferController,
+    );
   });
 
   it('TC-TRANS-01: Tạo lệnh điều chuyển thiết bị', async () => {
-    const dto = { equipmentId: 6, fromRoomId: 1, toRoomId: 2, transferDate: '2026-11-24' };
+    const dto = {
+      equipmentId: 6,
+      fromRoomId: 1,
+      toRoomId: 2,
+      transferDate: '2026-11-24',
+    };
     const result = await controller.create(dto as any);
     expect(result.transferId).toBe(2);
     expect(service.create).toHaveBeenCalledWith(dto);

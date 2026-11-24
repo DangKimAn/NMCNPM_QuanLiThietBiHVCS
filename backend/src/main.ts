@@ -2,6 +2,7 @@ import { NestFactory } from '@nestjs/core';
 import { ValidationPipe } from '@nestjs/common';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { WINSTON_MODULE_NEST_PROVIDER } from 'nest-winston';
+import { IoAdapter } from '@nestjs/platform-socket.io';
 import helmet from 'helmet';
 
 import { AppModule } from './app.module';
@@ -20,7 +21,6 @@ async function bootstrap() {
   app.useLogger(app.get(WINSTON_MODULE_NEST_PROVIDER));
 
   // Cấu hình WebSocket Adapter (Socket.IO)
-  const { IoAdapter } = require('@nestjs/platform-socket.io');
   app.useWebSocketAdapter(new IoAdapter(app));
 
   // Đặt prefix /api cho tất cả các route
@@ -88,4 +88,4 @@ async function bootstrap() {
   logger.log(`Swagger API: http://localhost:${port}/api`, 'Bootstrap');
 }
 
-bootstrap();
+void bootstrap();

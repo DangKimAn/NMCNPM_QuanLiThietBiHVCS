@@ -1,5 +1,5 @@
 // lib/auth.ts
-import bcrypt from "bcrypt";
+import bcrypt from 'bcrypt';
 
 // 1. Hàm Băm Mật Khẩu (Dùng khi Đăng ký)
 export async function hashPassword(password: string): Promise<string> {
@@ -9,7 +9,10 @@ export async function hashPassword(password: string): Promise<string> {
 }
 
 // 2. Hàm Kiểm Tra Mật Khẩu (Dùng khi Đăng nhập)
-export async function verifyPassword(plainTextPassword: string, hashedPasswordInDb: string): Promise<boolean> {
+export async function verifyPassword(
+  plainTextPassword: string,
+  hashedPasswordInDb: string,
+): Promise<boolean> {
   const isMatch = await bcrypt.compare(plainTextPassword, hashedPasswordInDb);
   return isMatch;
 }

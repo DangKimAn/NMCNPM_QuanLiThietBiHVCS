@@ -1,5 +1,5 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { ForbiddenException, BadRequestException } from '@nestjs/common';
+import { ForbiddenException } from '@nestjs/common';
 import { UserController } from './user.controller';
 import { UserService } from './user.service';
 import { Role } from 'src/auth/decorators/role.enum';
@@ -25,9 +25,7 @@ describe('UserController', () => {
 
     const module: TestingModule = await Test.createTestingModule({
       controllers: [UserController],
-      providers: [
-        { provide: UserService, useValue: userService },
-      ],
+      providers: [{ provide: UserService, useValue: userService }],
     }).compile();
 
     controller = module.get<UserController>(UserController);
@@ -75,7 +73,11 @@ describe('UserController', () => {
     it('TC-USER-13: Admin được phép cập nhật thông tin kèm roleId cho user khác', async () => {
       const currentUser = { userId: 1, role: Role.ADMIN };
       const dto = { fullName: 'Updated Name', roleId: 2 };
-      const mockResult = { userId: 10, fullName: 'Updated Name', roleId: 2 } as any;
+      const mockResult = {
+        userId: 10,
+        fullName: 'Updated Name',
+        roleId: 2,
+      } as any;
 
       userService.updateUser = jest.fn().mockResolvedValue(mockResult);
 
@@ -100,7 +102,9 @@ describe('UserController', () => {
   describe('findOne (GET /getUserbyUserId/:userID)', () => {
     it('TC-USER-07: User xem thông tin chính mình thành công', async () => {
       const currentUser = { userId: 5, role: Role.STUDENT };
-      userService.getUserByUserId = jest.fn().mockResolvedValue({ userId: 5, username: 'sv1' } as any);
+      userService.getUserByUserId = jest
+        .fn()
+        .mockResolvedValue({ userId: 5, username: 'sv1' } as any);
 
       const result = await controller.findOne(5, currentUser);
       expect(result.userId).toBe(5);
@@ -116,7 +120,9 @@ describe('UserController', () => {
 
     it('TC-USER-09: Admin xem thông tin bất kỳ user nào thành công', async () => {
       const currentUser = { userId: 1, role: Role.ADMIN };
-      userService.getUserByUserId = jest.fn().mockResolvedValue({ userId: 6, username: 'sv2' } as any);
+      userService.getUserByUserId = jest
+        .fn()
+        .mockResolvedValue({ userId: 6, username: 'sv2' } as any);
 
       const result = await controller.findOne(6, currentUser);
       expect(result.userId).toBe(6);
@@ -126,7 +132,9 @@ describe('UserController', () => {
   describe('changePassword (PATCH /:userId/password)', () => {
     it('TC-USER-16: Đổi mật khẩu của chính mình thành công', async () => {
       const currentUser = { userId: 5, role: Role.STUDENT };
-      userService.changePassword = jest.fn().mockResolvedValue({ message: 'Đổi mật khẩu thành công' });
+      userService.changePassword = jest
+        .fn()
+        .mockResolvedValue({ message: 'Đổi mật khẩu thành công' });
 
       const result = await controller.changePassword(
         5,
@@ -141,7 +149,11 @@ describe('UserController', () => {
       const currentUser = { userId: 5, role: Role.STUDENT };
 
       await expect(
-        controller.changePassword(6, { oldPassword: 'old', newPassword: 'new' }, currentUser),
+        controller.changePassword(
+          6,
+          { oldPassword: 'old', newPassword: 'new' },
+          currentUser,
+        ),
       ).rejects.toThrow('Chỉ được phép đổi mật khẩu của chính mình!');
     });
   });

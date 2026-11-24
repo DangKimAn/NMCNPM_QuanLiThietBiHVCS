@@ -1,16 +1,13 @@
-import { ApiProperty } from "@nestjs/swagger";
-import { IsOptional, IsString } from "class-validator";
+import { ApiProperty } from '@nestjs/swagger';
+import { IsOptional, IsString } from 'class-validator';
 
-export class CreatePermissionDto{
-    @IsString()
+export class CreatePermissionDto {
+  @IsString()
+  @ApiProperty()
+  permissionName: string;
 
-    @ApiProperty()
-    permissionName : string 
-
-    @IsOptional()
-    @IsString()
-
-    @ApiProperty()
-
-    description : string
+  @IsOptional()
+  @IsString()
+  @ApiProperty()
+  description: string;
 }

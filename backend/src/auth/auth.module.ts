@@ -23,7 +23,13 @@ import { MailerService } from 'src/common/mailer.service';
     }),
   ],
   controllers: [AuthController],
-  providers: [AuthService, JwtStrategy, JwtRefreshStrategy, GoogleStrategy, MailerService], //BẮT BUỘC: Điền cả 2 vào đây để NestJS không bắt lỗi thiếu Dependency khi compile
+  providers: [
+    AuthService,
+    JwtStrategy,
+    JwtRefreshStrategy,
+    GoogleStrategy,
+    MailerService,
+  ], //BẮT BUỘC: Điền cả 2 vào đây để NestJS không bắt lỗi thiếu Dependency khi compile
   exports: [AuthService, PassportModule, JwtModule], //Export ra ngoài cho các Module khác xài chung Guard
 })
-export class AuthModule { }
+export class AuthModule {}

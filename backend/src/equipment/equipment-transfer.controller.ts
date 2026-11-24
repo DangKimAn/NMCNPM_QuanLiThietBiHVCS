@@ -18,7 +18,6 @@ import { Roles } from 'src/auth/decorators/roles.decorator';
 import { Role } from 'src/auth/decorators/role.enum';
 
 import {
-  BadRequestException,
   UploadedFile,
   UseInterceptors,
   ParseFilePipe,

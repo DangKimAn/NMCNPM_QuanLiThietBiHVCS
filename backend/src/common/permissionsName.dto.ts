@@ -1,4 +1,3 @@
-
 export enum SystemPermission {
   VIEW_USER = 'VIEW_USER',
   CREATE_USER = 'CREATE_USER',
@@ -8,7 +7,6 @@ export enum SystemPermission {
   ASSIGN_PERMISSION = 'ASSIGN_PERMISSION',
   VIEW_ACTIVITY_LOG = 'VIEW_ACTIVITY_LOG',
 }
-
 
 export enum FacilityPermission {
   VIEW_EQUIPMENT = 'VIEW_EQUIPMENT',
@@ -20,13 +18,11 @@ export enum FacilityPermission {
   TRANSFER_EQUIPMENT = 'TRANSFER_EQUIPMENT',
 }
 
-
 export enum BorrowRequestPermission {
   CREATE_BORROW_REQUEST = 'CREATE_BORROW_REQUEST',
   VIEW_BORROW_REQUEST = 'VIEW_BORROW_REQUEST',
   APPROVE_BORROW_REQUEST = 'APPROVE_BORROW_REQUEST', // Bao gồm cả duyệt mượn và xác nhận trả
 }
-
 
 export enum IncidentReportPermission {
   CREATE_REPORT = 'CREATE_REPORT',
@@ -35,12 +31,10 @@ export enum IncidentReportPermission {
   SEND_FEEDBACK = 'SEND_FEEDBACK',
 }
 
-
 export enum DashboardPermission {
   VIEW_DASHBOARD = 'VIEW_DASHBOARD',
   EXPORT_REPORT = 'EXPORT_REPORT',
 }
-
 
 export const AllPermissions = {
   ...SystemPermission,
@@ -50,9 +44,9 @@ export const AllPermissions = {
   ...DashboardPermission,
 };
 
-export type PermissionType = 
-  | SystemPermission 
-  | FacilityPermission 
-  | BorrowRequestPermission 
-  | IncidentReportPermission 
+export type PermissionType =
+  | SystemPermission
+  | FacilityPermission
+  | BorrowRequestPermission
+  | IncidentReportPermission
   | DashboardPermission;

@@ -12,18 +12,30 @@ describe('PermissionController', () => {
         { permissionId: 1, permissionName: 'MANAGE_ROOM' },
         { permissionId: 2, permissionName: 'MANAGE_EQUIPMENT' },
       ] as any),
-      getPermissionById: jest.fn().mockResolvedValue({ permissionId: 1, permissionName: 'MANAGE_ROOM' } as any),
-      getPermissionByName: jest.fn().mockResolvedValue({ permissionId: 1, permissionName: 'MANAGE_ROOM' } as any),
-      createPermission: jest.fn().mockResolvedValue({ permissionId: 3, permissionName: 'VIEW_REPORTS' } as any),
-      updatePermission: jest.fn().mockResolvedValue({ permissionId: 3, permissionName: 'VIEW_REPORTS_EDITED' } as any),
-      deletePermission: jest.fn().mockResolvedValue({ message: 'Xóa quyền thành công' } as any),
+      getPermissionById: jest.fn().mockResolvedValue({
+        permissionId: 1,
+        permissionName: 'MANAGE_ROOM',
+      } as any),
+      getPermissionByName: jest.fn().mockResolvedValue({
+        permissionId: 1,
+        permissionName: 'MANAGE_ROOM',
+      } as any),
+      createPermission: jest.fn().mockResolvedValue({
+        permissionId: 3,
+        permissionName: 'VIEW_REPORTS',
+      } as any),
+      updatePermission: jest.fn().mockResolvedValue({
+        permissionId: 3,
+        permissionName: 'VIEW_REPORTS_EDITED',
+      } as any),
+      deletePermission: jest
+        .fn()
+        .mockResolvedValue({ message: 'Xóa quyền thành công' } as any),
     };
 
     const module: TestingModule = await Test.createTestingModule({
       controllers: [PermissionController],
-      providers: [
-        { provide: PermissionService, useValue: service },
-      ],
+      providers: [{ provide: PermissionService, useValue: service }],
     }).compile();
 
     controller = module.get<PermissionController>(PermissionController);
@@ -49,7 +61,7 @@ describe('PermissionController', () => {
 
   it('TC-PERM-04: Tạo permission mới', async () => {
     const dto = { permissionName: 'VIEW_REPORTS', description: 'Xem phản ánh' };
-    const result = await controller.createPermission(dto as any);
+    const result = await controller.createPermission(dto);
     expect(result.permissionName).toBe('VIEW_REPORTS');
     expect(service.createPermission).toHaveBeenCalledWith(dto);
   });

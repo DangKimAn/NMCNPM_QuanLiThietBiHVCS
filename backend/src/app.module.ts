@@ -14,7 +14,6 @@ import { AppService } from './app.service';
 import { AuditLogModule } from './audit-log/audit-log.module';
 import { AuditLogMiddleware } from './audit-log/audit-log.middleware';
 import { AuditLogController } from './audit-log/audit-log.controller';
-import { FormConfigController } from './form-config/form-config.controller';
 
 import { PrismaModule } from './prisma/prisma.module';
 

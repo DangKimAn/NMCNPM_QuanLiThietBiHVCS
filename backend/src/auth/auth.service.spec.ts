@@ -1,5 +1,5 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { UnauthorizedException, NotFoundException, BadRequestException } from '@nestjs/common';
+import { UnauthorizedException, NotFoundException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import { AuthService } from './auth.service';
@@ -62,7 +62,9 @@ describe('AuthService', () => {
 
       prisma.user.findFirst.mockResolvedValue(mockUser);
       jest.spyOn(bcryptUtils, 'verifyPassword').mockResolvedValue(true);
-      jest.spyOn(bcryptUtils, 'hashPassword').mockResolvedValue('hashed-refresh-token');
+      jest
+        .spyOn(bcryptUtils, 'hashPassword')
+        .mockResolvedValue('hashed-refresh-token');
       prisma.user.update.mockResolvedValue(mockUser);
 
       const result = await authService.login({
@@ -76,7 +78,9 @@ describe('AuthService', () => {
       expect(prisma.user.update).toHaveBeenCalledWith(
         expect.objectContaining({
           where: { userId: 1 },
-          data: expect.objectContaining({ refreshToken: 'hashed-refresh-token' }),
+          data: expect.objectContaining({
+            refreshToken: 'hashed-refresh-token',
+          }),
         }),
       );
     });
@@ -85,7 +89,10 @@ describe('AuthService', () => {
       prisma.user.findFirst.mockResolvedValue(null);
 
       await expect(
-        authService.login({ username: 'nonexistent', password: 'Password123!' }),
+        authService.login({
+          username: 'nonexistent',
+          password: 'Password123!',
+        }),
       ).rejects.toThrow(UnauthorizedException);
     });
 
@@ -115,7 +122,10 @@ describe('AuthService', () => {
       jest.spyOn(bcryptUtils, 'verifyPassword').mockResolvedValue(true);
 
       await expect(
-        authService.login({ username: 'locked_user', password: 'Password123!' }),
+        authService.login({
+          username: 'locked_user',
+          password: 'Password123!',
+        }),
       ).rejects.toThrow('Tài khoản đã bị khóa');
     });
   });
@@ -213,7 +223,9 @@ describe('AuthService', () => {
         resetPasswordExpires: new Date(Date.now() + 10 * 60 * 1000),
       });
       jest.spyOn(bcryptUtils, 'verifyPassword').mockResolvedValue(true);
-      jest.spyOn(bcryptUtils, 'hashPassword').mockResolvedValue('new-hashed-password');
+      jest
+        .spyOn(bcryptUtils, 'hashPassword')
+        .mockResolvedValue('new-hashed-password');
       prisma.user.update.mockResolvedValue({});
 
       const result = await authService.resetPassword({

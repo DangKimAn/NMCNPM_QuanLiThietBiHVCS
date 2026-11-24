@@ -8,9 +8,11 @@ describe('RoomController', () => {
 
   beforeEach(async () => {
     roomService = {
-      findAll: jest.fn().mockResolvedValue([
-        { roomId: 1, name: 'A201', capacity: 40, status: 'AVAILABLE' },
-      ] as any),
+      findAll: jest
+        .fn()
+        .mockResolvedValue([
+          { roomId: 1, name: 'A201', capacity: 40, status: 'AVAILABLE' },
+        ] as any),
       findOne: jest.fn().mockResolvedValue({ roomId: 1, name: 'A201' } as any),
       create: jest.fn().mockResolvedValue({ roomId: 2, name: 'B102' } as any),
       remove: jest.fn().mockResolvedValue({ message: 'Xóa thành công' } as any),
@@ -18,9 +20,7 @@ describe('RoomController', () => {
 
     const module: TestingModule = await Test.createTestingModule({
       controllers: [RoomController],
-      providers: [
-        { provide: RoomService, useValue: roomService },
-      ],
+      providers: [{ provide: RoomService, useValue: roomService }],
     }).compile();
 
     controller = module.get<RoomController>(RoomController);

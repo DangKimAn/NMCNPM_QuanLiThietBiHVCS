@@ -27,9 +27,7 @@ import { Role } from 'src/auth/decorators/role.enum';
 @Roles(Role.ADMIN, Role.MANAGER)
 @Controller('equipment-allocations')
 export class EquipmentAllocationController {
-  constructor(
-    private readonly allocationService: EquipmentAllocationService,
-  ) {}
+  constructor(private readonly allocationService: EquipmentAllocationService) {}
 
   @Post()
   create(@Body() createDto: CreateEquipmentAllocationDto) {

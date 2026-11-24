@@ -1,4 +1,13 @@
-import { Body, Controller, Delete, Get, Param, Post, Query, UseGuards } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  Param,
+  Post,
+  Query,
+  UseGuards,
+} from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 
 import { RoomService } from './room.service';
@@ -17,9 +26,7 @@ export class RoomController {
 
   // GET /rooms?search=A201
   @Get()
-  findAll(
-    @Query('search') search?: string,
-  ) {
+  findAll(@Query('search') search?: string) {
     return this.roomService.findAll({ search });
   }
 
@@ -35,7 +42,6 @@ export class RoomController {
   create(@Body() dto: CreateRoomDto) {
     return this.roomService.create(dto);
   }
-
 
   // DELETE /rooms/1
   @Delete(':roomId')

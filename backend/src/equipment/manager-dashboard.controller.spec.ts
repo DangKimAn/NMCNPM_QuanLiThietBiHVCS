@@ -25,12 +25,12 @@ describe('ManagerDashboardController', () => {
 
     const module: TestingModule = await Test.createTestingModule({
       controllers: [ManagerDashboardController],
-      providers: [
-        { provide: ManagerDashboardService, useValue: service },
-      ],
+      providers: [{ provide: ManagerDashboardService, useValue: service }],
     }).compile();
 
-    controller = module.get<ManagerDashboardController>(ManagerDashboardController);
+    controller = module.get<ManagerDashboardController>(
+      ManagerDashboardController,
+    );
   });
 
   it('TC-DASH-01: Lấy số liệu tổng quan Dashboard thành công', async () => {

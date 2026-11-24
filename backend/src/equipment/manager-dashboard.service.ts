@@ -117,24 +117,24 @@ export class ManagerDashboardService {
     const roomMap = new Map(rooms.map((r: any) => [r.roomId, r]));
 
     const roomStats = rooms.map((room: any) => {
-      const roomAllocations = allAllocations.filter(a => a.roomId === room.roomId);
+      const roomAllocations = allAllocations.filter(
+        (a) => a.roomId === room.roomId,
+      );
 
       const totalQuantity = roomAllocations.length;
 
-      const activeQuantity = roomAllocations
-        .filter((allocation) => {
-          return allocation.equipment.status === EquipmentStatus.GOOD;
-        }).length;
+      const activeQuantity = roomAllocations.filter((allocation) => {
+        return allocation.equipment.status === EquipmentStatus.GOOD;
+      }).length;
 
-      const needHandleQuantity = roomAllocations
-        .filter((allocation) => {
-          const status = allocation.equipment.status;
+      const needHandleQuantity = roomAllocations.filter((allocation) => {
+        const status = allocation.equipment.status;
 
-          return (
-            status === EquipmentStatus.BROKEN ||
-            status === EquipmentStatus.UNDER_REPAIR
-          );
-        }).length;
+        return (
+          status === EquipmentStatus.BROKEN ||
+          status === EquipmentStatus.UNDER_REPAIR
+        );
+      }).length;
 
       return {
         roomId: room.roomId,
@@ -146,15 +146,15 @@ export class ManagerDashboardService {
       };
     });
 
-    const latestReports = rawLatestReports.map(r => ({
+    const latestReports = rawLatestReports.map((r) => ({
       ...r,
-      room: roomMap.get(r.roomId) || null
+      room: roomMap.get(r.roomId) || null,
     }));
 
-    const latestTransfers = rawLatestTransfers.map(t => ({
+    const latestTransfers = rawLatestTransfers.map((t) => ({
       ...t,
       fromRoom: roomMap.get(t.fromRoomId) || null,
-      toRoom: roomMap.get(t.toRoomId) || null
+      toRoom: roomMap.get(t.toRoomId) || null,
     }));
 
     return {

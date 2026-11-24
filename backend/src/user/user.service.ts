@@ -94,7 +94,6 @@ export class UserService {
     }
   }
 
-
   async getUserByUserId(userId: number): Promise<UserDto> {
     try {
       const user = await this.prismaService.user.findFirstOrThrow({
@@ -139,7 +138,9 @@ export class UserService {
       });
     } catch (error: any) {
       if (error.code === PrismaErrorCode.RecordNotFound) {
-        throw new NotFoundException('Không tìm thấy người dùng với Email này !!!');
+        throw new NotFoundException(
+          'Không tìm thấy người dùng với Email này !!!',
+        );
       }
 
       console.error('Lỗi tại getUserByEmail:', error);
@@ -456,7 +457,7 @@ export class UserService {
       const sheet = workbook.Sheets[sheetName];
       const data: any[] = xlsx.utils.sheet_to_json(sheet);
 
-      let rowNum = 1; 
+      let rowNum = 1;
 
       for (const row of data) {
         rowNum++;
@@ -465,7 +466,8 @@ export class UserService {
           const email = row['Email'] || row['email'];
           const fullName = row['Họ tên'] || row['fullName'];
           const phoneNumber = row['Số điện thoại'] || row['phoneNumber'];
-          const password = row['Mật khẩu tạm thời'] || row['password'] || '123456aA@';
+          const password =
+            row['Mật khẩu tạm thời'] || row['password'] || '123456aA@';
           const roleName = row['Vai trò'] || row['roleName'] || 'STUDENT';
 
           if (!username || !email) {
@@ -476,13 +478,16 @@ export class UserService {
 
           const existingUser = await this.prismaService.user.findFirst({
             where: {
-              OR: [{ username: String(username) }, { email: String(email) }]
-            }
+              OR: [{ username: String(username) }, { email: String(email) }],
+            },
           });
 
           if (existingUser) {
             failedCount++;
-            errors.push({ row: rowNum, reason: 'Username hoặc Email đã tồn tại' });
+            errors.push({
+              row: rowNum,
+              reason: 'Username hoặc Email đã tồn tại',
+            });
             continue;
           }
 
@@ -492,7 +497,10 @@ export class UserService {
 
           if (!targetRole) {
             failedCount++;
-            errors.push({ row: rowNum, reason: `Vai trò [${roleName}] không tồn tại` });
+            errors.push({
+              row: rowNum,
+              reason: `Vai trò [${roleName}] không tồn tại`,
+            });
             continue;
           }
 
@@ -518,8 +526,10 @@ export class UserService {
       }
 
       return { successCount, failedCount, errors };
-    } catch (error) {
-      throw new BadRequestException('Lỗi đọc file Excel. Vui lòng kiểm tra lại định dạng file.');
+    } catch {
+      throw new BadRequestException(
+        'Lỗi đọc file Excel. Vui lòng kiểm tra lại định dạng file.',
+      );
     }
   }
 }

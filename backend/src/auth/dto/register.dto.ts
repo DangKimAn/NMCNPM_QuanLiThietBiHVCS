@@ -1,4 +1,11 @@
-import { IsEmail, IsNotEmpty, IsOptional, IsString, MinLength, Matches } from 'class-validator';
+import {
+  IsEmail,
+  IsNotEmpty,
+  IsOptional,
+  IsString,
+  MinLength,
+  Matches,
+} from 'class-validator';
 
 export class RegisterDto {
   @IsNotEmpty({ message: 'Username không được để trống' })
@@ -9,7 +16,8 @@ export class RegisterDto {
   @IsEmail({}, { message: 'Email không đúng định dạng' })
   // Regex tối ưu hóa kiểm tra chính xác 2 đuôi email được cung cấp
   @Matches(/^[^@]+@(student\.)?ptithcm\.edu\.vn$/, {
-    message: 'Hệ thống chỉ chấp nhận email thuộc học viện (*@ptithcm.edu.vn hoặc *@student.ptithcm.edu.vn)!',
+    message:
+      'Hệ thống chỉ chấp nhận email thuộc học viện (*@ptithcm.edu.vn hoặc *@student.ptithcm.edu.vn)!',
   })
   email: string;
 

@@ -44,7 +44,9 @@ export class NotificationService {
     const roleName = await this.getUserRoleName(userId);
 
     if (roleName !== 'MANAGER' && roleName !== 'ADMIN') {
-      throw new ForbiddenException('Chỉ cán bộ quản lý và quản trị viên mới được viết thông báo');
+      throw new ForbiddenException(
+        'Chỉ cán bộ quản lý và quản trị viên mới được viết thông báo',
+      );
     }
 
     if (!dto.title?.trim()) {
@@ -59,7 +61,7 @@ export class NotificationService {
       data: {
         title: dto.title.trim(),
         content: dto.content.trim(),
-        targetRole: dto.targetRole as NotificationTargetRole,
+        targetRole: dto.targetRole,
         senderId: userId,
       },
       include: {
@@ -87,7 +89,10 @@ export class NotificationService {
       where: {
         OR: [
           { targetRole: NotificationTargetRole.ALL },
-          { targetRole: roleName as NotificationTargetRole, targetUserId: null },
+          {
+            targetRole: roleName as NotificationTargetRole,
+            targetUserId: null,
+          },
           { targetUserId: userId },
         ],
       },

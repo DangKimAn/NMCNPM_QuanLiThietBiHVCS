@@ -1,4 +1,8 @@
-import { Injectable, InternalServerErrorException, NotFoundException } from '@nestjs/common';
+import {
+  Injectable,
+  InternalServerErrorException,
+  NotFoundException,
+} from '@nestjs/common';
 import { CreateRoomDto } from './dto/create-room.dto';
 import { UpdateRoomDto } from './dto/update-room.dto';
 import { PrismaService } from 'src/prisma/prisma.service';
@@ -8,7 +12,9 @@ export class RoomService {
   constructor(private prisma: PrismaService) {}
 
   private get baseUrl() {
-    return process.env.ROOM_API ? `${process.env.ROOM_API}/api/rooms` : 'http://localhost:3000/api/rooms';
+    return process.env.ROOM_API
+      ? `${process.env.ROOM_API}/api/rooms`
+      : 'http://localhost:3000/api/rooms';
   }
 
   // Simple in-memory cache
@@ -18,7 +24,10 @@ export class RoomService {
 
   private async fetchRoomsFromApi(): Promise<any[]> {
     const now = Date.now();
-    if (this.cachedRooms.length > 0 && (now - this.cacheTimestamp < this.CACHE_TTL)) {
+    if (
+      this.cachedRooms.length > 0 &&
+      now - this.cacheTimestamp < this.CACHE_TTL
+    ) {
       return this.cachedRooms;
     }
 
@@ -28,7 +37,7 @@ export class RoomService {
         throw new Error('Failed to fetch rooms');
       }
       const data = await response.json();
-      
+
       const rawRooms = data.data || [];
       this.cachedRooms = rawRooms.map((r: any) => ({
         roomId: r.id,
@@ -75,7 +84,10 @@ export class RoomService {
             name: a.equipment.name,
             status: a.equipment.status,
             category: a.equipment.category
-              ? { categoryId: a.equipment.category.categoryId, name: a.equipment.category.name }
+              ? {
+                  categoryId: a.equipment.category.categoryId,
+                  name: a.equipment.category.name,
+                }
               : null,
           },
         })),
@@ -83,9 +95,10 @@ export class RoomService {
 
     if (query.search) {
       const lowerSearch = query.search.toLowerCase();
-      return rooms.filter((r: any) => 
-        r.name.toLowerCase().includes(lowerSearch) || 
-        r.code.toLowerCase().includes(lowerSearch)
+      return rooms.filter(
+        (r: any) =>
+          r.name.toLowerCase().includes(lowerSearch) ||
+          r.code.toLowerCase().includes(lowerSearch),
       );
     }
     return rooms;
@@ -109,7 +122,7 @@ export class RoomService {
       if (!response.ok) {
         throw new Error('Failed to create room');
       }
-      
+
       // Invalidate cache
       this.cacheTimestamp = 0;
 
@@ -123,13 +136,17 @@ export class RoomService {
       };
     } catch (error) {
       console.error(error);
-      throw new InternalServerErrorException('Lỗi khi tạo phòng học mới qua hệ thống ngoài');
+      throw new InternalServerErrorException(
+        'Lỗi khi tạo phòng học mới qua hệ thống ngoài',
+      );
     }
   }
 
   // Cập nhật phòng học
-  async update(roomId: number, dto: UpdateRoomDto) {
-    throw new InternalServerErrorException('API hiện tại không hỗ trợ cập nhật thông tin phòng');
+  async update(_roomId: number, _dto: UpdateRoomDto) {
+    throw new InternalServerErrorException(
+      'API hiện tại không hỗ trợ cập nhật thông tin phòng',
+    );
   }
 
   // Xóa phòng học
@@ -142,21 +159,27 @@ export class RoomService {
         const errText = await response.text();
         throw new Error(errText);
       }
-      
+
       // Invalidate cache
       this.cacheTimestamp = 0;
 
       return { success: true, message: 'Xóa phòng học thành công' };
     } catch (error: any) {
       console.error(error);
-      throw new InternalServerErrorException(error.message || 'Lỗi khi xóa phòng học');
+      throw new InternalServerErrorException(
+        error.message || 'Lỗi khi xóa phòng học',
+      );
     }
   }
 
   // Cập nhật số lượng thiết bị (cộng/trừ) qua API và tự động ROLLBACK Prisma nếu lỗi
-  async updateEquipmentCount(roomId: number, action: 'add' | 'sub', amount: number) {
+  async updateEquipmentCount(
+    roomId: number,
+    action: 'add' | 'sub',
+    amount: number,
+  ) {
     if (!roomId) return null;
-    
+
     // Invalidate cache since count will change
     this.cacheTimestamp = 0;
 
@@ -168,17 +191,23 @@ export class RoomService {
 
     if (!response.ok) {
       if (response.status === 404) {
-        throw new NotFoundException(`Phòng học ID ${roomId} không tồn tại trên ROOM_API`);
+        throw new NotFoundException(
+          `Phòng học ID ${roomId} không tồn tại trên ROOM_API`,
+        );
       }
       if (response.status === 400) {
         const err = await response.json();
-        throw new InternalServerErrorException(err.error || 'Lỗi cập nhật số lượng thiết bị trên ROOM_API');
+        throw new InternalServerErrorException(
+          err.error || 'Lỗi cập nhật số lượng thiết bị trên ROOM_API',
+        );
       }
-      throw new InternalServerErrorException(`Lỗi hệ thống khi gọi ROOM_API (Status: ${response.status})`);
+      throw new InternalServerErrorException(
+        `Lỗi hệ thống khi gọi ROOM_API (Status: ${response.status})`,
+      );
     }
 
     const data = await response.json();
-    
+
     return {
       roomId: data.id,
       code: data.name,

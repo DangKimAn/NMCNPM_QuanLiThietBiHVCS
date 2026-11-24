@@ -35,7 +35,10 @@ describe('GlobalExceptionFilter', () => {
 
   it('TC-FILTER-01: Bắt HttpException và trả về định dạng response JSON chuẩn', () => {
     const host = createMockHost();
-    const exception = new HttpException('Dữ liệu không hợp lệ', HttpStatus.BAD_REQUEST);
+    const exception = new HttpException(
+      'Dữ liệu không hợp lệ',
+      HttpStatus.BAD_REQUEST,
+    );
 
     filter.catch(exception, host as any);
 
@@ -54,7 +57,9 @@ describe('GlobalExceptionFilter', () => {
     process.env.NODE_ENV = 'production';
 
     const host = createMockHost();
-    const exception = new Error('Database connection failed: password wrong at 10.0.0.1');
+    const exception = new Error(
+      'Database connection failed: password wrong at 10.0.0.1',
+    );
 
     filter.catch(exception, host as any);
 

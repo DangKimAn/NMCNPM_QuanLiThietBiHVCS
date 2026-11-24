@@ -44,7 +44,7 @@ export class AuditLogController {
     if (from || to) {
       where.createdAt = {};
       if (from) where.createdAt.gte = new Date(from);
-      if (to)   where.createdAt.lte = new Date(to);
+      if (to) where.createdAt.lte = new Date(to);
     }
 
     const [logs, total] = await Promise.all([
@@ -63,7 +63,7 @@ export class AuditLogController {
     return {
       logs,
       total,
-      page:  page  ? parseInt(page, 10)  : 1,
+      page: page ? parseInt(page, 10) : 1,
       limit: take,
     };
   }

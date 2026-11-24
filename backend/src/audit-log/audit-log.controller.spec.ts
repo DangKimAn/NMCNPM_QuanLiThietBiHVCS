@@ -12,9 +12,7 @@ describe('AuditLogController', () => {
 
     const module: TestingModule = await Test.createTestingModule({
       controllers: [AuditLogController],
-      providers: [
-        { provide: PrismaService, useValue: prisma },
-      ],
+      providers: [{ provide: PrismaService, useValue: prisma }],
     }).compile();
 
     controller = module.get<AuditLogController>(AuditLogController);
@@ -22,7 +20,12 @@ describe('AuditLogController', () => {
 
   it('TC-AUDIT-01: Admin lấy danh sách logs có phân trang', async () => {
     prisma.activityLog.findMany.mockResolvedValue([
-      { logId: 1, action: 'Cập nhật', target: 'user', user: { username: 'admin', userId: 1 } },
+      {
+        logId: 1,
+        action: 'Cập nhật',
+        target: 'user',
+        user: { username: 'admin', userId: 1 },
+      },
     ]);
     prisma.activityLog.count.mockResolvedValue(1);
 

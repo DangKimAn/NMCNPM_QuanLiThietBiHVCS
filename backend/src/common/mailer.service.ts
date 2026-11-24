@@ -61,7 +61,9 @@ export class MailerService {
       await transporter.sendMail(mailOptions);
     } catch (err) {
       console.error('[MailerService] Lỗi gửi email:', err);
-      throw new InternalServerErrorException('Không thể gửi email OTP. Vui lòng thử lại sau.');
+      throw new InternalServerErrorException(
+        'Không thể gửi email OTP. Vui lòng thử lại sau.',
+      );
     }
   }
 }

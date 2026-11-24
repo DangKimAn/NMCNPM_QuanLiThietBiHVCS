@@ -214,7 +214,7 @@ export class AuthService {
       payload = await this.jwtService.verifyAsync(refreshToken, {
         secret: this.configService.get<string>('JWT_REFRESH_SECRET'),
       });
-    } catch (err) {
+    } catch (_err) {
       throw new UnauthorizedException(
         'Refresh token hết hạn hoặc không hợp lệ, vui lòng đăng nhập lại',
       );
@@ -351,7 +351,8 @@ export class AuthService {
     await this.mailerService.sendOtpEmail(dto.email, otp);
 
     return {
-      message: 'Mã OTP đã được gửi đến email của bạn. Vui lòng kiểm tra hộp thư.',
+      message:
+        'Mã OTP đã được gửi đến email của bạn. Vui lòng kiểm tra hộp thư.',
     };
   }
 
@@ -366,7 +367,9 @@ export class AuthService {
     }
 
     if (new Date() > user.resetPasswordExpires) {
-      throw new BadRequestException('Mã OTP đã hết hạn. Vui lòng yêu cầu mã mới');
+      throw new BadRequestException(
+        'Mã OTP đã hết hạn. Vui lòng yêu cầu mã mới',
+      );
     }
 
     const isValid = await verifyPassword(dto.otp, user.resetPasswordCode);
@@ -416,7 +419,8 @@ export class AuthService {
     });
 
     return {
-      message: 'Đặt lại mật khẩu thành công. Bạn có thể đăng nhập ngay bây giờ.',
+      message:
+        'Đặt lại mật khẩu thành công. Bạn có thể đăng nhập ngay bây giờ.',
     };
   }
 }
