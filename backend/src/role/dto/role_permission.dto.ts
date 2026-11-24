@@ -1,9 +1,9 @@
-import { IsIn, IsInt } from "class-validator";
+import { IsInt } from 'class-validator';
 
-export class Role_PermissionDto{
-    @IsInt()
-    roleId : number 
+export class Role_PermissionDto {
+  @IsInt()
+  roleId: number;
 
-    @IsInt()
-    permissionId : number
+  @IsInt()
+  permissionId: number;
 }

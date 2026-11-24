@@ -1,6 +1,16 @@
 // src/report/report.service.ts
-import { BadRequestException, Injectable, NotFoundException, ForbiddenException } from '@nestjs/common';
-import { Prisma, ReportStatus, EquipmentStatus, NotificationTargetRole } from '@prisma/client';
+import {
+  BadRequestException,
+  Injectable,
+  NotFoundException,
+  ForbiddenException,
+} from '@nestjs/common';
+import {
+  Prisma,
+  ReportStatus,
+  EquipmentStatus,
+  NotificationTargetRole,
+} from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateReportDto } from './dto/create-report.dto';
 import { HandleReportDto } from './dto/handle-report.dto';
@@ -20,9 +30,9 @@ export class ReportService {
     const rooms = await this.roomService.findAll({});
     const roomMap = new Map(rooms.map((r: any) => [r.roomId, r]));
 
-    return reports.map(report => ({
+    return reports.map((report) => ({
       ...report,
-      room: roomMap.get(report.roomId) || null
+      room: roomMap.get(report.roomId) || null,
     }));
   }
 
@@ -146,7 +156,11 @@ export class ReportService {
   }
 
   // Lấy chi tiết một phản ánh - ĐÃ TÍCH HỢP KIỂM TRA CHÍNH CHỦ
-  async findOne(reportId: number, currentUserId: number, currentUserRole: string) {
+  async findOne(
+    reportId: number,
+    currentUserId: number,
+    currentUserRole: string,
+  ) {
     const report = await this.prisma.report.findUnique({
       where: { reportId },
       include: {
@@ -173,9 +187,13 @@ export class ReportService {
     }
 
     //LOGIC CHECK CHÍNH CHỦ:
-    // Nếu KHÔNG PHẢI Manager, hệ thống bắt buộc reporterId (người tạo) phải trùng với ID người đang xem
-    if (currentUserRole !== 'MANAGER' && report.reporterId !== currentUserId) {
-      throw new ForbiddenException('Bạn không có quyền xem chi tiết phản ánh của tài khoản khác');
+    // Nếu KHÔNG PHẢI Manager hoặc Admin, hệ thống bắt buộc reporterId (người tạo) phải trùng với ID người đang xem
+    const isManagerOrAdmin =
+      currentUserRole === 'MANAGER' || currentUserRole === 'ADMIN';
+    if (!isManagerOrAdmin && report.reporterId !== currentUserId) {
+      throw new ForbiddenException(
+        'Bạn không có quyền xem chi tiết phản ánh của tài khoản khác',
+      );
     }
 
     return this.populateRoomForSingleReport(report);
@@ -184,16 +202,20 @@ export class ReportService {
   // Gửi phản ánh báo hỏng lên hệ thống (STUDENT & TEACHER)
   async create(dto: CreateReportDto, userId: number) {
     const reporter = await this.prisma.user.findUnique({
-      where: { userId: userId }, 
+      where: { userId: userId },
     });
 
     if (!reporter) {
-      throw new BadRequestException('Người gửi phản ánh không tồn tại hoặc chưa đăng nhập');
+      throw new BadRequestException(
+        'Người gửi phản ánh không tồn tại hoặc chưa đăng nhập',
+      );
     }
 
     const room = await this.roomService.findOne(dto.roomId);
     if (!room) {
-      throw new BadRequestException('Phòng học không tồn tại trên hệ thống ROOM_API');
+      throw new BadRequestException(
+        'Phòng học không tồn tại trên hệ thống ROOM_API',
+      );
     }
 
     if (dto.equipmentId) {
@@ -213,7 +235,7 @@ export class ReportService {
 
     const result = await this.prisma.report.create({
       data: {
-        reporterId: userId, 
+        reporterId: userId,
         roomId: dto.roomId,
         equipmentId: dto.equipmentId,
         reportContent: dto.reportContent,
@@ -254,17 +276,20 @@ export class ReportService {
     });
 
     if (!handler) {
-      throw new BadRequestException('Người xử lý không tồn tại hoặc phiên đăng nhập hết hạn');
+      throw new BadRequestException(
+        'Người xử lý không tồn tại hoặc phiên đăng nhập hết hạn',
+      );
     }
 
     const shouldSetResolvedAt =
-      dto.status === ReportStatus.RESOLVED || dto.status === ReportStatus.REJECTED;
+      dto.status === ReportStatus.RESOLVED ||
+      dto.status === ReportStatus.REJECTED;
 
     const result = await this.prisma.report.update({
       where: { reportId },
       data: {
         status: dto.status,
-        handlerId: handlerId, 
+        handlerId: handlerId,
         resolutionContent: dto.resolutionContent,
         result: dto.result,
         resolvedAt: shouldSetResolvedAt ? new Date() : null,

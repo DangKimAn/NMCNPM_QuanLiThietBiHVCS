@@ -1,14 +1,36 @@
-import { Body, Controller, Delete, Get, Param, ParseIntPipe, Patch, Post, Query, UseGuards, ForbiddenException, UseInterceptors, UploadedFile, BadRequestException } from '@nestjs/common';
-import { ApiBearerAuth, ApiOperation, ApiQuery, ApiTags, ApiConsumes, ApiBody } from '@nestjs/swagger';
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  Param,
+  ParseIntPipe,
+  Patch,
+  Post,
+  Query,
+  UseGuards,
+  ForbiddenException,
+  UseInterceptors,
+  UploadedFile,
+  ParseFilePipe,
+  MaxFileSizeValidator,
+} from '@nestjs/common';
+import {
+  ApiBearerAuth,
+  ApiOperation,
+  ApiQuery,
+  ApiTags,
+  ApiConsumes,
+  ApiBody,
+} from '@nestjs/swagger';
 import { UserService } from './user.service';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UserDto } from './dto/user.dto';
 import { Role } from 'src/auth/decorators/role.enum';
 import { UpdateUserDto } from './dto/updateUser.dto';
 import { FileInterceptor } from '@nestjs/platform-express';
-import * as xlsx from 'xlsx';
 
-import { JwtAuthGuard } from 'src/auth/guards/jwt-auth.guard'; 
+import { JwtAuthGuard } from 'src/auth/guards/jwt-auth.guard';
 import { RolesGuard } from 'src/auth/guards/roles.guard';
 import { Roles } from 'src/auth/decorators/roles.decorator';
 import { GetUser } from 'src/auth/decorators/get-user.decorator';
@@ -39,18 +61,27 @@ export class UserController {
       },
     },
   })
-  async importUsersFromExcel(@UploadedFile() file: any) {
-    if (!file) throw new BadRequestException('Vui lòng chọn file');
+  async importUsersFromExcel(
+    @UploadedFile(
+      new ParseFilePipe({
+        validators: [
+          new MaxFileSizeValidator({
+            maxSize: 5 * 1024 * 1024,
+            message: 'Dung lượng file không được vượt quá 5MB',
+          }),
+        ],
+        fileIsRequired: true,
+      }),
+    )
+    file: Express.Multer.File,
+  ) {
     return await this.userService.importUsersFromExcel(file);
   }
 
   //CHỈ ADMIN: Xem toàn bộ danh sách User
   @Get()
   @Roles(Role.ADMIN)
-  async findAll(
-    @Query('page') page?: string,
-    @Query('limit') limit?: string,
-  ) {
+  async findAll(@Query('page') page?: string, @Query('limit') limit?: string) {
     return await this.userService.getAllUser(
       page ? Number(page) : undefined,
       limit ? Number(limit) : undefined,
@@ -61,14 +92,17 @@ export class UserController {
   @Get('search')
   @Roles(Role.ADMIN)
   @ApiOperation({ summary: 'Tìm kiếm user theo username / email / họ tên' })
-  @ApiQuery({ name: 'keyword', required: true, description: 'Từ khoá tìm kiếm' })
+  @ApiQuery({
+    name: 'keyword',
+    required: true,
+    description: 'Từ khoá tìm kiếm',
+  })
   async search(@Query('keyword') keyword: string) {
     if (!keyword || keyword.trim() === '') {
       return this.userService.getAllUser();
     }
     return this.userService.searchUsers(keyword.trim());
   }
-
 
   //ADMIN & MANAGER: Xem thông tin user qua Email
   @Get('getUserbyEmail/:email')
@@ -81,7 +115,7 @@ export class UserController {
   @Get('getUserbyUserId/:userID')
   async findOne(
     @Param('userID', ParseIntPipe) userID: number,
-    @GetUser() currentUser: { userId: number; role: string }
+    @GetUser() currentUser: { userId: number; role: string },
   ): Promise<UserDto> {
     const isSelf = currentUser.userId === userID;
     const isAdmin = currentUser.role === Role.ADMIN;
@@ -100,13 +134,16 @@ export class UserController {
   @Get('getUserbyUsername/:username')
   async findByUsername(
     @Param('username') username: string,
-    @GetUser() currentUser: { userId: number; role: string; username: string }
+    @GetUser() currentUser: { userId: number; role: string; username: string },
   ) {
-    const isAdminOrManager = currentUser.role === Role.ADMIN || currentUser.role === Role.MANAGER;
+    const isAdminOrManager =
+      currentUser.role === Role.ADMIN || currentUser.role === Role.MANAGER;
     const isSelf = currentUser.username === username;
 
     if (!isAdminOrManager && !isSelf) {
-      throw new ForbiddenException('Bạn không có quyền xem thông tin của người dùng khác!');
+      throw new ForbiddenException(
+        'Bạn không có quyền xem thông tin của người dùng khác!',
+      );
     }
     return await this.userService.getUserByUsername(username);
   }
@@ -114,9 +151,9 @@ export class UserController {
   //MỌI USER: Tự cập nhật thông tin cá nhân của chính mình (hoặc Admin sửa hộ)
   @Patch(':userId')
   async update(
-    @Param('userId', ParseIntPipe) userId: number, 
+    @Param('userId', ParseIntPipe) userId: number,
     @Body() updateUserDto: UpdateUserDto,
-    @GetUser() currentUser: { userId: number; role: string }
+    @GetUser() currentUser: { userId: number; role: string },
   ): Promise<UserDto> {
     const isSelf = currentUser.userId === userId;
     const isAdmin = currentUser.role === Role.ADMIN;
@@ -127,22 +164,40 @@ export class UserController {
       );
     }
 
+    // Nếu không phải ADMIN, không được phép thay đổi vai trò hoặc trạng thái tài khoản
+    if (!isAdmin) {
+      if (updateUserDto.roleId !== undefined) {
+        throw new ForbiddenException(
+          'Bạn không có quyền thay đổi vai trò (role) của tài khoản!',
+        );
+      }
+      if (updateUserDto.status !== undefined) {
+        throw new ForbiddenException(
+          'Bạn không có quyền thay đổi trạng thái (status) của tài khoản!',
+        );
+      }
+      delete updateUserDto.roleId;
+      delete updateUserDto.status;
+    }
+
     return await this.userService.updateUser(userId, updateUserDto);
   }
 
   //CHỈ ADMIN: Mới được quyền xóa User
   @Delete(':userId')
   @Roles(Role.ADMIN)
-  async remove(@Param('userId', ParseIntPipe) userId: number): Promise<{ message: string }> {
+  async remove(
+    @Param('userId', ParseIntPipe) userId: number,
+  ): Promise<{ message: string }> {
     return await this.userService.deleteUser(userId);
   }
 
   //CHỈ ADMIN: Quyền tối cao nâng cấp tài khoản thành MANAGER hoặc hạ quyền
   @Patch(':userId/role')
-  @Roles(Role.ADMIN) 
+  @Roles(Role.ADMIN)
   async changeRole(
     @Param('userId', ParseIntPipe) userId: number,
-    @Body('roleName') roleName: string, 
+    @Body('roleName') roleName: string,
   ) {
     return await this.userService.changeUserRole(userId, roleName);
   }
@@ -151,11 +206,17 @@ export class UserController {
   async changePassword(
     @Param('userId', ParseIntPipe) userId: number,
     @Body() body: any,
-    @GetUser() currentUser: { userId: number; role: string }
+    @GetUser() currentUser: { userId: number; role: string },
   ) {
     if (currentUser.userId !== userId) {
-      throw new ForbiddenException('Chỉ được phép đổi mật khẩu của chính mình!');
+      throw new ForbiddenException(
+        'Chỉ được phép đổi mật khẩu của chính mình!',
+      );
     }
-    return await this.userService.changePassword(userId, body.oldPassword, body.newPassword);
+    return await this.userService.changePassword(
+      userId,
+      body.oldPassword,
+      body.newPassword,
+    );
   }
 }

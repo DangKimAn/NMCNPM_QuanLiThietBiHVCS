@@ -7,21 +7,27 @@ import {
   ParseIntPipe,
   Patch,
   Post,
+  UseGuards,
 } from '@nestjs/common';
-import { ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 
 import { EquipmentAllocationService } from './equipment-allocation.service';
 import { CreateEquipmentAllocationDto } from './dto/create-equipment-allocation.dto';
 import { UpdateEquipmentAllocationDto } from './dto/update-equipment-allocation.dto';
 import { CreateBulkEquipmentAllocationDto } from './dto/create-bulk-equipment-allocation.dto';
 import { BulkDeleteEquipmentAllocationDto } from './dto/bulk-delete-equipment-allocation.dto';
+import { JwtAuthGuard } from 'src/auth/guards/jwt-auth.guard';
+import { RolesGuard } from 'src/auth/guards/roles.guard';
+import { Roles } from 'src/auth/decorators/roles.decorator';
+import { Role } from 'src/auth/decorators/role.enum';
 
 @ApiTags('Equipment Allocations - Gắn thiết bị vào phòng')
+@ApiBearerAuth()
+@UseGuards(JwtAuthGuard, RolesGuard)
+@Roles(Role.ADMIN, Role.MANAGER)
 @Controller('equipment-allocations')
 export class EquipmentAllocationController {
-  constructor(
-    private readonly allocationService: EquipmentAllocationService,
-  ) {}
+  constructor(private readonly allocationService: EquipmentAllocationService) {}
 
   @Post()
   create(@Body() createDto: CreateEquipmentAllocationDto) {

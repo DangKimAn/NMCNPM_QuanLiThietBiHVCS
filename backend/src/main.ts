@@ -2,6 +2,8 @@ import { NestFactory } from '@nestjs/core';
 import { ValidationPipe } from '@nestjs/common';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { WINSTON_MODULE_NEST_PROVIDER } from 'nest-winston';
+import { IoAdapter } from '@nestjs/platform-socket.io';
+import helmet from 'helmet';
 
 import { AppModule } from './app.module';
 import { GlobalExceptionFilter } from './common/filters/global-exception.filter';
@@ -12,11 +14,13 @@ async function bootstrap() {
     bufferLogs: true,
   });
 
+  // Kích hoạt Helmet để thiết lập các HTTP Security Headers (chống XSS, Clickjacking, MIME-sniffing)
+  app.use(helmet({ contentSecurityPolicy: false }));
+
   // Dùng Winston làm logger chính của NestJS
   app.useLogger(app.get(WINSTON_MODULE_NEST_PROVIDER));
 
   // Cấu hình WebSocket Adapter (Socket.IO)
-  const { IoAdapter } = require('@nestjs/platform-socket.io');
   app.useWebSocketAdapter(new IoAdapter(app));
 
   // Đặt prefix /api cho tất cả các route
@@ -32,8 +36,8 @@ async function bootstrap() {
   const allowedOrigins: (string | RegExp)[] = [
     'http://localhost:5173',
     'http://localhost:4173',
-    // Cho phép mọi subdomain của vercel.app (deploy preview + production)
-    /https:\/\/.*\.vercel\.app$/,
+    // Cho phép subdomain hợp lệ của vercel.app
+    /^https:\/\/[a-zA-Z0-9-]+\.vercel\.app$/,
     // Thêm domain từ biến môi trường FRONTEND_URL
     ...envFrontendUrls,
   ];
@@ -84,4 +88,4 @@ async function bootstrap() {
   logger.log(`Swagger API: http://localhost:${port}/api`, 'Bootstrap');
 }
 
-bootstrap();
+void bootstrap();

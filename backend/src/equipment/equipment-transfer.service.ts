@@ -70,88 +70,13 @@ export class EquipmentTransferService {
       );
     }
 
-    const result = await this.prisma.$transaction(async (tx) => {
-      // 1. Cập nhật phòng mới cho thiết bị này
-      await tx.equipmentAllocation.update({
-        where: {
-          allocationId: fromAllocation.allocationId,
-        },
-        data: {
-          roomId: createDto.toRoomId,
-          allocatedAt: new Date(createDto.transferredAt),
-          note: createDto.note,
-        },
-      });
-
-      // 2. Ghi nhận lịch sử chuyển
-      const transferResult = await tx.equipmentTransfer.create({
-        data: {
-          equipmentId: createDto.equipmentId,
-          fromRoomId: createDto.fromRoomId,
-          toRoomId: createDto.toRoomId,
-          transferredAt: new Date(createDto.transferredAt),
-          executorId: createDto.executorId,
-          note: createDto.note,
-        },
-        include: {
-          equipment: {
-            include: {
-              category: true,
-            },
-          },
-          executor: true,
-        },
-      });
-
-      // Đồng bộ số lượng với ROOM_API. Nếu API lỗi sẽ tự động rollback transaction
-      await this.roomService.updateEquipmentCount(createDto.fromRoomId, 'sub', 1);
-      await this.roomService.updateEquipmentCount(createDto.toRoomId, 'add', 1);
-
-      return transferResult;
-    }, { timeout: 20000 });
-
-    const populated = await this.populateRooms(result);
-    this.eventsGateway.emitEquipmentTransferred({ type: 'transfer', transferId: populated.transferId });
-    return populated;
-  }
-
-  async createBulk(bulkDto: CreateBulkEquipmentTransferDto) {
-    if (!bulkDto.transfers || bulkDto.transfers.length === 0) {
-      throw new BadRequestException('Danh sách điều chuyển không được trống.');
-    }
-
-    const roomQuantityChangeMap = new Map<number, number>();
-
-    const results = await this.prisma.$transaction(async (tx) => {
-      const createdTransfers: any[] = [];
-
-      for (const createDto of bulkDto.transfers) {
-        if (createDto.fromRoomId === createDto.toRoomId) {
-          throw new BadRequestException('Phòng chuyển đến phải khác phòng chuyển đi.');
-        }
-
-        const equipment = await tx.equipment.findUnique({
-          where: { equipmentId: createDto.equipmentId },
-        });
-
-        if (!equipment) {
-          throw new NotFoundException(`Không tìm thấy thiết bị có id = ${createDto.equipmentId}`);
-        }
-
-        const fromAllocation = await tx.equipmentAllocation.findFirst({
-          where: {
-            equipmentId: createDto.equipmentId,
-            roomId: createDto.fromRoomId,
-          },
-        });
-
-        if (!fromAllocation) {
-          throw new BadRequestException(`Thiết bị ID ${createDto.equipmentId} không nằm ở phòng chuyển đi.`);
-        }
-
-        // 1. Cập nhật phòng mới cho thiết bị
+    const result = await this.prisma.$transaction(
+      async (tx) => {
+        // 1. Cập nhật phòng mới cho thiết bị này
         await tx.equipmentAllocation.update({
-          where: { allocationId: fromAllocation.allocationId },
+          where: {
+            allocationId: fromAllocation.allocationId,
+          },
           data: {
             roomId: createDto.toRoomId,
             allocatedAt: new Date(createDto.transferredAt),
@@ -159,7 +84,7 @@ export class EquipmentTransferService {
           },
         });
 
-        // 2. Lưu lịch sử
+        // 2. Ghi nhận lịch sử chuyển
         const transferResult = await tx.equipmentTransfer.create({
           data: {
             equipmentId: createDto.equipmentId,
@@ -170,35 +95,148 @@ export class EquipmentTransferService {
             note: createDto.note,
           },
           include: {
-            equipment: { include: { category: true } },
+            equipment: {
+              include: {
+                category: true,
+              },
+            },
             executor: true,
           },
         });
 
-        createdTransfers.push(transferResult);
+        // Đồng bộ số lượng với ROOM_API. Nếu API lỗi sẽ tự động rollback transaction
+        await this.roomService.updateEquipmentCount(
+          createDto.fromRoomId,
+          'sub',
+          1,
+        );
+        await this.roomService.updateEquipmentCount(
+          createDto.toRoomId,
+          'add',
+          1,
+        );
 
-        // Gom nhóm sự thay đổi số lượng phòng
-        const currentFromQty = roomQuantityChangeMap.get(createDto.fromRoomId) || 0;
-        roomQuantityChangeMap.set(createDto.fromRoomId, currentFromQty - 1);
+        return transferResult;
+      },
+      { timeout: 20000 },
+    );
 
-        const currentToQty = roomQuantityChangeMap.get(createDto.toRoomId) || 0;
-        roomQuantityChangeMap.set(createDto.toRoomId, currentToQty + 1);
-      }
+    const populated = await this.populateRooms(result);
+    this.eventsGateway.emitEquipmentTransferred({
+      type: 'transfer',
+      transferId: populated.transferId,
+    });
+    return populated;
+  }
 
-      // Gọi ROOM_API để áp dụng thay đổi (gộp các request lại)
-      for (const [roomId, qtyChange] of roomQuantityChangeMap.entries()) {
-        if (qtyChange > 0) {
-          await this.roomService.updateEquipmentCount(roomId, 'add', qtyChange);
-        } else if (qtyChange < 0) {
-          await this.roomService.updateEquipmentCount(roomId, 'sub', Math.abs(qtyChange));
+  async createBulk(bulkDto: CreateBulkEquipmentTransferDto) {
+    if (!bulkDto.transfers || bulkDto.transfers.length === 0) {
+      throw new BadRequestException('Danh sách điều chuyển không được trống.');
+    }
+
+    const roomQuantityChangeMap = new Map<number, number>();
+
+    const results = await this.prisma.$transaction(
+      async (tx) => {
+        const createdTransfers: any[] = [];
+
+        for (const createDto of bulkDto.transfers) {
+          if (createDto.fromRoomId === createDto.toRoomId) {
+            throw new BadRequestException(
+              'Phòng chuyển đến phải khác phòng chuyển đi.',
+            );
+          }
+
+          const equipment = await tx.equipment.findUnique({
+            where: { equipmentId: createDto.equipmentId },
+          });
+
+          if (!equipment) {
+            throw new NotFoundException(
+              `Không tìm thấy thiết bị có id = ${createDto.equipmentId}`,
+            );
+          }
+
+          const fromAllocation = await tx.equipmentAllocation.findFirst({
+            where: {
+              equipmentId: createDto.equipmentId,
+              roomId: createDto.fromRoomId,
+            },
+          });
+
+          if (!fromAllocation) {
+            throw new BadRequestException(
+              `Thiết bị ID ${createDto.equipmentId} không nằm ở phòng chuyển đi.`,
+            );
+          }
+
+          // 1. Cập nhật phòng mới cho thiết bị
+          await tx.equipmentAllocation.update({
+            where: { allocationId: fromAllocation.allocationId },
+            data: {
+              roomId: createDto.toRoomId,
+              allocatedAt: new Date(createDto.transferredAt),
+              note: createDto.note,
+            },
+          });
+
+          // 2. Lưu lịch sử
+          const transferResult = await tx.equipmentTransfer.create({
+            data: {
+              equipmentId: createDto.equipmentId,
+              fromRoomId: createDto.fromRoomId,
+              toRoomId: createDto.toRoomId,
+              transferredAt: new Date(createDto.transferredAt),
+              executorId: createDto.executorId,
+              note: createDto.note,
+            },
+            include: {
+              equipment: { include: { category: true } },
+              executor: true,
+            },
+          });
+
+          createdTransfers.push(transferResult);
+
+          // Gom nhóm sự thay đổi số lượng phòng
+          const currentFromQty =
+            roomQuantityChangeMap.get(createDto.fromRoomId) || 0;
+          roomQuantityChangeMap.set(createDto.fromRoomId, currentFromQty - 1);
+
+          const currentToQty =
+            roomQuantityChangeMap.get(createDto.toRoomId) || 0;
+          roomQuantityChangeMap.set(createDto.toRoomId, currentToQty + 1);
         }
-      }
 
-      return createdTransfers;
-    }, { timeout: 30000 });
+        // Gọi ROOM_API để áp dụng thay đổi (gộp các request lại)
+        for (const [roomId, qtyChange] of roomQuantityChangeMap.entries()) {
+          if (qtyChange > 0) {
+            await this.roomService.updateEquipmentCount(
+              roomId,
+              'add',
+              qtyChange,
+            );
+          } else if (qtyChange < 0) {
+            await this.roomService.updateEquipmentCount(
+              roomId,
+              'sub',
+              Math.abs(qtyChange),
+            );
+          }
+        }
 
-    const populated = await Promise.all(results.map(t => this.populateRooms(t)));
-    this.eventsGateway.emitEquipmentTransferred({ type: 'transfer_bulk', count: populated.length });
+        return createdTransfers;
+      },
+      { timeout: 30000 },
+    );
+
+    const populated = await Promise.all(
+      results.map((t) => this.populateRooms(t)),
+    );
+    this.eventsGateway.emitEquipmentTransferred({
+      type: 'transfer_bulk',
+      count: populated.length,
+    });
     return populated;
   }
 
@@ -217,7 +255,7 @@ export class EquipmentTransferService {
       },
     });
 
-    return Promise.all(transfers.map(t => this.populateRooms(t)));
+    return Promise.all(transfers.map((t) => this.populateRooms(t)));
   }
 
   async findOne(id: number) {
@@ -306,20 +344,14 @@ export class EquipmentTransferService {
           }
 
           // tìm phòng mới
-          const toRoom = rooms.find(
-            (r: any) => r.code === toRoomCode,
-          );
+          const toRoom = rooms.find((r: any) => r.code === toRoomCode);
 
           if (!toRoom) {
-            throw new BadRequestException(
-              `Phòng ${toRoomCode} không tồn tại`,
-            );
+            throw new BadRequestException(`Phòng ${toRoomCode} không tồn tại`);
           }
 
           if (currentAllocation.roomId === toRoom.roomId) {
-            throw new BadRequestException(
-              'Phòng mới trùng phòng hiện tại',
-            );
+            throw new BadRequestException('Phòng mới trùng phòng hiện tại');
           }
 
           // transaction
@@ -348,8 +380,7 @@ export class EquipmentTransferService {
 
                 transferredAt: new Date(),
 
-                note:
-                  note || 'Import điều chuyển từ Excel',
+                note: note || 'Import điều chuyển từ Excel',
               },
             });
           });
@@ -361,11 +392,7 @@ export class EquipmentTransferService {
             1,
           );
 
-          await this.roomService.updateEquipmentCount(
-            toRoom.roomId,
-            'add',
-            1,
-          );
+          await this.roomService.updateEquipmentCount(toRoom.roomId, 'add', 1);
 
           successCount++;
         } catch (error: any) {
@@ -378,17 +405,18 @@ export class EquipmentTransferService {
         }
       }
 
-      this.eventsGateway.emitEquipmentTransferred({ type: 'transfer_import', successCount });
+      this.eventsGateway.emitEquipmentTransferred({
+        type: 'transfer_import',
+        successCount,
+      });
 
       return {
         successCount,
         failedCount,
         errors,
       };
-    } catch (error) {
-      throw new BadRequestException(
-        'Lỗi đọc file Excel',
-      );
+    } catch {
+      throw new BadRequestException('Lỗi đọc file Excel');
     }
   }
 }

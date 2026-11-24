@@ -1,4 +1,8 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { EquipmentStatus, Prisma } from '@prisma/client';
 
 import { PrismaService } from '../prisma/prisma.service';
@@ -16,9 +20,12 @@ export class EquipmentService {
     private readonly roomService: RoomService,
   ) {}
 
-  private async autoGenerateEquipmentCode(categoryName: string, categoryId: number): Promise<string> {
-    const words = categoryName.split(' ').filter(w => w.trim().length > 0);
-    const acronym = words.map(w => w.charAt(0).toUpperCase()).join('');
+  private async autoGenerateEquipmentCode(
+    categoryName: string,
+    categoryId: number,
+  ): Promise<string> {
+    const words = categoryName.split(' ').filter((w) => w.trim().length > 0);
+    const acronym = words.map((w) => w.charAt(0).toUpperCase()).join('');
     const prefix = `${acronym}-PTITHCM-`;
 
     const existingCodes = await this.prisma.equipment.findMany({
@@ -42,16 +49,16 @@ export class EquipmentService {
 
   private formatEquipmentCode(categoryName: string, inputCode: string): string {
     if (!categoryName || !inputCode) return inputCode;
-    
+
     // Sinh tiền tố viết tắt từ tên danh mục (vd: "Máy chiếu" -> "MC", "Bảng từ" -> "BT")
-    const words = categoryName.split(' ').filter(w => w.trim().length > 0);
-    const acronym = words.map(w => w.charAt(0).toUpperCase()).join('');
+    const words = categoryName.split(' ').filter((w) => w.trim().length > 0);
+    const acronym = words.map((w) => w.charAt(0).toUpperCase()).join('');
     const prefix = `${acronym}-PTITHCM-`;
-    
+
     if (inputCode.startsWith(prefix)) {
       return inputCode;
     }
-    
+
     // Nếu mã đã có tiền tố kiểu khác thì cắt bỏ đi để thay tiền tố mới
     const cleanCode = inputCode.replace(/^.*?-PTITHCM-/, '');
     return `${prefix}${cleanCode}`;
@@ -62,11 +69,11 @@ export class EquipmentService {
     const rooms = await this.roomService.findAll({});
     const roomMap = new Map(rooms.map((r: any) => [r.roomId, r]));
 
-    return equipments.map(eq => {
+    return equipments.map((eq) => {
       if (eq.allocations) {
         eq.allocations = eq.allocations.map((a: any) => ({
           ...a,
-          room: roomMap.get(a.roomId) || null
+          room: roomMap.get(a.roomId) || null,
         }));
       }
       return eq;
@@ -81,20 +88,20 @@ export class EquipmentService {
     if (equipment.allocations) {
       equipment.allocations = equipment.allocations.map((a: any) => ({
         ...a,
-        room: roomMap.get(a.roomId) || null
+        room: roomMap.get(a.roomId) || null,
       }));
     }
     if (equipment.transfers) {
       equipment.transfers = equipment.transfers.map((t: any) => ({
         ...t,
         fromRoom: roomMap.get(t.fromRoomId) || null,
-        toRoom: roomMap.get(t.toRoomId) || null
+        toRoom: roomMap.get(t.toRoomId) || null,
       }));
     }
     if (equipment.reports) {
       equipment.reports = equipment.reports.map((r: any) => ({
         ...r,
-        room: roomMap.get(r.roomId) || null
+        room: roomMap.get(r.roomId) || null,
       }));
     }
 
@@ -109,7 +116,7 @@ export class EquipmentService {
 
     const total = allStatuses.reduce((sum, s) => sum + s._count.status, 0);
     const getCount = (status: EquipmentStatus) =>
-      allStatuses.find(s => s.status === status)?._count.status ?? 0;
+      allStatuses.find((s) => s.status === status)?._count.status ?? 0;
 
     return {
       total,
@@ -181,9 +188,7 @@ export class EquipmentService {
           take: limit,
           include: {
             category: true,
-            allocations: {
-
-            },
+            allocations: {},
           },
         }),
         this.prisma.equipment.count({ where }),
@@ -200,9 +205,7 @@ export class EquipmentService {
       take: limit,
       include: {
         category: true,
-        allocations: {
-
-        },
+        allocations: {},
       },
     });
 
@@ -262,7 +265,10 @@ export class EquipmentService {
     let equipmentCode = dto.equipmentCode?.trim();
 
     if (!equipmentCode) {
-      equipmentCode = await this.autoGenerateEquipmentCode(category.name, category.categoryId);
+      equipmentCode = await this.autoGenerateEquipmentCode(
+        category.name,
+        category.categoryId,
+      );
     } else {
       equipmentCode = this.formatEquipmentCode(category.name, equipmentCode);
     }
@@ -307,8 +313,11 @@ export class EquipmentService {
 
     const data: Prisma.EquipmentUpdateInput = {};
 
-    let equipmentCode = dto.equipmentCode !== undefined ? dto.equipmentCode.trim() : currentEquipment.equipmentCode;
-    
+    let equipmentCode =
+      dto.equipmentCode !== undefined
+        ? dto.equipmentCode.trim()
+        : currentEquipment.equipmentCode;
+
     if (!equipmentCode) {
       throw new BadRequestException('Mã thiết bị không được để trống');
     }
@@ -370,7 +379,7 @@ export class EquipmentService {
         allocations: true,
       },
     });
-    
+
     return this.populateRoomsForSingleEquipment(result);
   }
 
@@ -412,32 +421,44 @@ export class EquipmentService {
     }
 
     const roomQuantityMap = new Map<number, number>();
-    
+
     // Fetch categories first to format codes
-    const categoryIds = [...new Set(dto.equipments.map(e => e.categoryId))];
+    const categoryIds = [...new Set(dto.equipments.map((e) => e.categoryId))];
     const categories = await this.prisma.equipmentCategory.findMany({
       where: { categoryId: { in: categoryIds } },
     });
-    const categoryMap = new Map(categories.map(c => [c.categoryId, c]));
+    const categoryMap = new Map(categories.map((c) => [c.categoryId, c]));
 
     // Format all codes (auto-generate if empty)
     for (const item of dto.equipments) {
       const category = categoryMap.get(item.categoryId);
       if (!category) {
-        throw new BadRequestException(`Loại thiết bị ID ${item.categoryId} không tồn tại.`);
+        throw new BadRequestException(
+          `Loại thiết bị ID ${item.categoryId} không tồn tại.`,
+        );
       }
       if (!item.equipmentCode?.trim()) {
-        item.equipmentCode = await this.autoGenerateEquipmentCode(category.name, category.categoryId);
+        item.equipmentCode = await this.autoGenerateEquipmentCode(
+          category.name,
+          category.categoryId,
+        );
       } else {
-        item.equipmentCode = this.formatEquipmentCode(category.name, item.equipmentCode);
+        item.equipmentCode = this.formatEquipmentCode(
+          category.name,
+          item.equipmentCode,
+        );
       }
     }
 
-    const equipmentCodes = dto.equipments.map(e => e.equipmentCode!).filter(Boolean);
-    
+    const equipmentCodes = dto.equipments
+      .map((e) => e.equipmentCode!)
+      .filter(Boolean);
+
     const uniqueCodes = new Set(equipmentCodes);
     if (uniqueCodes.size !== equipmentCodes.length) {
-      throw new BadRequestException('Danh sách thiết bị chứa các mã trùng lặp.');
+      throw new BadRequestException(
+        'Danh sách thiết bị chứa các mã trùng lặp.',
+      );
     }
 
     const existingEquipments = await this.prisma.equipment.findMany({
@@ -446,63 +467,73 @@ export class EquipmentService {
     });
 
     if (existingEquipments.length > 0) {
-      const existingCodes = existingEquipments.map(e => e.equipmentCode).join(', ');
-      throw new BadRequestException(`Các mã thiết bị đã tồn tại trong hệ thống: ${existingCodes}`);
+      const existingCodes = existingEquipments
+        .map((e) => e.equipmentCode)
+        .join(', ');
+      throw new BadRequestException(
+        `Các mã thiết bị đã tồn tại trong hệ thống: ${existingCodes}`,
+      );
     }
 
     const rooms = await this.roomService.findAll({});
 
-    const results = await this.prisma.$transaction(async (tx) => {
-      const createdEquipments: any[] = [];
+    const results = await this.prisma.$transaction(
+      async (tx) => {
+        const createdEquipments: any[] = [];
 
-      for (const item of dto.equipments) {
-        // We already validated categories above
-        const category = categoryMap.get(item.categoryId)!;
-
-        const equipment = await tx.equipment.create({
-          data: {
-            equipmentCode: item.equipmentCode,
-            name: item.name,
-            categoryId: item.categoryId,
-            unit: item.unit || 'cái',
-            status: item.status || EquipmentStatus.GOOD,
-            description: item.description || null,
-          },
-        });
-
-        if (item.roomId) {
-          const room = rooms.find((r: any) => r.roomId === item.roomId);
-          if (!room) {
-            throw new BadRequestException(`Phòng học ID ${item.roomId} không tồn tại.`);
-          }
-
-          await tx.equipmentAllocation.create({
+        for (const item of dto.equipments) {
+          const equipment = await tx.equipment.create({
             data: {
-              equipmentId: equipment.equipmentId,
-              roomId: item.roomId,
-              allocatedAt: new Date(),
-              note: 'Tạo hàng loạt',
+              equipmentCode: item.equipmentCode,
+              name: item.name,
+              categoryId: item.categoryId,
+              unit: item.unit || 'cái',
+              status: item.status || EquipmentStatus.GOOD,
+              description: item.description || null,
             },
           });
 
-          const currentQty = roomQuantityMap.get(item.roomId) || 0;
-          roomQuantityMap.set(item.roomId, currentQty + 1);
+          if (item.roomId) {
+            const room = rooms.find((r: any) => r.roomId === item.roomId);
+            if (!room) {
+              throw new BadRequestException(
+                `Phòng học ID ${item.roomId} không tồn tại.`,
+              );
+            }
+
+            await tx.equipmentAllocation.create({
+              data: {
+                equipmentId: equipment.equipmentId,
+                roomId: item.roomId,
+                allocatedAt: new Date(),
+                note: 'Tạo hàng loạt',
+              },
+            });
+
+            const currentQty = roomQuantityMap.get(item.roomId) || 0;
+            roomQuantityMap.set(item.roomId, currentQty + 1);
+          }
+
+          createdEquipments.push(equipment);
         }
 
-        createdEquipments.push(equipment);
-      }
+        for (const [roomId, totalQuantity] of roomQuantityMap.entries()) {
+          await this.roomService.updateEquipmentCount(
+            roomId,
+            'add',
+            totalQuantity,
+          );
+        }
 
-      for (const [roomId, totalQuantity] of roomQuantityMap.entries()) {
-        await this.roomService.updateEquipmentCount(roomId, 'add', totalQuantity);
-      }
-
-      return createdEquipments;
-    }, { timeout: 30000 });
+        return createdEquipments;
+      },
+      { timeout: 30000 },
+    );
 
     return {
       success: true,
       message: `Đã tạo thành công ${results.length} thiết bị.`,
-      data: results
+      data: results,
     };
   }
 
@@ -532,12 +563,18 @@ export class EquipmentService {
         const statusRaw = row['Trạng thái'];
         const descriptionRaw = row['Ghi chú'];
 
-        let equipmentCode = equipmentCodeRaw ? String(equipmentCodeRaw).trim() : '';
+        let equipmentCode = equipmentCodeRaw
+          ? String(equipmentCodeRaw).trim()
+          : '';
         const name = nameRaw ? String(nameRaw).trim() : '';
-        const categoryName = categoryNameRaw ? String(categoryNameRaw).trim() : '';
+        const categoryName = categoryNameRaw
+          ? String(categoryNameRaw).trim()
+          : '';
         const roomCode = roomCodeRaw ? String(roomCodeRaw).trim() : '';
         const statusStr = statusRaw ? String(statusRaw).trim() : '';
-        const description = descriptionRaw ? String(descriptionRaw).trim() : null;
+        const description = descriptionRaw
+          ? String(descriptionRaw).trim()
+          : null;
 
         if (!name) {
           failedCount++;
@@ -557,15 +594,23 @@ export class EquipmentService {
 
         if (!category) {
           failedCount++;
-          errors.push({ row: rowNum, reason: `Loại thiết bị [${categoryName}] không tồn tại trong hệ thống` });
+          errors.push({
+            row: rowNum,
+            reason: `Loại thiết bị [${categoryName}] không tồn tại trong hệ thống`,
+          });
           continue;
         }
 
-
         if (!equipmentCode) {
-          equipmentCode = await this.autoGenerateEquipmentCode(category.name, category.categoryId);
+          equipmentCode = await this.autoGenerateEquipmentCode(
+            category.name,
+            category.categoryId,
+          );
         } else {
-          equipmentCode = this.formatEquipmentCode(category.name, equipmentCode);
+          equipmentCode = this.formatEquipmentCode(
+            category.name,
+            equipmentCode,
+          );
         }
 
         const existedEquipment = await this.prisma.equipment.findUnique({
@@ -574,23 +619,34 @@ export class EquipmentService {
 
         if (existedEquipment) {
           failedCount++;
-          errors.push({ row: rowNum, reason: `Mã thiết bị [${equipmentCode}] đã tồn tại trong hệ thống` });
+          errors.push({
+            row: rowNum,
+            reason: `Mã thiết bị [${equipmentCode}] đã tồn tại trong hệ thống`,
+          });
           continue;
         }
 
-        const inMemoryDuplicate = validItems.some(item => item.equipmentCode === equipmentCode);
+        const inMemoryDuplicate = validItems.some(
+          (item) => item.equipmentCode === equipmentCode,
+        );
         if (inMemoryDuplicate) {
           failedCount++;
-          errors.push({ row: rowNum, reason: `Mã thiết bị [${equipmentCode}] bị trùng lặp với dòng trước đó trong file Excel` });
+          errors.push({
+            row: rowNum,
+            reason: `Mã thiết bị [${equipmentCode}] bị trùng lặp với dòng trước đó trong file Excel`,
+          });
           continue;
         }
-        
+
         let roomId = null;
         if (roomCode) {
           const room = rooms.find((r: any) => r.code === roomCode);
           if (!room) {
             failedCount++;
-            errors.push({ row: rowNum, reason: `Phòng học [${roomCode}] không tồn tại trên ROOM_API` });
+            errors.push({
+              row: rowNum,
+              reason: `Phòng học [${roomCode}] không tồn tại trên ROOM_API`,
+            });
             continue;
           }
           roomId = room.roomId;
@@ -612,14 +668,14 @@ export class EquipmentService {
           categoryId: category.categoryId,
           roomId,
           status,
-          description
+          description,
         });
       }
 
       // Execution phase (all valid items in one transaction)
       if (validItems.length > 0) {
         const roomQuantityMap = new Map<number, number>();
-        
+
         try {
           await this.prisma.$transaction(async (tx) => {
             for (const item of validItems) {
@@ -653,20 +709,28 @@ export class EquipmentService {
 
           // Cập nhật ROOM_API bên ngoài transaction để tránh timeout database
           for (const [roomId, totalQuantity] of roomQuantityMap.entries()) {
-            await this.roomService.updateEquipmentCount(roomId, 'add', totalQuantity);
+            await this.roomService.updateEquipmentCount(
+              roomId,
+              'add',
+              totalQuantity,
+            );
           }
-
         } catch (error: any) {
           // If transaction fails, nothing is saved
           successCount = 0;
           failedCount += validItems.length;
-          errors.push({ row: -1, reason: `Lỗi hệ thống khi lưu dữ liệu hoặc cập nhật ROOM_API: ${error.message}` });
+          errors.push({
+            row: -1,
+            reason: `Lỗi hệ thống khi lưu dữ liệu hoặc cập nhật ROOM_API: ${error.message}`,
+          });
         }
       }
 
       return { successCount, failedCount, errors };
-    } catch (error) {
-      throw new BadRequestException('Lỗi đọc file Excel. Vui lòng kiểm tra định dạng file.');
+    } catch {
+      throw new BadRequestException(
+        'Lỗi đọc file Excel. Vui lòng kiểm tra định dạng file.',
+      );
     }
   }
 }

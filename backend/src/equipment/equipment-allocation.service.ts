@@ -61,11 +61,19 @@ export class EquipmentAllocationService {
             equipment: { include: { category: true } },
           },
         });
-        
+
         // Nếu chuyển phòng, trừ phòng cũ, cộng phòng mới
         if (existedAllocation.roomId !== createDto.roomId) {
-          await this.roomService.updateEquipmentCount(existedAllocation.roomId, 'sub', 1);
-          await this.roomService.updateEquipmentCount(createDto.roomId, 'add', 1);
+          await this.roomService.updateEquipmentCount(
+            existedAllocation.roomId,
+            'sub',
+            1,
+          );
+          await this.roomService.updateEquipmentCount(
+            createDto.roomId,
+            'add',
+            1,
+          );
         }
       } else {
         allocResult = await tx.equipmentAllocation.create({
@@ -79,15 +87,18 @@ export class EquipmentAllocationService {
             equipment: { include: { category: true } },
           },
         });
-        
+
         await this.roomService.updateEquipmentCount(createDto.roomId, 'add', 1);
       }
-      
+
       return allocResult;
     });
 
     const populated = await this.populateRoom(result);
-    this.eventsGateway.emitEquipmentTransferred({ type: 'allocation', allocationId: populated.allocationId });
+    this.eventsGateway.emitEquipmentTransferred({
+      type: 'allocation',
+      allocationId: populated.allocationId,
+    });
     return populated;
   }
 
@@ -109,7 +120,9 @@ export class EquipmentAllocationService {
         });
 
         if (!equipment) {
-          throw new NotFoundException(`Không tìm thấy thiết bị có id = ${createDto.equipmentId}`);
+          throw new NotFoundException(
+            `Không tìm thấy thiết bị có id = ${createDto.equipmentId}`,
+          );
         }
 
         const existedAllocation = await tx.equipmentAllocation.findFirst({
@@ -131,9 +144,10 @@ export class EquipmentAllocationService {
           });
 
           if (existedAllocation.roomId !== createDto.roomId) {
-            const currentSub = roomSubQuantityMap.get(existedAllocation.roomId) || 0;
+            const currentSub =
+              roomSubQuantityMap.get(existedAllocation.roomId) || 0;
             roomSubQuantityMap.set(existedAllocation.roomId, currentSub + 1);
-            
+
             const currentAdd = roomAddQuantityMap.get(createDto.roomId) || 0;
             roomAddQuantityMap.set(createDto.roomId, currentAdd + 1);
           }
@@ -166,8 +180,13 @@ export class EquipmentAllocationService {
       return createdAllocations;
     });
 
-    const populated = await Promise.all(results.map(a => this.populateRoom(a)));
-    this.eventsGateway.emitEquipmentTransferred({ type: 'allocation_bulk', count: populated.length });
+    const populated = await Promise.all(
+      results.map((a) => this.populateRoom(a)),
+    );
+    this.eventsGateway.emitEquipmentTransferred({
+      type: 'allocation_bulk',
+      count: populated.length,
+    });
     return populated;
   }
 
@@ -185,7 +204,7 @@ export class EquipmentAllocationService {
       },
     });
 
-    return Promise.all(allocations.map(a => this.populateRoom(a)));
+    return Promise.all(allocations.map((a) => this.populateRoom(a)));
   }
 
   async findOne(id: number) {
@@ -213,11 +232,13 @@ export class EquipmentAllocationService {
 
   async update(id: number, updateDto: UpdateEquipmentAllocationDto) {
     const currentAllocation = await this.prisma.equipmentAllocation.findUnique({
-      where: { allocationId: id }
+      where: { allocationId: id },
     });
-    
+
     if (!currentAllocation) {
-      throw new NotFoundException(`Không tìm thấy bản ghi phân bổ có id = ${id}`);
+      throw new NotFoundException(
+        `Không tìm thấy bản ghi phân bổ có id = ${id}`,
+      );
     }
 
     if (updateDto.equipmentId) {
@@ -260,7 +281,11 @@ export class EquipmentAllocationService {
 
       if (newRoomId !== currentAllocation.roomId) {
         // Phòng bị đổi: trừ 1 ở phòng cũ, cộng 1 ở phòng mới
-        await this.roomService.updateEquipmentCount(currentAllocation.roomId, 'sub', 1);
+        await this.roomService.updateEquipmentCount(
+          currentAllocation.roomId,
+          'sub',
+          1,
+        );
         await this.roomService.updateEquipmentCount(newRoomId, 'add', 1);
       }
 
@@ -272,11 +297,13 @@ export class EquipmentAllocationService {
 
   async remove(id: number) {
     const currentAllocation = await this.prisma.equipmentAllocation.findUnique({
-      where: { allocationId: id }
+      where: { allocationId: id },
     });
-    
+
     if (!currentAllocation) {
-      throw new NotFoundException(`Không tìm thấy bản ghi phân bổ có id = ${id}`);
+      throw new NotFoundException(
+        `Không tìm thấy bản ghi phân bổ có id = ${id}`,
+      );
     }
 
     const result = await this.prisma.$transaction(async (tx) => {
@@ -286,7 +313,11 @@ export class EquipmentAllocationService {
         },
       });
 
-      await this.roomService.updateEquipmentCount(deletedAlloc.roomId, 'sub', 1);
+      await this.roomService.updateEquipmentCount(
+        deletedAlloc.roomId,
+        'sub',
+        1,
+      );
       return deletedAlloc;
     });
 
@@ -294,7 +325,10 @@ export class EquipmentAllocationService {
   }
 
   async removeBulk(bulkDeleteDto: BulkDeleteEquipmentAllocationDto) {
-    if (!bulkDeleteDto.allocationIds || bulkDeleteDto.allocationIds.length === 0) {
+    if (
+      !bulkDeleteDto.allocationIds ||
+      bulkDeleteDto.allocationIds.length === 0
+    ) {
       throw new BadRequestException('Danh sách ID không được trống.');
     }
 
@@ -305,11 +339,13 @@ export class EquipmentAllocationService {
 
       for (const id of bulkDeleteDto.allocationIds) {
         const currentAllocation = await tx.equipmentAllocation.findUnique({
-          where: { allocationId: id }
+          where: { allocationId: id },
         });
-        
+
         if (!currentAllocation) {
-          throw new NotFoundException(`Không tìm thấy bản ghi phân bổ có id = ${id}`);
+          throw new NotFoundException(
+            `Không tìm thấy bản ghi phân bổ có id = ${id}`,
+          );
         }
 
         const deletedAlloc = await tx.equipmentAllocation.delete({
@@ -324,7 +360,11 @@ export class EquipmentAllocationService {
 
       // Gọi ROOM_API cho từng phòng đã được gom nhóm
       for (const [roomId, totalQuantity] of roomQuantityMap.entries()) {
-        await this.roomService.updateEquipmentCount(roomId, 'sub', totalQuantity);
+        await this.roomService.updateEquipmentCount(
+          roomId,
+          'sub',
+          totalQuantity,
+        );
       }
 
       return { success: true, count: deletedAllocations.length };

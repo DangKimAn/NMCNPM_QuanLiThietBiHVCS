@@ -7,7 +7,7 @@ export const GetUser = createParamDecorator(
     // Do JwtStrategy của bạn map ID vào biến 'userId' ở req.user, nên ta sẽ ưu tiên lấy userId hoặc payload.sub
     const user = request.user;
     if (!user) return null;
-    
+
     return {
       userId: user.userId || user.sub,
       username: user.username,

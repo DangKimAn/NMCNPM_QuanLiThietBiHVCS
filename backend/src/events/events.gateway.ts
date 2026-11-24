@@ -31,7 +31,9 @@ export class EventsGateway implements OnGatewayConnection, OnGatewayDisconnect {
         client.handshake.auth?.token || client.handshake.query?.token;
 
       if (!token) {
-        this.logger.warn(`Client ${client.id} connected without token, disconnecting`);
+        this.logger.warn(
+          `Client ${client.id} connected without token, disconnecting`,
+        );
         client.disconnect();
         return;
       }
@@ -46,13 +48,17 @@ export class EventsGateway implements OnGatewayConnection, OnGatewayDisconnect {
       client.data.userId = userId;
       client.data.role = role;
 
-      client.join(`role:${role}`);
-      client.join('role:ALL');
-      client.join(`user:${userId}`);
+      await client.join(`role:${role}`);
+      await client.join('role:ALL');
+      await client.join(`user:${userId}`);
 
-      this.logger.log(`Client connected: ${client.id} (user:${userId}, role:${role})`);
+      this.logger.log(
+        `Client connected: ${client.id} (user:${userId}, role:${role})`,
+      );
     } catch {
-      this.logger.warn(`Client ${client.id} authentication failed, disconnecting`);
+      this.logger.warn(
+        `Client ${client.id} authentication failed, disconnecting`,
+      );
       client.disconnect();
     }
   }
@@ -64,7 +70,9 @@ export class EventsGateway implements OnGatewayConnection, OnGatewayDisconnect {
   emitNotification(data: any) {
     // Nếu có targetUserId cụ thể → chỉ gửi cho user đó
     if (data.targetUserId) {
-      this.server.to(`user:${data.targetUserId}`).emit('notification_created', data);
+      this.server
+        .to(`user:${data.targetUserId}`)
+        .emit('notification_created', data);
       return;
     }
 
@@ -72,7 +80,9 @@ export class EventsGateway implements OnGatewayConnection, OnGatewayDisconnect {
     if (data.targetRole === 'ALL') {
       this.server.to('role:ALL').emit('notification_created', data);
     } else {
-      this.server.to(`role:${data.targetRole}`).emit('notification_created', data);
+      this.server
+        .to(`role:${data.targetRole}`)
+        .emit('notification_created', data);
     }
   }
 

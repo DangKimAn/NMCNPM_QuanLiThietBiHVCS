@@ -1,5 +1,11 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsDateString, IsInt, IsNotEmpty, IsOptional, IsPositive, IsString } from 'class-validator';
+import {
+  IsDateString,
+  IsInt,
+  IsNotEmpty,
+  IsOptional,
+  IsString,
+} from 'class-validator';
 
 export class CreateEquipmentAllocationDto {
   @ApiProperty({
@@ -17,7 +23,6 @@ export class CreateEquipmentAllocationDto {
   @IsInt()
   @IsNotEmpty()
   roomId!: number;
-
 
   @ApiProperty({
     example: '2026-05-20',

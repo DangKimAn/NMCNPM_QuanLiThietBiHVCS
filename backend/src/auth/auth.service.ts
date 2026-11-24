@@ -8,6 +8,7 @@ import {
 import { ConfigService } from '@nestjs/config';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { JwtService } from '@nestjs/jwt';
+import { randomInt } from 'crypto';
 
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
@@ -213,7 +214,7 @@ export class AuthService {
       payload = await this.jwtService.verifyAsync(refreshToken, {
         secret: this.configService.get<string>('JWT_REFRESH_SECRET'),
       });
-    } catch (err) {
+    } catch (_err) {
       throw new UnauthorizedException(
         'Refresh token hết hạn hoặc không hợp lệ, vui lòng đăng nhập lại',
       );
@@ -335,7 +336,7 @@ export class AuthService {
       throw new NotFoundException('Không tìm thấy tài khoản với email này');
     }
 
-    const otp = Math.floor(100000 + Math.random() * 900000).toString();
+    const otp = randomInt(100000, 1000000).toString();
     const hashedOtp = await hashPassword(otp);
     const expiresAt = new Date(Date.now() + 15 * 60 * 1000);
 
@@ -350,7 +351,8 @@ export class AuthService {
     await this.mailerService.sendOtpEmail(dto.email, otp);
 
     return {
-      message: 'Mã OTP đã được gửi đến email của bạn. Vui lòng kiểm tra hộp thư.',
+      message:
+        'Mã OTP đã được gửi đến email của bạn. Vui lòng kiểm tra hộp thư.',
     };
   }
 
@@ -365,7 +367,9 @@ export class AuthService {
     }
 
     if (new Date() > user.resetPasswordExpires) {
-      throw new BadRequestException('Mã OTP đã hết hạn. Vui lòng yêu cầu mã mới');
+      throw new BadRequestException(
+        'Mã OTP đã hết hạn. Vui lòng yêu cầu mã mới',
+      );
     }
 
     const isValid = await verifyPassword(dto.otp, user.resetPasswordCode);
@@ -408,13 +412,15 @@ export class AuthService {
       where: { email: dto.email },
       data: {
         hashedPassword,
+        refreshToken: null,
         resetPasswordCode: null,
         resetPasswordExpires: null,
       },
     });
 
     return {
-      message: 'Đặt lại mật khẩu thành công. Bạn có thể đăng nhập ngay bây giờ.',
+      message:
+        'Đặt lại mật khẩu thành công. Bạn có thể đăng nhập ngay bây giờ.',
     };
   }
 }

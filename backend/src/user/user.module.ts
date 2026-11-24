@@ -10,6 +10,11 @@ import { AuthModule } from 'src/auth/auth.module';
   controllers: [UserController],
   providers: [UserService],
   //ĐƯA AUTHMODULE VÀO ĐÂY để UserController hiểu được chiến lược 'jwt'
-  imports:[AuthModule, forwardRef(()=> RoleModule), forwardRef(() => PermissionModule), forwardRef(() => PrismaModule)]
+  imports: [
+    AuthModule,
+    forwardRef(() => RoleModule),
+    forwardRef(() => PermissionModule),
+    forwardRef(() => PrismaModule),
+  ],
 })
 export class UserModule {}

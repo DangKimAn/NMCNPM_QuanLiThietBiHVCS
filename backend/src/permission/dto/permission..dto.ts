@@ -1,19 +1,19 @@
-import { IsDate, IsIn, IsInt, IsOptional, IsString } from "class-validator";
+import { IsDate, IsInt, IsOptional, IsString } from 'class-validator';
 
-export class PermissionDto{
-    @IsInt()
-    permissionId: number
+export class PermissionDto {
+  @IsInt()
+  permissionId: number;
 
-    @IsString()
-    permissionName : string 
+  @IsString()
+  permissionName: string;
 
-    @IsDate()
-    createdAt : Date
+  @IsDate()
+  createdAt: Date;
 
-    @IsDate()
-    updatedAt : Date 
+  @IsDate()
+  updatedAt: Date;
 
-    @IsOptional()
-    @IsString()
-    description: string | null
+  @IsOptional()
+  @IsString()
+  description: string | null;
 }

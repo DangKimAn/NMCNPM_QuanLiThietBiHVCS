@@ -1,5 +1,11 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsDateString, IsInt, IsNotEmpty, IsOptional, IsPositive, IsString } from 'class-validator';
+import {
+  IsDateString,
+  IsInt,
+  IsNotEmpty,
+  IsOptional,
+  IsString,
+} from 'class-validator';
 
 export class CreateEquipmentTransferDto {
   @ApiProperty({
@@ -25,7 +31,6 @@ export class CreateEquipmentTransferDto {
   @IsInt()
   @IsNotEmpty()
   toRoomId!: number;
-
 
   @ApiProperty({
     example: '2026-05-20',
