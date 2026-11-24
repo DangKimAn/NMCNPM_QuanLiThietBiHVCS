@@ -106,6 +106,13 @@ async function request<T>(url: string, options?: RequestInit): Promise<T> {
 // Type dữ liệu backend
 // =======================
 
+export interface EquipmentStats {
+  total: number;
+  active: number;
+  needHandle: number;
+  discarded: number;
+}
+
 export interface BackendCategory {
   categoryId: number;
   name: string;
@@ -315,6 +322,10 @@ export const managerApi = {
     return request<BackendCategory[]>('/equipment-categories');
   },
 
+  getStats() {
+    return request<EquipmentStats>('/equipments/stats');
+  },
+
   async getDevices(params?: {
     search?: string;
     status?: string;
@@ -322,6 +333,7 @@ export const managerApi = {
     categoryId?: number;
   }) {
     const query = new URLSearchParams();
+    query.set('limit', '1000');
 
     if (params?.search) query.set('search', params.search);
     if (params?.status) query.set('status', params.status);

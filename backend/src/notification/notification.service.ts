@@ -87,7 +87,7 @@ export class NotificationService {
       where: {
         OR: [
           { targetRole: NotificationTargetRole.ALL },
-          { targetRole: roleName as NotificationTargetRole },
+          { targetRole: roleName as NotificationTargetRole, targetUserId: null },
           { targetUserId: userId },
         ],
       },

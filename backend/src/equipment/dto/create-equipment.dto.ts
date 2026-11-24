@@ -6,8 +6,10 @@ import { EquipmentStatus } from '@prisma/client';
 // Mỗi lần thêm thủ công chỉ thêm 1 thiết bị thật
 export class CreateEquipmentDto {
   // Mã riêng của từng thiết bị, ví dụ: TB000001
+  // Nếu không nhập sẽ tự động sinh theo danh mục
+  @IsOptional()
   @IsString()
-  equipmentCode!: string;
+  equipmentCode?: string;
 
   // Tên thiết bị
   @IsString()

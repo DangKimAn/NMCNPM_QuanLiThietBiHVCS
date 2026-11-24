@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, useRef } from 'react';
+import { useEffect, useMemo, useState, useCallback } from 'react';
 import { FiMonitor, FiSearch, FiTool } from 'react-icons/fi';
 
 import { StudentTeacherLayout } from '../../components/layout/StudentTeacherLayout';
@@ -7,31 +7,52 @@ import {
   SummaryCard,
 } from '../../components/manager/common/ManagerCommon';
 import { studentApi, type StudentRoomEquipment as RoomEquipment } from '../../services/studentApi';
+import { socket } from '../../services/socket';
 import type { DeviceStatus } from '../../types/manager';
+
+const sortRooms = (rooms: RoomEquipment[]) =>
+  [...rooms].sort((a, b) => a.code.localeCompare(b.code, 'vi', { numeric: true }));
+
+const sortEquipments = (eqs: RoomEquipment['equipments']) =>
+  [...eqs].sort((a, b) => a.name.localeCompare(b.name, 'vi'));
 
 export const StudentRoomEquipment = () => {
   const [rooms, setRooms] = useState<RoomEquipment[]>([]);
   const [loading, setLoading] = useState(true);
+  const [searchInput, setSearchInput] = useState('');
   const [search, setSearch] = useState('');
-  const searchTimeoutRef = useRef<ReturnType<typeof setTimeout>>();
   const [selectedRoom, setSelectedRoom] = useState<number | null>(null);
 
-  const loadData = async () => {
+  useEffect(() => {
+    const timer = setTimeout(() => setSearch(searchInput), 300);
+    return () => clearTimeout(timer);
+  }, [searchInput]);
+
+  const loadData = useCallback(async () => {
     try {
       setLoading(true);
       const data = await studentApi.getRoomsWithEquipments();
-      setRooms(data);
+      const sorted = sortRooms(data).map((r) => ({
+        ...r,
+        equipments: sortEquipments(r.equipments),
+      }));
+      setRooms(sorted);
     } catch (error) {
       console.error('Lỗi tải danh sách phòng:', error);
       setRooms([]);
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
     loadData();
-  }, []);
+  }, [loadData]);
+
+  useEffect(() => {
+    socket.on('equipment_transferred', loadData);
+    return () => { socket.off('equipment_transferred', loadData); };
+  }, [loadData]);
 
   const filteredRooms = useMemo(() => {
     if (!search.trim()) return rooms;
@@ -94,11 +115,8 @@ export const StudentRoomEquipment = () => {
         <FiSearch className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
         <input
           type="text"
-          value={search}
-          onChange={(e) => {
-            if (searchTimeoutRef.current) clearTimeout(searchTimeoutRef.current);
-            searchTimeoutRef.current = setTimeout(() => setSearch(e.target.value), 300);
-          }}
+          value={searchInput}
+          onChange={(e) => setSearchInput(e.target.value)}
           placeholder="Tìm phòng theo mã, tên hoặc tòa nhà..."
           className="w-full pl-10 pr-4 py-2.5 border border-slate-200 rounded-lg text-sm focus:outline-none focus:border-blue-500"
         />

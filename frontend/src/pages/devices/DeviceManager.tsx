@@ -30,13 +30,14 @@ import {
 import { DeviceImportExcelModal } from '../../components/manager/devices/DeviceImportExcelModal';
 import { EquipmentTransferImportModal } from '../../components/manager/devices/EquipmentTransferImportModal';
 import { DeviceRoomCards } from '../../components/manager/devices/DeviceRoomCards';
-import { DeviceTable } from '../../components/manager/devices/DeviceTable';
+import { DeviceList } from '../../components/manager/devices/DeviceList';
 import { TransferHistory } from '../../components/manager/devices/TransferHistory';
 import { deviceStatuses } from '../../data/managerMockData';
 import {
   managerApi,
   type BackendCategory,
   type BackendRoom,
+  type EquipmentStats,
 } from '../../services/managerApi';
 import type { Device, DeviceStatus, TransferLog } from '../../types/manager';
 
@@ -106,6 +107,9 @@ export const DeviceManager = () => {
   const [rooms, setRooms] = useState<BackendRoom[]>([]);
   const [categories, setCategories] = useState<BackendCategory[]>([]);
 
+  const [stats, setStats] = useState<EquipmentStats>({
+    total: 0, active: 0, needHandle: 0, discarded: 0,
+  });
   const [loading, setLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState('');
 
@@ -114,7 +118,12 @@ export const DeviceManager = () => {
   );
 
   const [keyword, setKeyword] = useState(searchParams.get('keyword') || '');
-  const keywordTimeoutRef = useRef<ReturnType<typeof setTimeout>>();
+  const [keywordInput, setKeywordInput] = useState(keyword);
+  useEffect(() => {
+    const timer = setTimeout(() => setKeyword(keywordInput), 300);
+    return () => clearTimeout(timer);
+  }, [keywordInput]);
+
   const [filterRoom, setFilterRoom] = useState(
     searchParams.get('room') || 'All',
   );
@@ -126,7 +135,11 @@ export const DeviceManager = () => {
   );
 
   const [roomSearchTerm, setRoomSearchTerm] = useState('');
-  const roomSearchTimeoutRef = useRef<ReturnType<typeof setTimeout>>();
+  const [roomSearchInput, setRoomSearchInput] = useState('');
+  useEffect(() => {
+    const timer = setTimeout(() => setRoomSearchTerm(roomSearchInput), 300);
+    return () => clearTimeout(timer);
+  }, [roomSearchInput]);
 
   // Drill-down: null = hiển danh sách nhóm, string = hiển thiết bị của nhóm đó
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
@@ -136,6 +149,7 @@ export const DeviceManager = () => {
   const [isTransferImportOpen, setIsTransferImportOpen] = useState(false);
 
   const [isDeviceModalOpen, setIsDeviceModalOpen] = useState(false);
+  const [isSubmittingDevice, setIsSubmittingDevice] = useState(false);
   const [editingDevice, setEditingDevice] = useState<Device | null>(null);
   const [deviceForm, setDeviceForm] = useState<Device>(emptyDevice);
 
@@ -165,11 +179,17 @@ export const DeviceManager = () => {
   const [devicePage,   setDevicePage]   = useState(1);
   const [roomPage,     setRoomPage]     = useState(1);
   const [transferPage, setTransferPage] = useState(1);
+  const [transferSearch, setTransferSearch] = useState('');
+  const [transferFilterFrom, setTransferFilterFrom] = useState('All');
+  const [transferFilterTo, setTransferFilterTo] = useState('All');
+  const [transferDateFrom, setTransferDateFrom] = useState('');
+  const [transferDateTo, setTransferDateTo] = useState('');
 
   // ────────────────────────────────────────────────────────────
 
   const roomOptions = useMemo(() => {
     const codes = rooms.map((room) => room.code);
+    codes.sort((a, b) => a.localeCompare(b, 'vi', { numeric: true }));
     return codes.length > 0 ? [...codes, 'Kho'] : ['Kho'];
   }, [rooms]);
 
@@ -199,23 +219,22 @@ export const DeviceManager = () => {
     }
   };
 
-  const fetchAllData = async () => {
+  const fetchBaseData = async (showLoading = true) => {
     try {
-      setLoading(true);
+      if (showLoading) setLoading(true);
       setErrorMessage('');
 
-      const [roomData, categoryData, deviceData, transferData] =
-        await Promise.all([
-          managerApi.getRooms(),
-          managerApi.getCategories(),
-          managerApi.getDevices(),
-          managerApi.getTransfers(),
-        ]);
+      const [roomData, categoryData, deviceData, statsData] = await Promise.all([
+        managerApi.getRooms(),
+        managerApi.getCategories(),
+        managerApi.getDevices(),
+        managerApi.getStats(),
+      ]);
 
       setRooms(roomData);
       setCategories(categoryData);
       setDevices(deviceData);
-      setTransfers(transferData);
+      if (statsData) setStats(statsData);
 
       if (!deviceForm.type && categoryData[0]) {
         setDeviceForm((current) => ({
@@ -234,13 +253,28 @@ export const DeviceManager = () => {
       console.error(error);
       setErrorMessage('Không thể tải dữ liệu thiết bị từ backend.');
     } finally {
-      setLoading(false);
+      if (showLoading) setLoading(false);
+    }
+  };
+
+  const fetchTransfers = async () => {
+    try {
+      const transferData = await managerApi.getTransfers();
+      setTransfers(transferData);
+    } catch (error) {
+      console.error(error);
     }
   };
 
   useEffect(() => {
-    fetchAllData();
+    fetchBaseData();
   }, []);
+
+  useEffect(() => {
+    if (activeTab === 'transfer' && transfers.length === 0) {
+      fetchTransfers();
+    }
+  }, [activeTab]);
 
   useEffect(() => {
     const params = new URLSearchParams(searchKey);
@@ -305,18 +339,6 @@ export const DeviceManager = () => {
   }, [categories, devices]);
 
 
-  const stats = useMemo(() => {
-    return {
-      total: devices.length,
-      good: devices.filter((device) => device.status === 'Hoạt động').length,
-      needFix: devices.filter((device) =>
-        ['Báo hỏng', 'Đang sửa', 'Bảo trì'].includes(device.status),
-      ).length,
-      discarded: devices.filter((device) => device.status === 'Thanh lý')
-        .length,
-    };
-  }, [devices]);
-
   const openAddModal = () => {
     setEditingDevice(null);
 
@@ -339,11 +361,7 @@ export const DeviceManager = () => {
 
   const saveDevice = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-
-    if (!deviceForm.id.trim()) {
-      alert('Vui lòng nhập mã thiết bị.');
-      return;
-    }
+    if (isSubmittingDevice) return;
 
     if (!deviceForm.name.trim()) {
       alert('Vui lòng nhập tên thiết bị.');
@@ -358,6 +376,8 @@ export const DeviceManager = () => {
       );
       return;
     }
+
+    setIsSubmittingDevice(true);
 
     try {
       if (editingDevice) {
@@ -391,10 +411,12 @@ export const DeviceManager = () => {
       }
 
       setIsDeviceModalOpen(false);
-      await fetchAllData();
+      await fetchBaseData(false);
     } catch (error) {
       console.error(error);
       alert('Không thể lưu thiết bị. Kiểm tra backend hoặc dữ liệu nhập.');
+    } finally {
+      setIsSubmittingDevice(false);
     }
   };
 
@@ -407,7 +429,7 @@ export const DeviceManager = () => {
 
     try {
       await managerApi.deleteEquipment(device.equipmentId);
-      await fetchAllData();
+      await fetchBaseData(false);
     } catch (error) {
       console.error(error);
       alert('Không thể xóa thiết bị.');
@@ -435,7 +457,7 @@ export const DeviceManager = () => {
       });
 
       setStatusDevice(null);
-      await fetchAllData();
+      await fetchBaseData(false);
     } catch (error) {
       console.error(error);
       alert('Không thể cập nhật trạng thái thiết bị.');
@@ -505,7 +527,7 @@ export const DeviceManager = () => {
       setTransferDevice(null);
       setIsGeneralTransferOpen(false);
       setActiveTab('transfer');
-      await fetchAllData();
+      await Promise.all([fetchBaseData(false), fetchTransfers()]);
     } catch (error) {
       console.error(error);
       alert(
@@ -547,17 +569,33 @@ export const DeviceManager = () => {
       </div>
       
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mb-6">
-        <SummaryCard icon={<FiBox />} label="Tổng thiết bị" value={stats.total} />
+        <SummaryCard
+          icon={<FiBox />}
+          label="Tổng thiết bị"
+          value={stats.total}
+          onClick={() => { setFilterStatus('All'); setActiveTab('all'); }}
+          active={filterStatus === 'All'}
+        />
         <SummaryCard
           icon={<FiCheckCircle />}
           label="Hoạt động"
-          value={stats.good}
+          value={stats.active}
+          onClick={() => { setFilterStatus('Hoạt động'); setActiveTab('all'); }}
+          active={filterStatus === 'Hoạt động'}
         />
-        <SummaryCard icon={<FiTool />} label="Cần xử lý" value={stats.needFix} />
+        <SummaryCard
+          icon={<FiTool />}
+          label="Cần xử lý"
+          value={stats.needHandle}
+          onClick={() => { setFilterStatus('need-handle'); setActiveTab('all'); }}
+          active={filterStatus === 'need-handle'}
+        />
         <SummaryCard
           icon={<FiXCircle />}
           label="Thanh lý"
           value={stats.discarded}
+          onClick={() => { setFilterStatus('Thanh lý'); setActiveTab('all'); }}
+          active={filterStatus === 'Thanh lý'}
         />
       </div>
 
@@ -678,11 +716,8 @@ export const DeviceManager = () => {
                 <div className="relative">
                   <FiSearch className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
                   <input
-                    value={keyword}
-                    onChange={(e) => {
-                      if (keywordTimeoutRef.current) clearTimeout(keywordTimeoutRef.current);
-                      keywordTimeoutRef.current = setTimeout(() => setKeyword(e.target.value), 300);
-                    }}
+                    value={keywordInput}
+                    onChange={(e) => setKeywordInput(e.target.value)}
                     placeholder="Tìm mã, tên, phòng..."
                     className="w-full pl-9 pr-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:border-blue-500"
                   />
@@ -711,8 +746,8 @@ export const DeviceManager = () => {
               {/* Pagination trên */}
               <Pagination current={deviceSafePage} total={deviceTotalPages} onChange={setDevicePage} prefix="dev-top-" />
 
-              {/* Bảng thiết bị */}
-              <DeviceTable
+              {/* Danh sách thiết bị */}
+              <DeviceList
                 devices={pagedDevices}
                 onEdit={openEditModal}
                 onDelete={deleteDevice}
@@ -737,11 +772,8 @@ export const DeviceManager = () => {
               <input
                 type="text"
                 placeholder="Tìm kiếm tên phòng học..."
-                value={roomSearchTerm}
-                onChange={(e) => {
-                  if (roomSearchTimeoutRef.current) clearTimeout(roomSearchTimeoutRef.current);
-                  roomSearchTimeoutRef.current = setTimeout(() => setRoomSearchTerm(e.target.value), 300);
-                }}
+                value={roomSearchInput}
+                onChange={(e) => setRoomSearchInput(e.target.value)}
                 className="w-full pl-10 pr-4 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 bg-white"
               />
             </div>
@@ -775,13 +807,57 @@ export const DeviceManager = () => {
       )}
 
       {!loading && activeTab === 'transfer' && (() => {
-        const transferTotalPages = Math.max(1, Math.ceil(transfers.length / PAGE_TRANSFER));
+        const filteredTransfers = transfers.filter((t) => {
+          const matchSearch = !transferSearch ||
+            t.deviceName.toLowerCase().includes(transferSearch.toLowerCase()) ||
+            t.deviceId.toLowerCase().includes(transferSearch.toLowerCase());
+          const matchFrom = transferFilterFrom === 'All' || t.fromRoom === transferFilterFrom;
+          const matchTo = transferFilterTo === 'All' || t.toRoom === transferFilterTo;
+          const matchDateFrom = !transferDateFrom || t.date >= transferDateFrom;
+          const matchDateTo = !transferDateTo || t.date <= transferDateTo;
+          return matchSearch && matchFrom && matchTo && matchDateFrom && matchDateTo;
+        });
+
+        const transferTotalPages = Math.max(1, Math.ceil(filteredTransfers.length / PAGE_TRANSFER));
         const transferSafePage   = Math.min(transferPage, transferTotalPages);
-        const pagedTransfers     = transfers.slice((transferSafePage - 1) * PAGE_TRANSFER, transferSafePage * PAGE_TRANSFER);
+        const pagedTransfers     = filteredTransfers.slice((transferSafePage - 1) * PAGE_TRANSFER, transferSafePage * PAGE_TRANSFER);
         return (
           <div className="space-y-3">
-            <div className="flex justify-end">
-              <Pagination current={transferSafePage} total={transferTotalPages} onChange={setTransferPage} prefix="tr-" />
+            <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4 grid grid-cols-1 md:grid-cols-6 gap-3">
+              <div className="relative">
+                <input
+                  value={transferSearch}
+                  onChange={(e) => { setTransferSearch(e.target.value); setTransferPage(1); }}
+                  placeholder="Tìm thiết bị..."
+                  className="w-full pl-3 pr-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:border-blue-500"
+                />
+              </div>
+              <FilterSelect
+                value={transferFilterFrom}
+                onChange={(v) => { setTransferFilterFrom(v); setTransferPage(1); }}
+                options={roomOptions}
+                label="Tất cả phòng cũ"
+              />
+              <FilterSelect
+                value={transferFilterTo}
+                onChange={(v) => { setTransferFilterTo(v); setTransferPage(1); }}
+                options={roomOptions}
+                label="Tất cả phòng mới"
+              />
+              <input
+                type="date"
+                value={transferDateFrom}
+                onChange={(e) => { setTransferDateFrom(e.target.value); setTransferPage(1); }}
+                className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:border-blue-500"
+                title="Từ ngày"
+              />
+              <input
+                type="date"
+                value={transferDateTo}
+                onChange={(e) => { setTransferDateTo(e.target.value); setTransferPage(1); }}
+                className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:border-blue-500"
+                title="Đến ngày"
+              />
             </div>
             <TransferHistory
               transfers={pagedTransfers}
@@ -807,6 +883,7 @@ export const DeviceManager = () => {
           onClose={() => setIsDeviceModalOpen(false)}
           onSubmit={saveDevice}
           onImportExcel={() => setIsImportModalOpen(true)}
+          isSubmitting={isSubmittingDevice}
         />
       )}
 
@@ -840,7 +917,7 @@ export const DeviceManager = () => {
       <DeviceImportExcelModal
         isOpen={isImportModalOpen}
         onClose={() => setIsImportModalOpen(false)}
-        onSuccess={() => fetchAllData()}
+        onSuccess={() => { fetchBaseData(false); fetchTransfers(); }}
       />
 
       <EquipmentTransferImportModal
@@ -848,7 +925,8 @@ export const DeviceManager = () => {
         onClose={() => setIsTransferImportOpen(false)}
         onSuccess={() => {
           setIsTransferImportOpen(false);
-          fetchAllData();
+          fetchBaseData(false);
+          fetchTransfers();
         }}
       />
     </ManagerLayout>

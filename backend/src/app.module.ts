@@ -77,8 +77,7 @@ import { GlobalExceptionFilter } from './common/filters/global-exception.filter'
     ]),
   ],
 
-  // AuditLogController & FormConfigController đăng ký ở AppModule để dùng JwtAuthGuard/RolesGuard từ AuthModule
-  controllers: [AppController, AuditLogController, FormConfigController],
+  controllers: [AppController, AuditLogController],
   providers: [
     AppService,
     GlobalExceptionFilter,

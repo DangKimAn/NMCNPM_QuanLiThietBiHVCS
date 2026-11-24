@@ -8,6 +8,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { CreateEquipmentTransferDto } from './dto/create-equipment-transfer.dto';
 import { CreateBulkEquipmentTransferDto } from './dto/create-bulk-equipment-transfer.dto';
 import { RoomService } from '../room/room.service';
+import { EventsGateway } from '../events/events.gateway';
 import * as xlsx from 'xlsx';
 
 @Injectable()
@@ -15,6 +16,7 @@ export class EquipmentTransferService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly roomService: RoomService,
+    private readonly eventsGateway: EventsGateway,
   ) {}
 
   private async populateRooms(transfer: any) {
@@ -108,7 +110,9 @@ export class EquipmentTransferService {
       return transferResult;
     }, { timeout: 20000 });
 
-    return this.populateRooms(result);
+    const populated = await this.populateRooms(result);
+    this.eventsGateway.emitEquipmentTransferred({ type: 'transfer', transferId: populated.transferId });
+    return populated;
   }
 
   async createBulk(bulkDto: CreateBulkEquipmentTransferDto) {
@@ -193,7 +197,9 @@ export class EquipmentTransferService {
       return createdTransfers;
     }, { timeout: 30000 });
 
-    return Promise.all(results.map(t => this.populateRooms(t)));
+    const populated = await Promise.all(results.map(t => this.populateRooms(t)));
+    this.eventsGateway.emitEquipmentTransferred({ type: 'transfer_bulk', count: populated.length });
+    return populated;
   }
 
   async findAll() {
@@ -371,6 +377,8 @@ export class EquipmentTransferService {
           });
         }
       }
+
+      this.eventsGateway.emitEquipmentTransferred({ type: 'transfer_import', successCount });
 
       return {
         successCount,

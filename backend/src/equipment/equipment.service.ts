@@ -16,6 +16,30 @@ export class EquipmentService {
     private readonly roomService: RoomService,
   ) {}
 
+  private async autoGenerateEquipmentCode(categoryName: string, categoryId: number): Promise<string> {
+    const words = categoryName.split(' ').filter(w => w.trim().length > 0);
+    const acronym = words.map(w => w.charAt(0).toUpperCase()).join('');
+    const prefix = `${acronym}-PTITHCM-`;
+
+    const existingCodes = await this.prisma.equipment.findMany({
+      where: { equipmentCode: { startsWith: prefix }, categoryId },
+      select: { equipmentCode: true },
+    });
+
+    let maxSeq = 0;
+    for (const { equipmentCode } of existingCodes) {
+      if (!equipmentCode) continue;
+      const suffix = equipmentCode.replace(prefix, '');
+      const numericPart = suffix.split('-')[0];
+      const num = parseInt(numericPart, 10);
+      if (!isNaN(num) && num > maxSeq) {
+        maxSeq = num;
+      }
+    }
+
+    return `${prefix}${String(maxSeq + 1).padStart(4, '0')}`;
+  }
+
   private formatEquipmentCode(categoryName: string, inputCode: string): string {
     if (!categoryName || !inputCode) return inputCode;
     
@@ -77,6 +101,26 @@ export class EquipmentService {
     return equipment;
   }
 
+  async getStats() {
+    const allStatuses = await this.prisma.equipment.groupBy({
+      by: ['status'],
+      _count: { status: true },
+    });
+
+    const total = allStatuses.reduce((sum, s) => sum + s._count.status, 0);
+    const getCount = (status: EquipmentStatus) =>
+      allStatuses.find(s => s.status === status)?._count.status ?? 0;
+
+    return {
+      total,
+      active: getCount(EquipmentStatus.GOOD),
+      needHandle:
+        getCount(EquipmentStatus.BROKEN) +
+        getCount(EquipmentStatus.UNDER_REPAIR),
+      discarded: getCount(EquipmentStatus.DISCARDED),
+    };
+  }
+
   // Lấy danh sách thiết bị
   async findAll(query: {
     search?: string;
@@ -124,7 +168,7 @@ export class EquipmentService {
     }
 
     const page = query.page;
-    const limit = query.limit || 500;
+    const limit = query.limit || 100;
 
     if (page) {
       const skip = (page - 1) * limit;
@@ -153,6 +197,7 @@ export class EquipmentService {
     const equipments = await this.prisma.equipment.findMany({
       where,
       orderBy: { equipmentId: 'asc' },
+      take: limit,
       include: {
         category: true,
         allocations: {
@@ -200,12 +245,6 @@ export class EquipmentService {
 
   // Thêm thiết bị mới
   async create(dto: CreateEquipmentDto) {
-    const equipmentCode = dto.equipmentCode?.trim();
-
-    if (!equipmentCode) {
-      throw new BadRequestException('Vui lòng nhập mã thiết bị');
-    }
-
     const name = dto.name?.trim();
 
     if (!name) {
@@ -220,10 +259,16 @@ export class EquipmentService {
       throw new BadRequestException('Loại thiết bị không tồn tại');
     }
 
-    const formattedEquipmentCode = this.formatEquipmentCode(category.name, equipmentCode);
+    let equipmentCode = dto.equipmentCode?.trim();
+
+    if (!equipmentCode) {
+      equipmentCode = await this.autoGenerateEquipmentCode(category.name, category.categoryId);
+    } else {
+      equipmentCode = this.formatEquipmentCode(category.name, equipmentCode);
+    }
 
     const existedCode = await this.prisma.equipment.findUnique({
-      where: { equipmentCode: formattedEquipmentCode },
+      where: { equipmentCode },
     });
 
     if (existedCode) {
@@ -232,7 +277,7 @@ export class EquipmentService {
 
     return this.prisma.equipment.create({
       data: {
-        equipmentCode: formattedEquipmentCode,
+        equipmentCode,
         name,
         categoryId: dto.categoryId,
         unit: dto.unit?.trim() || 'cái',
@@ -375,16 +420,20 @@ export class EquipmentService {
     });
     const categoryMap = new Map(categories.map(c => [c.categoryId, c]));
 
-    // Format all codes
+    // Format all codes (auto-generate if empty)
     for (const item of dto.equipments) {
       const category = categoryMap.get(item.categoryId);
       if (!category) {
         throw new BadRequestException(`Loại thiết bị ID ${item.categoryId} không tồn tại.`);
       }
-      item.equipmentCode = this.formatEquipmentCode(category.name, item.equipmentCode);
+      if (!item.equipmentCode?.trim()) {
+        item.equipmentCode = await this.autoGenerateEquipmentCode(category.name, category.categoryId);
+      } else {
+        item.equipmentCode = this.formatEquipmentCode(category.name, item.equipmentCode);
+      }
     }
 
-    const equipmentCodes = dto.equipments.map(e => e.equipmentCode);
+    const equipmentCodes = dto.equipments.map(e => e.equipmentCode!).filter(Boolean);
     
     const uniqueCodes = new Set(equipmentCodes);
     if (uniqueCodes.size !== equipmentCodes.length) {
@@ -514,12 +563,10 @@ export class EquipmentService {
 
 
         if (!equipmentCode) {
-          failedCount++;
-          errors.push({ row: rowNum, reason: 'Thiếu Mã thiết bị' });
-          continue;
+          equipmentCode = await this.autoGenerateEquipmentCode(category.name, category.categoryId);
+        } else {
+          equipmentCode = this.formatEquipmentCode(category.name, equipmentCode);
         }
-
-        equipmentCode = this.formatEquipmentCode(category.name, equipmentCode);
 
         const existedEquipment = await this.prisma.equipment.findUnique({
           where: { equipmentCode },
