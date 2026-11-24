@@ -4,8 +4,10 @@ import {
   NestModule,
   RequestMethod,
 } from '@nestjs/common';
+import { APP_GUARD } from '@nestjs/core';
 import { ConfigModule } from '@nestjs/config';
 import { WinstonModule } from 'nest-winston';
+import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
 
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
@@ -64,11 +66,27 @@ import { GlobalExceptionFilter } from './common/filters/global-exception.filter'
     FormConfigModule,
     HealthModule,
     EventsModule,
+
+    // Cấu hình Rate Limiting chống Brute-force và DDoS (OWASP A04)
+    ThrottlerModule.forRoot([
+      {
+        name: 'default',
+        ttl: 60000,
+        limit: 100,
+      },
+    ]),
   ],
 
   // AuditLogController & FormConfigController đăng ký ở AppModule để dùng JwtAuthGuard/RolesGuard từ AuthModule
   controllers: [AppController, AuditLogController, FormConfigController],
-  providers: [AppService, GlobalExceptionFilter],
+  providers: [
+    AppService,
+    GlobalExceptionFilter,
+    {
+      provide: APP_GUARD,
+      useClass: ThrottlerGuard,
+    },
+  ],
 })
 export class AppModule implements NestModule {
   configure(consumer: MiddlewareConsumer) {

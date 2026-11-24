@@ -436,6 +436,7 @@ export class UserService {
       where: { userId },
       data: {
         hashedPassword: hashedNewPassword,
+        refreshToken: null,
       },
     });
 

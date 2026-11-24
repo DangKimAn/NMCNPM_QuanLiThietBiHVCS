@@ -55,8 +55,12 @@ export class GlobalExceptionFilter implements ExceptionFilter {
         errorName = (obj['error'] as string) ?? exception.name;
       }
     } else if (exception instanceof Error) {
-      message = exception.message;
-      errorName = exception.name;
+      // Không để lộ chi tiết database/runtime exception nội bộ ra client trong production
+      message =
+        process.env.NODE_ENV === 'production'
+          ? 'Lỗi hệ thống nội bộ. Vui lòng liên hệ quản trị viên.'
+          : exception.message;
+      errorName = 'Internal Server Error';
     }
 
     const errorBody = {

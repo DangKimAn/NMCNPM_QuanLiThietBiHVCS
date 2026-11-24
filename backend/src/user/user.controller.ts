@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, Param, ParseIntPipe, Patch, Post, Query, UseGuards, ForbiddenException, UseInterceptors, UploadedFile, BadRequestException } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, ParseIntPipe, Patch, Post, Query, UseGuards, ForbiddenException, UseInterceptors, UploadedFile, BadRequestException, ParseFilePipe, MaxFileSizeValidator } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiQuery, ApiTags, ApiConsumes, ApiBody } from '@nestjs/swagger';
 import { UserService } from './user.service';
 import { CreateUserDto } from './dto/create-user.dto';
@@ -39,8 +39,20 @@ export class UserController {
       },
     },
   })
-  async importUsersFromExcel(@UploadedFile() file: any) {
-    if (!file) throw new BadRequestException('Vui lòng chọn file');
+  async importUsersFromExcel(
+    @UploadedFile(
+      new ParseFilePipe({
+        validators: [
+          new MaxFileSizeValidator({
+            maxSize: 5 * 1024 * 1024,
+            message: 'Dung lượng file không được vượt quá 5MB',
+          }),
+        ],
+        fileIsRequired: true,
+      }),
+    )
+    file: Express.Multer.File,
+  ) {
     return await this.userService.importUsersFromExcel(file);
   }
 
@@ -125,6 +137,22 @@ export class UserController {
       throw new ForbiddenException(
         'Bạn không có quyền chỉnh sửa thông tin của người dùng khác!',
       );
+    }
+
+    // Nếu không phải ADMIN, không được phép thay đổi vai trò hoặc trạng thái tài khoản
+    if (!isAdmin) {
+      if (updateUserDto.roleId !== undefined) {
+        throw new ForbiddenException(
+          'Bạn không có quyền thay đổi vai trò (role) của tài khoản!',
+        );
+      }
+      if (updateUserDto.status !== undefined) {
+        throw new ForbiddenException(
+          'Bạn không có quyền thay đổi trạng thái (status) của tài khoản!',
+        );
+      }
+      delete updateUserDto.roleId;
+      delete updateUserDto.status;
     }
 
     return await this.userService.updateUser(userId, updateUserDto);

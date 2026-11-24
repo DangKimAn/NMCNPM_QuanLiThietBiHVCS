@@ -10,6 +10,7 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { Request } from 'express';
+import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
@@ -29,6 +30,8 @@ type AuthRequest = Request & {
   };
 };
 
+@ApiTags('Notification')
+@ApiBearerAuth()
 @Controller('notifications')
 @UseGuards(JwtAuthGuard, RolesGuard)
 export class NotificationController {
@@ -89,6 +92,14 @@ export class NotificationController {
     return this.notificationService.markAllAsRead(userId);
   }
 
+  // ADMIN: Xóa tất cả thông báo (dọn dẹp)
+  // DELETE /notifications/clear-all
+  @Delete('clear-all')
+  @Roles(Role.ADMIN)
+  async clearAllNotifications() {
+    return this.notificationService.clearAllNotifications();
+  }
+
   // MANAGER và ADMIN được xóa thông báo do mình tạo
   // DELETE /notifications/:id
   @Delete(':id')
@@ -99,13 +110,5 @@ export class NotificationController {
   ) {
     const userId = this.getCurrentUserId(req);
     return this.notificationService.deleteNotification(userId, notificationId);
-  }
-
-  // ADMIN: Xóa tất cả thông báo (dọn dẹp)
-  // DELETE /notifications/clear-all
-  @Delete('clear-all')
-  @Roles(Role.ADMIN)
-  async clearAllNotifications() {
-    return this.notificationService.clearAllNotifications();
   }
 }

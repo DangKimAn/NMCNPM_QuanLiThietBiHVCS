@@ -173,8 +173,9 @@ export class ReportService {
     }
 
     //LOGIC CHECK CHÍNH CHỦ:
-    // Nếu KHÔNG PHẢI Manager, hệ thống bắt buộc reporterId (người tạo) phải trùng với ID người đang xem
-    if (currentUserRole !== 'MANAGER' && report.reporterId !== currentUserId) {
+    // Nếu KHÔNG PHẢI Manager hoặc Admin, hệ thống bắt buộc reporterId (người tạo) phải trùng với ID người đang xem
+    const isManagerOrAdmin = currentUserRole === 'MANAGER' || currentUserRole === 'ADMIN';
+    if (!isManagerOrAdmin && report.reporterId !== currentUserId) {
       throw new ForbiddenException('Bạn không có quyền xem chi tiết phản ánh của tài khoản khác');
     }
 

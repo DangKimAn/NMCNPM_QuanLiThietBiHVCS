@@ -1,6 +1,6 @@
 // src/report/report.controller.ts
 import { Body, Controller, Get, Param, Patch, Post, Query, UseGuards, Request } from '@nestjs/common';
-import { ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { ReportStatus } from '@prisma/client';
 
 import { ReportService } from './report.service';
@@ -14,15 +14,16 @@ import { RolesGuard } from 'src/auth/guards/roles.guard';
 import { Roles } from 'src/auth/decorators/roles.decorator';
 
 @ApiTags('Reports - Phản ánh báo hỏng')
+@ApiBearerAuth()
 @Controller('reports')
 @UseGuards(JwtAuthGuard, RolesGuard) // Bắt buộc mọi API trong file này phải ĐĂNG NHẬP
 export class ReportController {
   constructor(private readonly reportService: ReportService) {}
 
-  //MANAGER: Được xem danh sách toàn bộ các phản ánh.
+  //ADMIN, MANAGER: Được xem danh sách toàn bộ các phản ánh.
   //STUDENT, TEACHER: Được xem danh sách các phản ánh của chính mình.
   @Get()
-  @Roles(Role.MANAGER, Role.STUDENT, Role.TEACHER)
+  @Roles(Role.ADMIN, Role.MANAGER, Role.STUDENT, Role.TEACHER)
   findAll(
     @Query('status') status?: ReportStatus,
     @Query('roomId') roomId?: string,
@@ -47,10 +48,10 @@ export class ReportController {
     });
   }
 
-  // - MANAGER: Được xem chi tiết bất kỳ phản ánh nào.
+  // - ADMIN, MANAGER: Được xem chi tiết bất kỳ phản ánh nào.
   // - TEACHER, STUDENT: Chỉ được xem phản ánh do CHÍNH MÌNH tạo ra.
   @Get(':reportId')
-  @Roles(Role.MANAGER, Role.TEACHER, Role.STUDENT) 
+  @Roles(Role.ADMIN, Role.MANAGER, Role.TEACHER, Role.STUDENT) 
   findOne(
     @Param('reportId') reportId: string,
     @Request() req, 

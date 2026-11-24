@@ -1,6 +1,7 @@
 import { Controller, Post, Get, Body, UseGuards, Req, Res, ForbiddenException } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
+import { Throttle } from '@nestjs/throttler';
 import { AuthService } from './auth.service';
 import { LoginDto } from './dto/login.dto';
 import { ForgotPasswordDto } from './dto/forgot-password.dto';
@@ -22,6 +23,7 @@ async register() {
 }
 
   // 2. Route Đăng nhập
+  @Throttle({ default: { limit: 5, ttl: 60000 } })
   @Post('login')
   async login(@Body() dto: LoginDto) {
     return this.authService.login(dto);
@@ -75,6 +77,7 @@ async register() {
   }
 
   // 6. Route Quên mật khẩu - Gửi OTP
+  @Throttle({ default: { limit: 5, ttl: 60000 } })
   @Post('forgot-password')
   @ApiOperation({ summary: 'Yêu cầu mã OTP để đặt lại mật khẩu' })
   @ApiResponse({ status: 200, description: 'Đã gửi mã OTP đến email' })
@@ -83,6 +86,7 @@ async register() {
   }
 
   // 7. Route Xác minh OTP
+  @Throttle({ default: { limit: 5, ttl: 60000 } })
   @Post('verify-otp')
   @ApiOperation({ summary: 'Xác minh mã OTP đặt lại mật khẩu' })
   @ApiResponse({ status: 200, description: 'OTP hợp lệ' })
@@ -91,6 +95,7 @@ async register() {
   }
 
   // 8. Route Đặt lại mật khẩu mới
+  @Throttle({ default: { limit: 5, ttl: 60000 } })
   @Post('reset-password')
   @ApiOperation({ summary: 'Đặt lại mật khẩu sau khi xác minh OTP thành công' })
   @ApiResponse({ status: 200, description: 'Đặt lại mật khẩu thành công' })

@@ -1,15 +1,19 @@
-import { Body, Controller, Delete, Get, Param, ParseIntPipe, Patch, Post } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, ParseIntPipe, Patch, Post, UseGuards } from '@nestjs/common';
 import { RoleService } from './role.service';
-import { ApiOkResponse } from '@nestjs/swagger';
-import { describe } from 'node:test';
-import { Role } from '@prisma/client';
+import { ApiBearerAuth, ApiOkResponse, ApiTags } from '@nestjs/swagger';
+import { Role as PrismaRole } from '@prisma/client';
 import { createRoleDto } from './dto/createRole.dto';
-import { catchError } from 'rxjs';
 import { UpdateRoleDto } from './dto/updateRole.dto';
-import { runInContext } from 'vm';
 import { AddPermissionDto } from 'src/permission/dto/AddPermission.dto';
-import { reportUnhandledError } from 'rxjs/internal/util/reportUnhandledError';
+import { JwtAuthGuard } from 'src/auth/guards/jwt-auth.guard';
+import { RolesGuard } from 'src/auth/guards/roles.guard';
+import { Roles } from 'src/auth/decorators/roles.decorator';
+import { Role as RoleEnum } from 'src/auth/decorators/role.enum';
 
+@ApiTags('Role')
+@ApiBearerAuth()
+@UseGuards(JwtAuthGuard, RolesGuard)
+@Roles(RoleEnum.ADMIN)
 @Controller('role')
 export class RoleController {
   constructor(private readonly roleService: RoleService) {
@@ -20,7 +24,7 @@ export class RoleController {
   @ApiOkResponse({ description: 'Get all roles successfull' })
 
   async getAllRole() {
-    const roles: Role[] = await this.roleService.getAllRole();
+    const roles: PrismaRole[] = await this.roleService.getAllRole();
     if (roles.length === 0)
       return `Don't have any roles `
     else
@@ -40,7 +44,7 @@ export class RoleController {
   @Post('/')
   async createRole(@Body() createRoleDto: createRoleDto) {
 
-    const role: Role = await this.roleService.createRole(createRoleDto);
+    const role: PrismaRole = await this.roleService.createRole(createRoleDto);
     return role;
   }
 

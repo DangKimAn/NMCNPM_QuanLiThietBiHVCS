@@ -11,8 +11,10 @@ import {
   UploadedFile,
   UseGuards,
   UseInterceptors,
+  ParseFilePipe,
+  MaxFileSizeValidator,
 } from '@nestjs/common';
-import { ApiBody, ApiConsumes, ApiQuery, ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiBody, ApiConsumes, ApiQuery, ApiTags } from '@nestjs/swagger';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { EquipmentStatus } from '@prisma/client';
 
@@ -29,6 +31,7 @@ import { JwtAuthGuard } from 'src/auth/guards/jwt-auth.guard';
 import { RolesGuard } from 'src/auth/guards/roles.guard';
 
 @ApiTags('Equipments - Thiết bị')
+@ApiBearerAuth()
 @Controller('equipments')
 @UseGuards(JwtAuthGuard, RolesGuard)
 export class EquipmentController {
@@ -103,11 +106,20 @@ export class EquipmentController {
       },
     },
   })
-  async importEquipmentsFromExcel(@UploadedFile() file: any) {
-    if (!file) {
-      throw new BadRequestException('Vui lòng chọn file');
-    }
-
+  async importEquipmentsFromExcel(
+    @UploadedFile(
+      new ParseFilePipe({
+        validators: [
+          new MaxFileSizeValidator({
+            maxSize: 5 * 1024 * 1024,
+            message: 'Dung lượng file không được vượt quá 5MB',
+          }),
+        ],
+        fileIsRequired: true,
+      }),
+    )
+    file: Express.Multer.File,
+  ) {
     return this.equipmentService.importEquipmentsFromExcel(file);
   }
 

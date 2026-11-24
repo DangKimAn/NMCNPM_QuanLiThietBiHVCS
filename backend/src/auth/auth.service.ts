@@ -8,6 +8,7 @@ import {
 import { ConfigService } from '@nestjs/config';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { JwtService } from '@nestjs/jwt';
+import { randomInt } from 'crypto';
 
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
@@ -335,7 +336,7 @@ export class AuthService {
       throw new NotFoundException('Không tìm thấy tài khoản với email này');
     }
 
-    const otp = Math.floor(100000 + Math.random() * 900000).toString();
+    const otp = randomInt(100000, 1000000).toString();
     const hashedOtp = await hashPassword(otp);
     const expiresAt = new Date(Date.now() + 15 * 60 * 1000);
 
@@ -408,6 +409,7 @@ export class AuthService {
       where: { email: dto.email },
       data: {
         hashedPassword,
+        refreshToken: null,
         resetPasswordCode: null,
         resetPasswordExpires: null,
       },

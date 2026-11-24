@@ -2,6 +2,7 @@ import { NestFactory } from '@nestjs/core';
 import { ValidationPipe } from '@nestjs/common';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { WINSTON_MODULE_NEST_PROVIDER } from 'nest-winston';
+import helmet from 'helmet';
 
 import { AppModule } from './app.module';
 import { GlobalExceptionFilter } from './common/filters/global-exception.filter';
@@ -11,6 +12,9 @@ async function bootstrap() {
     // Tắt logger mặc định của NestJS để dùng Winston
     bufferLogs: true,
   });
+
+  // Kích hoạt Helmet để thiết lập các HTTP Security Headers (chống XSS, Clickjacking, MIME-sniffing)
+  app.use(helmet({ contentSecurityPolicy: false }));
 
   // Dùng Winston làm logger chính của NestJS
   app.useLogger(app.get(WINSTON_MODULE_NEST_PROVIDER));
@@ -32,8 +36,8 @@ async function bootstrap() {
   const allowedOrigins: (string | RegExp)[] = [
     'http://localhost:5173',
     'http://localhost:4173',
-    // Cho phép mọi subdomain của vercel.app (deploy preview + production)
-    /https:\/\/.*\.vercel\.app$/,
+    // Cho phép subdomain hợp lệ của vercel.app
+    /^https:\/\/[a-zA-Z0-9-]+\.vercel\.app$/,
     // Thêm domain từ biến môi trường FRONTEND_URL
     ...envFrontendUrls,
   ];
